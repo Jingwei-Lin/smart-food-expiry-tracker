@@ -1,0 +1,77 @@
+# Dependencies
+node_modules/
+jspm_packages/
+.npm
+.yarn/cache
+.yarn/unplugged
+.pnp.*
+
+# Expo / React Native
+.expo/
+.expo-shared/
+dist/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+.eas/
+.npmrc
+
+# Generated native projects (regenerate with `npx expo prebuild`)
+app/ios/
+app/android/
+app-example/
+
+# Secrets
+.env*
+!.env.example
+*.pem
+*.key
+*.jks
+*.keystore
+*.p8
+*.p12
+*.mobileprovision
+# Native service configs — these embed API keys
+google-services.json
+GoogleService-Info.plist
+
+# Build
+build/
+.cache/
+.temp/
+*.tsbuildinfo
+coverage/
+.nyc_output/
+.jest-cache/
+
+# Logs
+*.log
+logs/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.*
+*.hprof
+
+# IDEs
+.idea/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+*.orig.*
+.vscode
+/specs/
+/docs/
+
+# Windows & macOS
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
