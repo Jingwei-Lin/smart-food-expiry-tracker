@@ -121,3 +121,5 @@ The prototype uses large action buttons, short labels, visible expiry informatio
 ## Preparing the physical prototype
 
 Each screen will be drawn on a separate sheet of paper inside a phone-shaped frame. Tappable controls will be outlined clearly, and the screens will be numbered to match this report. Arrows on the reverse side or a separate flow sheet will record the intended navigation. Photographs of the completed drawings will replace the image placeholders above before submission.
+
+**Note:** The images above are digital hand-drawn-style wireframes standing in for the paper prototype photographs, so the workflow, screen content, and POP interactions described in this report can be reviewed now. Each should be redrawn (or printed and physically annotated) on paper and photographed for the final Think Aloud study submission, per the process above.
