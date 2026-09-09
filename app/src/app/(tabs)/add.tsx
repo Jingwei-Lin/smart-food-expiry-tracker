@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -12,44 +12,67 @@ import {
   View,
 } from 'react-native';
 
+import { useInventory } from '@/context/inventory-context';
 import { parseExpiryDate } from '@/utils/expiry-date';
 
 type FormErrors = {
   name?: string;
   expiryDate?: string;
+  save?: string;
 };
 
 export default function AddItemScreen() {
+  const { addItem } = useInventory();
+
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState('');
   const [expiryDate, setExpiryDate] = useState('');
   const [notes, setNotes] = useState('');
+
   const [errors, setErrors] = useState<FormErrors>({});
+  const [isSaving, setIsSaving] = useState(false);
 
   function handleNameChange(value: string) {
     setName(value);
 
-    if (errors.name) {
-      setErrors((currentErrors) => ({
-        ...currentErrors,
-        name: undefined,
-      }));
-    }
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      name: undefined,
+      save: undefined,
+    }));
+  }
+
+  function handleQuantityChange(value: string) {
+    setQuantity(value);
+
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      save: undefined,
+    }));
   }
 
   function handleExpiryDateChange(value: string) {
     setExpiryDate(value);
 
-    if (errors.expiryDate) {
-      setErrors((currentErrors) => ({
-        ...currentErrors,
-        expiryDate: undefined,
-      }));
-    }
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      expiryDate: undefined,
+      save: undefined,
+    }));
+  }
+
+  function handleNotesChange(value: string) {
+    setNotes(value);
+
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      save: undefined,
+    }));
   }
 
   function validateForm(): FormErrors {
     const nextErrors: FormErrors = {};
+
     const trimmedName = name.trim();
     const trimmedExpiryDate = expiryDate.trim();
 
@@ -66,7 +89,7 @@ export default function AddItemScreen() {
     return nextErrors;
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     const validationErrors = validateForm();
 
     if (Object.keys(validationErrors).length > 0) {
@@ -75,14 +98,33 @@ export default function AddItemScreen() {
     }
 
     setErrors({});
+    setIsSaving(true);
 
-    const trimmedName = name.trim();
-    const displayedQuantity = quantity.trim() || '1 item';
+    try {
+      await addItem({
+        name: name.trim(),
+        quantity: quantity.trim() || '1 item',
+        expiryDate: expiryDate.trim(),
+        notes: notes.trim(),
+      });
 
-    Alert.alert(
-      'Item details are valid',
-      `${trimmedName}, ${displayedQuantity}, expiring ${expiryDate.trim()} is ready to be saved.`,
-    );
+      setName('');
+      setQuantity('');
+      setExpiryDate('');
+      setNotes('');
+
+      /*
+       * Return to the inventory tab after saving.
+       * The next feature commit will display the saved items there.
+       */
+      router.replace('/');
+    } catch {
+      setErrors({
+        save: 'The item could not be saved. Please try again.',
+      });
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -118,6 +160,7 @@ export default function AddItemScreen() {
             <TextInput
               accessibilityLabel="Item name"
               autoCapitalize="words"
+              editable={!isSaving}
               onChangeText={handleNameChange}
               placeholder="e.g. Natural yoghurt"
               placeholderTextColor="#8a938c"
@@ -133,7 +176,8 @@ export default function AddItemScreen() {
 
             <TextInput
               accessibilityLabel="Quantity"
-              onChangeText={setQuantity}
+              editable={!isSaving}
+              onChangeText={handleQuantityChange}
               placeholder="e.g. 1 tub or 500 g"
               placeholderTextColor="#8a938c"
               style={styles.input}
@@ -149,6 +193,7 @@ export default function AddItemScreen() {
             <TextInput
               accessibilityLabel="Expiry date in year month day format"
               autoCapitalize="none"
+              editable={!isSaving}
               inputMode="numeric"
               maxLength={10}
               onChangeText={handleExpiryDateChange}
@@ -170,8 +215,9 @@ export default function AddItemScreen() {
 
             <TextInput
               accessibilityLabel="Notes"
+              editable={!isSaving}
               multiline
-              onChangeText={setNotes}
+              onChangeText={handleNotesChange}
               placeholder="e.g. Opened on Monday"
               placeholderTextColor="#8a938c"
               style={[styles.input, styles.notesInput]}
@@ -181,16 +227,26 @@ export default function AddItemScreen() {
           </View>
         </View>
 
+        {errors.save ? (
+          <View style={styles.saveError}>
+            <Ionicons name="warning-outline" size={19} color="#8b2c25" />
+            <Text style={styles.saveErrorText}>{errors.save}</Text>
+          </View>
+        ) : null}
+
         <Pressable
           accessibilityRole="button"
-          onPress={handleSubmit}
+          disabled={isSaving}
+          onPress={() => void handleSubmit()}
           style={({ pressed }) => [
             styles.submitButton,
             pressed ? styles.pressedButton : null,
+            isSaving ? styles.disabledButton : null,
           ]}
         >
-          <Ionicons name="checkmark-circle-outline" size={21} color="#ffffff" />
-          <Text style={styles.submitButtonText}>Validate item</Text>
+          <Ionicons name="checkmark" size={21} color="#ffffff" />
+
+          <Text style={styles.submitButtonText}>{isSaving ? 'Saving...' : 'Save item'}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -278,13 +334,27 @@ const styles = StyleSheet.create({
     color: '#718075',
     fontSize: 12,
   },
+  saveError: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 20,
+    borderRadius: 12,
+    backgroundColor: '#fde7e5',
+    padding: 12,
+  },
+  saveErrorText: {
+    flex: 1,
+    color: '#8b2c25',
+    fontSize: 13,
+  },
   submitButton: {
     minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 26,
+    marginTop: 24,
     borderRadius: 14,
     backgroundColor: '#2f7d32',
     paddingHorizontal: 18,
@@ -296,5 +366,8 @@ const styles = StyleSheet.create({
   },
   pressedButton: {
     opacity: 0.72,
+  },
+  disabledButton: {
+    opacity: 0.55,
   },
 });
