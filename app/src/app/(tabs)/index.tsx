@@ -6,7 +6,7 @@ import { useInventory } from '@/context/inventory-context';
 import { FoodItem } from '@/types/food-item';
 
 export default function InventoryScreen() {
-  const { items, isLoading, storageError } = useInventory();
+  const { activeItems, isLoading, storageError } = useInventory();
 
   function renderInventoryItem({ item }: { item: FoodItem }) {
     return (
@@ -40,7 +40,7 @@ export default function InventoryScreen() {
   return (
     <FlatList
       contentContainerStyle={styles.listContent}
-      data={items}
+      data={activeItems}
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
         <View>
@@ -48,9 +48,11 @@ export default function InventoryScreen() {
           <Text style={styles.title}>My food</Text>
 
           <Text style={styles.subtitle}>
-            {items.length === 0
+            {activeItems.length === 0
               ? 'Add your first grocery item to begin tracking it.'
-              : `${items.length} ${items.length === 1 ? 'item' : 'items'} saved on this device.`}
+              : `${activeItems.length} ${
+                  activeItems.length === 1 ? 'item' : 'items'
+                }, sorted by expiry.`}
           </Text>
 
           {storageError ? (
@@ -73,7 +75,9 @@ export default function InventoryScreen() {
             <Text style={styles.addButtonText}>Add grocery item</Text>
           </Pressable>
 
-          {items.length > 0 ? <Text style={styles.sectionTitle}>SAVED ITEMS</Text> : null}
+          {activeItems.length > 0 ? (
+            <Text style={styles.sectionTitle}>EXPIRING FIRST</Text>
+          ) : null}
         </View>
       }
       ListEmptyComponent={

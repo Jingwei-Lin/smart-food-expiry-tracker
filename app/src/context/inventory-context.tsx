@@ -16,6 +16,7 @@ const STORAGE_KEY = '@smart-food-expiry-tracker/inventory-v1';
 
 type InventoryContextValue = {
   items: FoodItem[];
+  activeItems: FoodItem[];
   isLoading: boolean;
   storageError: string | null;
   addItem: (input: NewFoodItem) => Promise<FoodItem>;
@@ -160,14 +161,25 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     [persistItems],
   );
 
+  const activeItems = useMemo(
+    () =>
+      items
+        .filter((item) => item.status === 'active')
+        .sort((firstItem, secondItem) =>
+          firstItem.expiryDate.localeCompare(secondItem.expiryDate),
+        ),
+    [items],
+  );
+
   const contextValue = useMemo<InventoryContextValue>(
     () => ({
       items,
+      activeItems,
       isLoading,
       storageError,
       addItem,
     }),
-    [items, isLoading, storageError, addItem],
+    [items, activeItems, isLoading, storageError, addItem],
   );
 
   return (
