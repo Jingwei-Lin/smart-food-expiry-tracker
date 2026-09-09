@@ -17,8 +17,25 @@ export default function InventoryScreen() {
   const { activeItems, isLoading, storageError } = useInventory();
 
   function renderInventoryItem({ item }: { item: FoodItem }) {
+    function openItemDetails() {
+      router.push({
+        pathname: '/item/[id]',
+        params: {
+          id: item.id,
+        },
+      });
+    }
+
     return (
-      <View style={styles.itemCard}>
+      <Pressable
+        accessibilityLabel={`Open details for ${item.name}`}
+        accessibilityRole="button"
+        onPress={openItemDetails}
+        style={({ pressed }) => [
+          styles.itemCard,
+          pressed ? styles.pressedButton : null,
+        ]}
+      >
         <View style={styles.itemIcon}>
           <Ionicons name="nutrition-outline" size={24} color="#2f7d32" />
         </View>
@@ -38,7 +55,9 @@ export default function InventoryScreen() {
 
           {item.notes ? <Text style={styles.itemNotes}>{item.notes}</Text> : null}
         </View>
-      </View>
+
+        <Ionicons name="chevron-forward" size={22} color="#718075" />
+      </Pressable>
     );
   }
 
