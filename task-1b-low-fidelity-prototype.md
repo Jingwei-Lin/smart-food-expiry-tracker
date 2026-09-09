@@ -14,7 +14,7 @@ The prototype follows Priya, a university student who has purchased a tub of yog
 
 ### Screen 1 - Inventory
 
-![Hand-drawn prototype of the inventory screen](prototype-images/screen-01-inventory.jpg)
+<img src="prototype-images/screen-01-inventory.jpg" alt="Hand-drawn prototype of the inventory screen" width="250">
 
 **Caption:** Inventory screen showing tracked groceries ordered by expiry urgency and providing access to barcode scanning.
 
@@ -24,7 +24,7 @@ The screen displays the user's current groceries, the number of days remaining f
 
 ### Screen 2 - Add item
 
-![Hand-drawn prototype of the add-item screen](prototype-images/screen-02-add-item.jpg)
+<img src="prototype-images/screen-02-add-item.jpg" alt="Hand-drawn prototype of the add-item screen" width="250">
 
 **Caption:** Add-item screen allowing the user to scan a barcode or enter product information manually.
 
@@ -34,7 +34,7 @@ The user can choose **Scan barcode** for packaged groceries or **Enter manually*
 
 ### Screen 3 - Barcode scanner
 
-![Hand-drawn prototype of the barcode-scanner screen](prototype-images/screen-03-barcode-scanner.jpg)
+<img src="prototype-images/screen-03-barcode-scanner.jpg" alt="Hand-drawn prototype of the barcode-scanner screen" width="250">
 
 **Caption:** Camera view guiding the user to position a grocery barcode inside the scanning frame.
 
@@ -44,7 +44,7 @@ The camera screen includes a scanning frame, a short instruction, a flash contro
 
 ### Screen 4 - Product found
 
-![Hand-drawn prototype of the product-result screen](prototype-images/screen-04-product-found.jpg)
+<img src="prototype-images/screen-04-product-found.jpg" alt="Hand-drawn prototype of the product-result screen" width="250">
 
 **Caption:** Product result showing the name and image retrieved from the scanned barcode.
 
@@ -54,7 +54,7 @@ The screen shows the example product, **Natural Yoghurt**, its barcode, product 
 
 ### Screen 5 - Confirm expiry and reminder
 
-![Hand-drawn prototype of the expiry-confirmation screen](prototype-images/screen-05-confirm-expiry.jpg)
+<img src="prototype-images/screen-05-confirm-expiry.jpg" alt="Hand-drawn prototype of the expiry-confirmation screen" width="250">
 
 **Caption:** Confirmation screen allowing the user to correct the expiry date and select reminder timing.
 
@@ -64,7 +64,7 @@ The user reviews the product name, enters or corrects the printed expiry date, a
 
 ### Screen 6 - Item saved
 
-![Hand-drawn prototype of the item-saved screen](prototype-images/screen-06-item-saved.jpg)
+<img src="prototype-images/screen-06-item-saved.jpg" alt="Hand-drawn prototype of the item-saved screen" width="250">
 
 **Caption:** Success screen confirming that the grocery item and its expiry reminder were saved.
 
@@ -74,7 +74,7 @@ A confirmation message reassures the user that the yoghurt has been added succes
 
 ### Screen 7 - Updated inventory
 
-![Hand-drawn prototype of the updated-inventory screen](prototype-images/screen-07-updated-inventory.jpg)
+<img src="prototype-images/screen-07-updated-inventory.jpg" alt="Hand-drawn prototype of the updated-inventory screen" width="250">
 
 **Caption:** Updated inventory showing the newly added yoghurt in order of expiry urgency.
 
@@ -84,7 +84,7 @@ The inventory now contains **Natural Yoghurt**, with its expiry date and remaini
 
 ### Screen 8 - Expiry notification
 
-![Hand-drawn prototype of the expiry-notification screen](prototype-images/screen-08-expiry-notification.jpg)
+<img src="prototype-images/screen-08-expiry-notification.jpg" alt="Hand-drawn prototype of the expiry-notification screen" width="250">
 
 **Caption:** Expiry notification alerting the user that the yoghurt should be used soon.
 
@@ -94,7 +94,7 @@ The phone notification states that the yoghurt expires tomorrow and invites the 
 
 ### Screen 9 - Item details and actions
 
-![Hand-drawn prototype of the item-details screen](prototype-images/screen-09-item-details.jpg)
+<img src="prototype-images/screen-09-item-details.jpg" alt="Hand-drawn prototype of the item-details screen" width="250">
 
 **Caption:** Item details presenting expiry information and actions to eat, donate, discard, or find a recipe.
 
@@ -104,7 +104,7 @@ The item page shows the yoghurt's expiry status and provides four clear actions:
 
 ### Screen 10 - Recipe suggestions
 
-![Hand-drawn prototype of the recipe-suggestions screen](prototype-images/screen-10-recipe-suggestions.jpg)
+<img src="prototype-images/screen-10-recipe-suggestions.jpg" alt="Hand-drawn prototype of the recipe-suggestions screen" width="250">
 
 **Caption:** Recipe suggestions helping the user consume the yoghurt before it expires.
 
