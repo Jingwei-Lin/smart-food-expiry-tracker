@@ -1,5 +1,9 @@
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Parses a date written as YYYY-MM-DD.
+ */
 export function parseExpiryDate(value: string): Date | null {
-  /* * Parses a date written as YYYY-MM-DD. */
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 
   if (!match) {
@@ -18,4 +22,114 @@ export function parseExpiryDate(value: string): Date | null {
     date.getDate() === day;
 
   return isSameDate ? date : null;
+}
+
+/**
+ * Converts YYYY-MM-DD into a readable Australian date.
+ *
+ * Example:
+ * 2026-09-15 becomes 15 Sept 2026.
+ */
+export function formatExpiryDate(value: string): string {
+  const date = parseExpiryDate(value);
+
+  if (!date) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+/**
+ * Calculates the number of calendar days between today and the expiry date.
+ *
+ * Negative: already expired
+ * Zero: expires today
+ * Positive: expires in the future
+ */
+export function daysUntilExpiry(value: string, today = new Date()): number {
+  const expiryDate = parseExpiryDate(value);
+
+  if (!expiryDate) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  /*
+   * UTC calendar values avoid daylight-saving changes producing a result
+   * such as 0.958 or 1.042 days.
+   */
+  const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+
+  const expiryUtc = Date.UTC(
+    expiryDate.getFullYear(),
+    expiryDate.getMonth(),
+    expiryDate.getDate(),
+  );
+
+  return Math.round((expiryUtc - todayUtc) / MILLISECONDS_PER_DAY);
+}
+
+export type ExpiryPresentation = {
+  label: string;
+  foreground: string;
+  background: string;
+};
+
+/**
+ * Creates the label and colours displayed in an expiry badge.
+ */
+export function getExpiryPresentation(value: string): ExpiryPresentation {
+  const days = daysUntilExpiry(value);
+
+  if (!Number.isFinite(days)) {
+    return {
+      label: 'Invalid expiry date',
+      foreground: '#5e6260',
+      background: '#eceeed',
+    };
+  }
+
+  if (days < 0) {
+    const elapsedDays = Math.abs(days);
+
+    return {
+      label: `Expired ${elapsedDays} ${elapsedDays === 1 ? 'day' : 'days'} ago`,
+      foreground: '#9f2420',
+      background: '#fde7e5',
+    };
+  }
+
+  if (days === 0) {
+    return {
+      label: 'Expires today',
+      foreground: '#9f2420',
+      background: '#fde7e5',
+    };
+  }
+
+  if (days === 1) {
+    return {
+      label: 'Expires tomorrow',
+      foreground: '#a14f00',
+      background: '#fff0d5',
+    };
+  }
+
+  if (days <= 3) {
+    return {
+      label: `${days} days left`,
+      foreground: '#a14f00',
+      background: '#fff0d5',
+    };
+  }
+
+  return {
+    label: `${days} days left`,
+    foreground: '#27652a',
+    background: '#e7f4e8',
+  };
 }

@@ -4,7 +4,15 @@ import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from '
 
 import { useInventory } from '@/context/inventory-context';
 import { FoodItem } from '@/types/food-item';
+import { ExpiryBadge } from '@/components/expiry-badge';
+import { formatExpiryDate } from '@/utils/expiry-date';
 
+/**
+ * Inventory screen, and the app's landing tab.
+ *
+ * Lists the groceries currently being tracked, soonest to expire first, and
+ * links through to a single item's detail screen.
+ */
 export default function InventoryScreen() {
   const { activeItems, isLoading, storageError } = useInventory();
 
@@ -20,7 +28,13 @@ export default function InventoryScreen() {
 
           <Text style={styles.itemDetail}>Quantity: {item.quantity}</Text>
 
-          <Text style={styles.itemDetail}>Expiry date: {item.expiryDate}</Text>
+          <Text style={styles.itemDetail}>
+            Expires {formatExpiryDate(item.expiryDate)}
+          </Text>
+
+          <View style={styles.expiryBadgeContainer}>
+            <ExpiryBadge expiryDate={item.expiryDate} />
+          </View>
 
           {item.notes ? <Text style={styles.itemNotes}>{item.notes}</Text> : null}
         </View>
@@ -44,7 +58,7 @@ export default function InventoryScreen() {
       keyExtractor={(item) => item.id}
       ListHeaderComponent={
         <View>
-          <Text style={styles.eyebrow}>SMART PANTRY</Text>
+          <Text style={styles.eyebrow}>SMART FOOD EXPIRY TRACKER</Text>
           <Text style={styles.title}>My food</Text>
 
           <Text style={styles.subtitle}>
@@ -217,6 +231,9 @@ const styles = StyleSheet.create({
     marginTop: 5,
     color: '#59635b',
     fontSize: 13,
+  },
+  expiryBadgeContainer: {
+    marginTop: 9,
   },
   itemNotes: {
     marginTop: 8,

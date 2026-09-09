@@ -21,6 +21,13 @@ type FormErrors = {
   save?: string;
 };
 
+/**
+ * Add / Scan screen.
+ *
+ * The entry point for putting a new grocery item into the inventory, either by
+ * scanning its barcode and letting the product details fill in automatically,
+ * or by typing the item in by hand.
+ */
 export default function AddItemScreen() {
   const { addItem } = useInventory();
 

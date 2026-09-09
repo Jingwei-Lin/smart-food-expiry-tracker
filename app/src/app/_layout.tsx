@@ -4,6 +4,13 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { InventoryProvider } from '@/context/inventory-context';
 
+/**
+ * Root navigation layout for the whole app.
+ *
+ * Wraps everything in a stack navigator so that detail screens push over the
+ * tab bar, and supplies safe-area insets and the status bar. The tab group
+ * draws its own headers, so it is rendered without one here.
+ */
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
