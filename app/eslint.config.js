@@ -11,5 +11,13 @@ module.exports = defineConfig([
   {
     // .expo holds Expo's generated types, which are rebuilt on every start.
     ignores: ['dist/*', '.expo/*'],
+    settings: {
+      // Keep ESLint's import checks in sync with the @/* alias in tsconfig.json.
+      'import/resolver': {
+        typescript: {
+          project: './tsconfig.json',
+        },
+      },
+    },
   },
 ]);
