@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react';
 
-import { FoodItem, NewFoodItem } from '@/types/food-item';
+import { FoodItem, NewFoodItem, ResolvedFoodItemStatus } from '@/types/food-item';
 
 const STORAGE_KEY = '@smart-food-expiry-tracker/inventory-v1';
 
@@ -21,6 +21,9 @@ type InventoryContextValue = {
   storageError: string | null;
   isStorageReady: boolean;
   addItem: (input: NewFoodItem) => Promise<FoodItem>;
+  updateItem: (id: string, input: NewFoodItem) => Promise<void>;
+  deleteItem: (id: string) => Promise<void>;
+  resolveItem: (id: string, status: ResolvedFoodItemStatus) => Promise<void>;
 };
 
 const InventoryContext = createContext<InventoryContextValue | null>(null);
@@ -182,6 +185,44 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     [persistItems],
   );
 
+  /*
+   * Apply an edit from the item form. Only the fields the form owns are
+   * replaced, so createdAt and status survive the edit.
+   */
+  const updateItem = useCallback(
+    async (id: string, input: NewFoodItem) => {
+      const nextItems = itemsRef.current.map((item) =>
+        item.id === id ? { ...item, ...input } : item,
+      );
+
+      await persistItems(nextItems);
+    },
+    [persistItems],
+  );
+
+  const deleteItem = useCallback(
+    async (id: string) => {
+      await persistItems(itemsRef.current.filter((item) => item.id !== id));
+    },
+    [persistItems],
+  );
+
+  /*
+   * Record that an item was eaten or thrown out. The timestamp is what the
+   * weekly waste summary will group by, so it is written here rather than
+   * being inferred from the expiry date later.
+   */
+  const resolveItem = useCallback(
+    async (id: string, status: ResolvedFoodItemStatus) => {
+      const nextItems = itemsRef.current.map((item) =>
+        item.id === id ? { ...item, status, statusUpdatedAt: new Date().toISOString() } : item,
+      );
+
+      await persistItems(nextItems);
+    },
+    [persistItems],
+  );
+
   const activeItems = useMemo(
     () =>
       items
@@ -200,8 +241,11 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       storageError,
       isStorageReady,
       addItem,
+      updateItem,
+      deleteItem,
+      resolveItem,
     }),
-    [items, activeItems, isLoading, storageError, isStorageReady, addItem],
+    [items, activeItems, isLoading, storageError, isStorageReady, addItem, updateItem, deleteItem, resolveItem],
   );
 
   return (

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { ComponentProps } from 'react';
+import { ComponentProps, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,15 +12,80 @@ import {
 
 import { ExpiryBadge } from '@/components/expiry-badge';
 import { useInventory } from '@/context/inventory-context';
+import { returnToInventory } from '@/utils/navigation';
+import { ResolvedFoodItemStatus } from '@/types/food-item';
 import { formatExpiryDate } from '@/utils/expiry-date';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
+const resolvedStatusLabels: Record<ResolvedFoodItemStatus, string> = {
+  eaten: 'Eaten',
+  discarded: 'Thrown out',
+};
+
+/**
+ * Formats the moment an item was eaten or thrown out.
+ */
+function formatResolvedDate(value: string | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
 export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, isLoading } = useInventory();
+  const { items, isLoading, isStorageReady, storageError, deleteItem, resolveItem } =
+    useInventory();
+
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const [isWorking, setIsWorking] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const item = items.find((candidate) => candidate.id === id);
+
+  /*
+   * Every action writes to storage, so they are all blocked while the saved
+   * inventory is still loading or failed to load.
+   */
+  const areActionsDisabled = isWorking || !isStorageReady;
+
+  async function runAction(action: () => Promise<void>, failureMessage: string) {
+    setActionError(null);
+    setIsWorking(true);
+
+    try {
+      await action();
+
+      returnToInventory();
+    } catch {
+      setActionError(failureMessage);
+    } finally {
+      setIsWorking(false);
+    }
+  }
+
+  function handleResolve(status: ResolvedFoodItemStatus) {
+    void runAction(
+      () => resolveItem(id, status),
+      'This item could not be updated. Please try again.',
+    );
+  }
+
+  function handleDelete() {
+    void runAction(() => deleteItem(id), 'This item could not be deleted. Please try again.');
+  }
 
   if (isLoading) {
     return (
@@ -51,7 +116,7 @@ export default function ItemDetailScreen() {
 
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.replace('/')}
+            onPress={returnToInventory}
             style={({ pressed }) => [
               styles.returnButton,
               pressed ? styles.pressedButton : null,
@@ -63,6 +128,8 @@ export default function ItemDetailScreen() {
       </>
     );
   }
+
+  const resolvedDate = formatResolvedDate(item.statusUpdatedAt);
 
   return (
     <>
@@ -83,7 +150,14 @@ export default function ItemDetailScreen() {
 
           <Text style={styles.itemName}>{item.name}</Text>
 
-          <ExpiryBadge expiryDate={item.expiryDate} />
+          {item.status === 'active' ? (
+            <ExpiryBadge expiryDate={item.expiryDate} />
+          ) : (
+            <Text style={styles.resolvedLabel}>
+              {resolvedStatusLabels[item.status]}
+              {resolvedDate ? ` on ${resolvedDate}` : ''}
+            </Text>
+          )}
         </View>
 
         <Text style={styles.sectionTitle}>ITEM DETAILS</Text>
@@ -115,6 +189,110 @@ export default function ItemDetailScreen() {
             </>
           ) : null}
         </View>
+
+        <Text style={styles.sectionTitle}>ACTIONS</Text>
+
+        {actionError ? (
+          <View style={styles.banner}>
+            <Ionicons name="warning-outline" size={19} color="#8b2c25" />
+
+            <Text style={styles.bannerText}>{actionError}</Text>
+          </View>
+        ) : null}
+
+        {!isStorageReady ? (
+          <View style={styles.notice}>
+            <Ionicons name="hourglass-outline" size={19} color="#8b6b1f" />
+
+            <Text style={styles.noticeText}>
+              {storageError ??
+                'Loading your saved inventory. These actions will be enabled in a moment.'}
+            </Text>
+          </View>
+        ) : null}
+
+        {isConfirmingDelete ? (
+          <View style={styles.confirmCard}>
+            <Text style={styles.confirmTitle}>Delete {item.name}?</Text>
+
+            <Text style={styles.confirmText}>
+              This removes the item from your inventory and from the waste summary. It cannot be
+              undone.
+            </Text>
+
+            <View style={styles.confirmButtons}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isWorking}
+                onPress={() => setIsConfirmingDelete(false)}
+                style={({ pressed }) => [
+                  styles.confirmCancelButton,
+                  pressed ? styles.pressedButton : null,
+                ]}
+              >
+                <Text style={styles.confirmCancelText}>Keep item</Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                disabled={areActionsDisabled}
+                onPress={handleDelete}
+                style={({ pressed }) => [
+                  styles.confirmDeleteButton,
+                  pressed ? styles.pressedButton : null,
+                  areActionsDisabled ? styles.disabledButton : null,
+                ]}
+              >
+                <Text style={styles.confirmDeleteText}>
+                  {isWorking ? 'Deleting...' : 'Delete'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.actionsCard}>
+            {item.status === 'active' ? (
+              <>
+                <ActionButton
+                  icon="create-outline"
+                  isDisabled={areActionsDisabled}
+                  label="Edit item"
+                  onPress={() =>
+                    router.push({ pathname: '/item/edit/[id]', params: { id: item.id } })
+                  }
+                />
+
+                <View style={styles.divider} />
+
+                <ActionButton
+                  icon="restaurant-outline"
+                  isDisabled={areActionsDisabled}
+                  label="Mark as eaten"
+                  onPress={() => handleResolve('eaten')}
+                />
+
+                <View style={styles.divider} />
+
+                <ActionButton
+                  icon="trash-bin-outline"
+                  isDisabled={areActionsDisabled}
+                  label="Mark as thrown out"
+                  onPress={() => handleResolve('discarded')}
+                />
+
+                <View style={styles.divider} />
+              </>
+            ) : null}
+
+            <ActionButton
+              icon="close-circle-outline"
+              isDanger
+              isDisabled={areActionsDisabled}
+              label="Delete item"
+              onPress={() => setIsConfirmingDelete(true)}
+            />
+          </View>
+        )}
       </ScrollView>
     </>
   );
@@ -138,6 +316,41 @@ function DetailRow({
         <Text style={styles.detailValue}>{value}</Text>
       </View>
     </View>
+  );
+}
+
+function ActionButton({
+  icon,
+  isDanger = false,
+  isDisabled,
+  label,
+  onPress,
+}: {
+  icon: IconName;
+  isDanger?: boolean;
+  isDisabled: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  const tint = isDanger ? '#9f2420' : '#2f6b34';
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={isDisabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.actionButton,
+        pressed ? styles.pressedButton : null,
+        isDisabled ? styles.disabledButton : null,
+      ]}
+    >
+      <Ionicons name={icon} size={22} color={tint} />
+
+      <Text style={[styles.actionLabel, { color: tint }]}>{label}</Text>
+
+      <Ionicons name="chevron-forward" size={18} color="#a2aea5" />
+    </Pressable>
   );
 }
 
@@ -217,6 +430,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center',
   },
+  resolvedLabel: {
+    color: '#5e6260',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   sectionTitle: {
     marginTop: 26,
     marginBottom: 9,
@@ -257,7 +475,109 @@ const styles = StyleSheet.create({
     marginVertical: 14,
     backgroundColor: '#e4e9e3',
   },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 12,
+    borderRadius: 12,
+    backgroundColor: '#fde7e5',
+    padding: 12,
+  },
+  bannerText: {
+    flex: 1,
+    color: '#8b2c25',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  notice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 12,
+    borderRadius: 12,
+    backgroundColor: '#fff0d5',
+    padding: 12,
+  },
+  noticeText: {
+    flex: 1,
+    color: '#8b6b1f',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  actionsCard: {
+    borderWidth: 1,
+    borderColor: '#dce4da',
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
+  actionButton: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  actionLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  confirmCard: {
+    borderWidth: 1,
+    borderColor: '#f0c9c4',
+    borderRadius: 16,
+    backgroundColor: '#ffffff',
+    padding: 16,
+  },
+  confirmTitle: {
+    color: '#172019',
+    fontSize: 17,
+    fontWeight: '700',
+  },
+  confirmText: {
+    marginTop: 7,
+    color: '#687269',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  confirmButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+  },
+  confirmCancelButton: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#cad4c9',
+    borderRadius: 12,
+  },
+  confirmCancelText: {
+    color: '#3c463e',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  confirmDeleteButton: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: '#9f2420',
+  },
+  confirmDeleteText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
   pressedButton: {
     opacity: 0.72,
+  },
+  disabledButton: {
+    opacity: 0.55,
   },
 });

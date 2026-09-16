@@ -1,5 +1,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { InventoryProvider } from '@/context/inventory-context';
@@ -7,27 +8,36 @@ import { InventoryProvider } from '@/context/inventory-context';
 /**
  * Root navigation layout for the whole app.
  *
- * Wraps everything in a stack navigator so that detail screens push over the
- * tab bar, and supplies safe-area insets and the status bar. The tab group
- * draws its own headers, so it is rendered without one here.
+ * Everything is a stack over the inventory: the inventory is the only
+ * destination, so adding an item and looking at one both push over it. The
+ * inventory draws its own title block, so it is rendered without a header.
+ *
+ * The root view is the gesture handler's, so the swipe on an inventory row is
+ * recognised on every platform.
  */
 export default function RootLayout() {
   return (
-    <SafeAreaProvider>
-      <InventoryProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <InventoryProvider>
+          <Stack>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
 
-          <Stack.Screen
-            name="item/[id]"
-            options={{
-              title: 'Item',
-            }}
-          />
-        </Stack>
+            <Stack.Screen name="add" options={{ title: 'Add item' }} />
 
-        <StatusBar style="auto" />
-      </InventoryProvider>
-    </SafeAreaProvider>
+            <Stack.Screen
+              name="item/[id]"
+              options={{
+                title: 'Item',
+              }}
+            />
+
+            <Stack.Screen name="item/edit/[id]" options={{ title: 'Edit item' }} />
+          </Stack>
+
+          <StatusBar style="auto" />
+        </InventoryProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
