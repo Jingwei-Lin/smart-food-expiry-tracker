@@ -25,6 +25,22 @@ export function parseExpiryDate(value: string): Date | null {
 }
 
 /**
+ * Formats digits typed into the expiry field as YYYY-MM-DD.
+ *
+ * The field uses a digits-only keypad, which has no hyphen key on either iOS
+ * or Android, so the separators are inserted as the student types.
+ */
+export function formatExpiryDateInput(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+
+  const year = digits.slice(0, 4);
+  const month = digits.slice(4, 6);
+  const day = digits.slice(6, 8);
+
+  return [year, month, day].filter((part) => part.length > 0).join('-');
+}
+
+/**
  * Converts YYYY-MM-DD into a readable Australian date.
  *
  * Example:

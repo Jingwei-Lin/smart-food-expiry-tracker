@@ -19,6 +19,7 @@ type InventoryContextValue = {
   activeItems: FoodItem[];
   isLoading: boolean;
   storageError: string | null;
+  isStorageReady: boolean;
   addItem: (input: NewFoodItem) => Promise<FoodItem>;
 };
 
@@ -61,6 +62,18 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [storageError, setStorageError] = useState<string | null>(null);
 
   /*
+   * Saving is only safe once the stored inventory has been read. Writing before
+   * that point would replace the saved list with one the app never loaded.
+   */
+  const [isStorageReady, setIsStorageReady] = useState(false);
+  const isStorageReadyRef = useRef(false);
+
+  const markStorageReady = useCallback(() => {
+    isStorageReadyRef.current = true;
+    setIsStorageReady(true);
+  }, []);
+
+  /*
    * The ref always contains the latest items. This prevents save operations
    * from using an older copy of the inventory.
    */
@@ -84,6 +97,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         if (!storedValue) {
           if (isMounted) {
             setCurrentItems([]);
+            markStorageReady();
           }
 
           return;
@@ -100,10 +114,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         if (isMounted) {
           setCurrentItems(validItems);
           setStorageError(null);
+          markStorageReady();
         }
       } catch {
         if (isMounted) {
-          setStorageError('The saved inventory could not be loaded.');
+          setStorageError(
+            'The saved inventory could not be loaded, so new items cannot be saved right now.',
+          );
         }
       } finally {
         if (isMounted) {
@@ -117,13 +134,17 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [setCurrentItems]);
+  }, [markStorageReady, setCurrentItems]);
 
   /*
    * Save a complete inventory list before updating the visible state.
    */
   const persistItems = useCallback(
     async (nextItems: FoodItem[]) => {
+      if (!isStorageReadyRef.current) {
+        throw new Error('Unable to save inventory before it has been loaded.');
+      }
+
       try {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
 
@@ -177,9 +198,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       activeItems,
       isLoading,
       storageError,
+      isStorageReady,
       addItem,
     }),
-    [items, activeItems, isLoading, storageError, addItem],
+    [items, activeItems, isLoading, storageError, isStorageReady, addItem],
   );
 
   return (

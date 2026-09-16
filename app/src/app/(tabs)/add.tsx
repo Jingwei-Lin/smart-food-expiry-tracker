@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 
 import { useInventory } from '@/context/inventory-context';
-import { parseExpiryDate } from '@/utils/expiry-date';
+import { formatExpiryDateInput, parseExpiryDate } from '@/utils/expiry-date';
 
 type FormErrors = {
   name?: string;
@@ -29,7 +29,7 @@ type FormErrors = {
  * or by typing the item in by hand.
  */
 export default function AddItemScreen() {
-  const { addItem } = useInventory();
+  const { addItem, isStorageReady, storageError } = useInventory();
 
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState('');
@@ -59,7 +59,7 @@ export default function AddItemScreen() {
   }
 
   function handleExpiryDateChange(value: string) {
-    setExpiryDate(value);
+    setExpiryDate(formatExpiryDateInput(value));
 
     setErrors((currentErrors) => ({
       ...currentErrors,
@@ -95,6 +95,8 @@ export default function AddItemScreen() {
 
     return nextErrors;
   }
+
+  const isSaveDisabled = isSaving || !isStorageReady;
 
   async function handleSubmit() {
     const validationErrors = validateForm();
@@ -213,7 +215,9 @@ export default function AddItemScreen() {
             {errors.expiryDate ? (
               <Text style={styles.errorText}>{errors.expiryDate}</Text>
             ) : (
-              <Text style={styles.helpText}>Enter the date printed on the package.</Text>
+              <Text style={styles.helpText}>
+                Type the digits printed on the package, for example 20260920.
+              </Text>
             )}
           </View>
 
@@ -234,6 +238,16 @@ export default function AddItemScreen() {
           </View>
         </View>
 
+        {!isStorageReady ? (
+          <View style={styles.storageNotice}>
+            <Ionicons name="hourglass-outline" size={19} color="#8b6b1f" />
+
+            <Text style={styles.storageNoticeText}>
+              {storageError ?? 'Loading your saved inventory. Saving will be enabled in a moment.'}
+            </Text>
+          </View>
+        ) : null}
+
         {errors.save ? (
           <View style={styles.saveError}>
             <Ionicons name="warning-outline" size={19} color="#8b2c25" />
@@ -243,12 +257,12 @@ export default function AddItemScreen() {
 
         <Pressable
           accessibilityRole="button"
-          disabled={isSaving}
+          disabled={isSaveDisabled}
           onPress={() => void handleSubmit()}
           style={({ pressed }) => [
             styles.submitButton,
             pressed ? styles.pressedButton : null,
-            isSaving ? styles.disabledButton : null,
+            isSaveDisabled ? styles.disabledButton : null,
           ]}
         >
           <Ionicons name="checkmark" size={21} color="#ffffff" />
@@ -340,6 +354,21 @@ const styles = StyleSheet.create({
   helpText: {
     color: '#718075',
     fontSize: 12,
+  },
+  storageNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 20,
+    borderRadius: 12,
+    backgroundColor: '#fff0d5',
+    padding: 12,
+  },
+  storageNoticeText: {
+    flex: 1,
+    color: '#8b6b1f',
+    fontSize: 13,
+    lineHeight: 18,
   },
   saveError: {
     flexDirection: 'row',

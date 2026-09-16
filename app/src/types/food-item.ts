@@ -8,7 +8,6 @@ export type FoodItem = {
   notes: string;
   createdAt: string;
   status: FoodItemStatus;
-  statusUpdatedAt?: string;
 };
 
 export type NewFoodItem = Pick<FoodItem, 'name' | 'quantity' | 'expiryDate' | 'notes'>;
