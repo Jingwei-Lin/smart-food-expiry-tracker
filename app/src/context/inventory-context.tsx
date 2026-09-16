@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react';
 
-import { FoodItem, NewFoodItem } from '@/types/food-item';
+import { FoodItem, NewFoodItem, ResolvedFoodItemStatus } from '@/types/food-item';
 
 const STORAGE_KEY = '@smart-food-expiry-tracker/inventory-v1';
 
@@ -19,7 +19,11 @@ type InventoryContextValue = {
   activeItems: FoodItem[];
   isLoading: boolean;
   storageError: string | null;
+  isStorageReady: boolean;
   addItem: (input: NewFoodItem) => Promise<FoodItem>;
+  updateItem: (id: string, input: NewFoodItem) => Promise<void>;
+  deleteItem: (id: string) => Promise<void>;
+  resolveItem: (id: string, status: ResolvedFoodItemStatus) => Promise<void>;
 };
 
 const InventoryContext = createContext<InventoryContextValue | null>(null);
@@ -61,6 +65,18 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [storageError, setStorageError] = useState<string | null>(null);
 
   /*
+   * Saving is only safe once the stored inventory has been read. Writing before
+   * that point would replace the saved list with one the app never loaded.
+   */
+  const [isStorageReady, setIsStorageReady] = useState(false);
+  const isStorageReadyRef = useRef(false);
+
+  const markStorageReady = useCallback(() => {
+    isStorageReadyRef.current = true;
+    setIsStorageReady(true);
+  }, []);
+
+  /*
    * The ref always contains the latest items. This prevents save operations
    * from using an older copy of the inventory.
    */
@@ -84,6 +100,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         if (!storedValue) {
           if (isMounted) {
             setCurrentItems([]);
+            markStorageReady();
           }
 
           return;
@@ -100,10 +117,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         if (isMounted) {
           setCurrentItems(validItems);
           setStorageError(null);
+          markStorageReady();
         }
       } catch {
         if (isMounted) {
-          setStorageError('The saved inventory could not be loaded.');
+          setStorageError(
+            'The saved inventory could not be loaded, so new items cannot be saved right now.',
+          );
         }
       } finally {
         if (isMounted) {
@@ -117,13 +137,17 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return () => {
       isMounted = false;
     };
-  }, [setCurrentItems]);
+  }, [markStorageReady, setCurrentItems]);
 
   /*
    * Save a complete inventory list before updating the visible state.
    */
   const persistItems = useCallback(
     async (nextItems: FoodItem[]) => {
+      if (!isStorageReadyRef.current) {
+        throw new Error('Unable to save inventory before it has been loaded.');
+      }
+
       try {
         await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
 
@@ -161,6 +185,44 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     [persistItems],
   );
 
+  /*
+   * Apply an edit from the item form. Only the fields the form owns are
+   * replaced, so createdAt and status survive the edit.
+   */
+  const updateItem = useCallback(
+    async (id: string, input: NewFoodItem) => {
+      const nextItems = itemsRef.current.map((item) =>
+        item.id === id ? { ...item, ...input } : item,
+      );
+
+      await persistItems(nextItems);
+    },
+    [persistItems],
+  );
+
+  const deleteItem = useCallback(
+    async (id: string) => {
+      await persistItems(itemsRef.current.filter((item) => item.id !== id));
+    },
+    [persistItems],
+  );
+
+  /*
+   * Record that an item was eaten or thrown out. The timestamp is what the
+   * weekly waste summary will group by, so it is written here rather than
+   * being inferred from the expiry date later.
+   */
+  const resolveItem = useCallback(
+    async (id: string, status: ResolvedFoodItemStatus) => {
+      const nextItems = itemsRef.current.map((item) =>
+        item.id === id ? { ...item, status, statusUpdatedAt: new Date().toISOString() } : item,
+      );
+
+      await persistItems(nextItems);
+    },
+    [persistItems],
+  );
+
   const activeItems = useMemo(
     () =>
       items
@@ -177,9 +239,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       activeItems,
       isLoading,
       storageError,
+      isStorageReady,
       addItem,
+      updateItem,
+      deleteItem,
+      resolveItem,
     }),
-    [items, activeItems, isLoading, storageError, addItem],
+    [items, activeItems, isLoading, storageError, isStorageReady, addItem, updateItem, deleteItem, resolveItem],
   );
 
   return (

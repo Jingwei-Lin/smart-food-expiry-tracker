@@ -25,6 +25,22 @@ export function parseExpiryDate(value: string): Date | null {
 }
 
 /**
+ * Formats digits typed into the expiry field as YYYY-MM-DD.
+ *
+ * The field uses a digits-only keypad, which has no hyphen key on either iOS
+ * or Android, so the separators are inserted as the student types.
+ */
+export function formatExpiryDateInput(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 8);
+
+  const year = digits.slice(0, 4);
+  const month = digits.slice(4, 6);
+  const day = digits.slice(6, 8);
+
+  return [year, month, day].filter((part) => part.length > 0).join('-');
+}
+
+/**
  * Converts YYYY-MM-DD into a readable Australian date.
  *
  * Example:
@@ -131,5 +147,62 @@ export function getExpiryPresentation(value: string): ExpiryPresentation {
     label: `${days} days left`,
     foreground: '#27652a',
     background: '#e7f4e8',
+  };
+}
+export type ExpiryListPresentation = {
+  /** The right-hand column of an inventory row: a weekday nearby, a date later on. */
+  meta: string;
+  /** The colour rail down the left of an inventory row. */
+  railColor: string;
+};
+
+/**
+ * Describes an item the way the grouped inventory list shows it.
+ *
+ * The section heading already says how urgent the item is, so the row itself
+ * answers "when?" — the weekday while that still means something to a student
+ * planning their week, and a date once it does not.
+ */
+export function getExpiryListPresentation(
+  value: string,
+  today = new Date(),
+): ExpiryListPresentation {
+  const expiryDate = parseExpiryDate(value);
+
+  if (!expiryDate) {
+    return { meta: 'No date', railColor: '#c2cbc3' };
+  }
+
+  const days = daysUntilExpiry(value, today);
+
+  if (days < 0) {
+    const elapsedDays = Math.abs(days);
+
+    return {
+      meta: `${elapsedDays} ${elapsedDays === 1 ? 'day' : 'days'} over`,
+      railColor: '#c8352c',
+    };
+  }
+
+  if (days === 0) {
+    return { meta: 'Today', railColor: '#c8352c' };
+  }
+
+  if (days === 1) {
+    return { meta: 'Tomorrow', railColor: '#d9922f' };
+  }
+
+  const railColor = days <= 3 ? '#d9922f' : '#7fb183';
+
+  if (days < 7) {
+    return {
+      meta: new Intl.DateTimeFormat('en-AU', { weekday: 'short' }).format(expiryDate),
+      railColor,
+    };
+  }
+
+  return {
+    meta: new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short' }).format(expiryDate),
+    railColor,
   };
 }

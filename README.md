@@ -1,5 +1,9 @@
 # Smart Food Expiry Tracker
 
+Phase 2 Google Doc
+https://docs.google.com/document/d/1S_IpMp2xptf4Oh0YMWcR6BJcfedkQhdb/edit
+
+
 **Goal 12: Responsible consumption and production**
 
 This is a mobile app that helps university students waste less food by taking the effort out of tracking groceries, built with Expo SDK 57.
