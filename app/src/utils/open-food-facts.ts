@@ -56,7 +56,9 @@ export function parseProductResponse(
   }
 
   const { product } = body;
-  const name = (product.product_name_en || product.product_name || '').trim();
+  const englishName = product.product_name_en?.trim();
+  const defaultName = product.product_name?.trim();
+  const name = englishName || defaultName || '';
 
   if (!name) {
     return { outcome: 'not-found' };
