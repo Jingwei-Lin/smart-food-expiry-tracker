@@ -85,7 +85,7 @@ export default function InventoryScreen() {
         keyExtractor={(section) => section.title}
         ListHeaderComponent={
           <View>
-            <Text style={styles.title}>My food Inventory</Text>
+            <Text style={styles.title}>My Food Inventory</Text>
 
             <Text style={styles.subtitle}>{describeInventory(activeItems)}</Text>
 
