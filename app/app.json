@@ -33,7 +33,9 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow Smart Food Expiry Tracker to use the camera to scan grocery barcodes."
+          "cameraPermission": "Allow Smart Food Expiry Tracker to use the camera to scan grocery barcodes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ]
     ],
