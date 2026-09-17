@@ -85,7 +85,7 @@ export default function InventoryScreen() {
         keyExtractor={(section) => section.title}
         ListHeaderComponent={
           <View>
-            <Text style={styles.title}>My food</Text>
+            <Text style={styles.title}>My Food Inventory</Text>
 
             <Text style={styles.subtitle}>{describeInventory(activeItems)}</Text>
 
@@ -112,13 +112,13 @@ export default function InventoryScreen() {
 
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push('/add')}
+              onPress={() => router.push('/scan')}
               style={({ pressed }) => [
                 styles.emptyButton,
                 pressed ? styles.pressedButton : null,
               ]}
             >
-              <Text style={styles.emptyButtonText}>Add your first item</Text>
+              <Text style={styles.emptyButtonText}>Scan your first item</Text>
             </Pressable>
           </View>
         }
@@ -131,9 +131,9 @@ export default function InventoryScreen() {
         style={[styles.addButtonContainer, { bottom: insets.bottom + 24 }]}
       >
         <Pressable
-          accessibilityLabel="Add grocery item"
+          accessibilityLabel="Scan a grocery item"
           accessibilityRole="button"
-          onPress={() => router.push('/add')}
+          onPress={() => router.push('/scan')}
           style={({ pressed }) => [styles.addButton, pressed ? styles.pressedButton : null]}
         >
           <Ionicons name="add" size={40} color="#ffffff" />

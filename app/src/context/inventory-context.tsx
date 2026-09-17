@@ -174,6 +174,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         notes: input.notes,
         createdAt: new Date().toISOString(),
         status: 'active',
+        ...(input.barcode ? { barcode: input.barcode } : null),
       };
 
       const nextItems = [...itemsRef.current, newItem];
