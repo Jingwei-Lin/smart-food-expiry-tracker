@@ -24,6 +24,8 @@ type ItemFormProps = {
   blockedReason?: string | null;
   /** The add screen stays mounted after saving, so it clears the fields afterwards. */
   clearOnSubmit?: boolean;
+  /** Replaces the expiry hint, e.g. to say where a pre-filled date was estimated from. */
+  expiryHelpText?: string;
   onSubmit: (values: ItemFormValues) => Promise<void>;
 };
 
@@ -45,6 +47,7 @@ export function ItemForm({
   submitLabel,
   blockedReason = null,
   clearOnSubmit = false,
+  expiryHelpText,
   onSubmit,
 }: ItemFormProps) {
   const [name, setName] = useState(initialValues.name);
@@ -194,7 +197,7 @@ export function ItemForm({
             <Text style={styles.errorText}>{errors.expiryDate}</Text>
           ) : (
             <Text style={styles.helpText}>
-              Type the digits printed on the package, for example 20260920.
+              {expiryHelpText ?? 'Type the digits printed on the package, for example 20260920.'}
             </Text>
           )}
         </View>

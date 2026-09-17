@@ -1,23 +1,61 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ItemForm, ItemFormValues } from '@/components/item-form';
 import { useInventory } from '@/context/inventory-context';
 import { returnToInventory } from '@/utils/navigation';
 
+type ScanParams = {
+  barcode?: string;
+  name?: string;
+  quantity?: string;
+  expiryDate?: string;
+  shelfLifeLabel?: string;
+  lookupOutcome?: string;
+};
+
 /**
- * Add / Scan screen.
+ * Describes what the scanner came back with, so the student knows whether the
+ * fields below were filled in for them or are still blank on purpose.
+ */
+function describeScan(params: ScanParams): { tone: 'found' | 'manual'; text: string } | null {
+  if (!params.barcode) {
+    return null;
+  }
+
+  if (params.lookupOutcome === 'not-found') {
+    return {
+      tone: 'manual',
+      text: `Barcode ${params.barcode} is not in Open Food Facts yet. Add the item by hand — it will still be saved against the barcode.`,
+    };
+  }
+
+  if (params.lookupOutcome === 'unavailable') {
+    return {
+      tone: 'manual',
+      text: `Could not reach Open Food Facts to look up ${params.barcode}. Add the item by hand, or try the scan again with a connection.`,
+    };
+  }
+
+  return { tone: 'found', text: `Scanned ${params.barcode} — check the details before saving.` };
+}
+
+/**
+ * Add item screen.
  *
- * The entry point for putting a new grocery item into the inventory, either by
- * scanning its barcode and letting the product details fill in automatically,
- * or by typing the item in by hand. Pushed over the inventory by its add
- * button, so saving returns to the list underneath.
+ * Reached from the scanner, either carrying a product it recognised or empty
+ * when it could not. Everything it fills in is an ordinary form field, so the
+ * student can correct any of it before saving.
  */
 export default function AddItemScreen() {
   const { addItem, isStorageReady, storageError } = useInventory();
+  const params = useLocalSearchParams<ScanParams>();
+
+  const scanNotice = describeScan(params);
 
   async function handleSubmit(values: ItemFormValues) {
-    await addItem(values);
+    await addItem({ ...values, barcode: params.barcode });
 
     returnToInventory();
   }
@@ -32,19 +70,31 @@ export default function AddItemScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.eyebrow}>MANUAL ENTRY</Text>
+        <Text style={styles.eyebrow}>{params.barcode ? 'SCANNED ITEM' : 'MANUAL ENTRY'}</Text>
         <Text style={styles.title}>Add grocery item</Text>
 
         <Text style={styles.subtitle}>
-          Add loose produce or an item without scanning its barcode.
+          {params.barcode
+            ? 'Correct anything the scan got wrong, then save it.'
+            : 'Add loose produce or an item without a barcode.'}
         </Text>
 
-        <View style={styles.informationCard}>
-          <Ionicons name="information-circle-outline" size={22} color="#2f7d32" />
+        <View style={scanNotice?.tone === 'manual' ? styles.warningCard : styles.informationCard}>
+          <Ionicons
+            color={scanNotice?.tone === 'manual' ? '#8b6b1f' : '#2f7d32'}
+            name={
+              scanNotice?.tone === 'manual' ? 'alert-circle-outline' : 'information-circle-outline'
+            }
+            size={22}
+          />
 
-          <Text style={styles.informationText}>
-            Required fields are marked with an asterisk. You can add quantity and notes if they
-            are useful.
+          <Text
+            style={
+              scanNotice?.tone === 'manual' ? styles.warningText : styles.informationText
+            }
+          >
+            {scanNotice?.text ??
+              'Required fields are marked with an asterisk. You can add quantity and notes if they are useful.'}
           </Text>
         </View>
 
@@ -56,6 +106,17 @@ export default function AddItemScreen() {
                 'Loading your saved inventory. Saving will be enabled in a moment.')
           }
           clearOnSubmit
+          expiryHelpText={
+            params.shelfLifeLabel
+              ? `Estimated from "${params.shelfLifeLabel}" — check the package and correct it.`
+              : undefined
+          }
+          initialValues={{
+            name: params.name ?? '',
+            quantity: params.quantity ?? '',
+            expiryDate: params.expiryDate ?? '',
+            notes: '',
+          }}
           onSubmit={handleSubmit}
           submitLabel="Save item"
         />
@@ -104,6 +165,21 @@ const styles = StyleSheet.create({
   informationText: {
     flex: 1,
     color: '#426747',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  warningCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginTop: 22,
+    borderRadius: 14,
+    backgroundColor: '#fff0d5',
+    padding: 14,
+  },
+  warningText: {
+    flex: 1,
+    color: '#8b6b1f',
     fontSize: 13,
     lineHeight: 19,
   },

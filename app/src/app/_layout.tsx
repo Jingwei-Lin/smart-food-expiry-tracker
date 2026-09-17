@@ -23,7 +23,9 @@ export default function RootLayout() {
           <Stack>
             <Stack.Screen name="index" options={{ headerShown: false }} />
 
-            <Stack.Screen name="add" options={{ title: 'Add item' }} />
+            <Stack.Screen name="scan" options={{ title: 'Scan barcode' }} />
+
+          <Stack.Screen name="add" options={{ title: 'Add item' }} />
 
             <Stack.Screen
               name="item/[id]"
