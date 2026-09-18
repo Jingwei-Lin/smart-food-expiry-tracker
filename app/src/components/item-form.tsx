@@ -8,12 +8,14 @@ export type ItemFormValues = {
   name: string;
   quantity: string;
   expiryDate: string;
+  reminderDaysBefore: number;
   notes: string;
 };
 
 type ItemFormErrors = {
   name?: string;
   expiryDate?: string;
+  reminderDaysBefore?: string;
   save?: string;
 };
 
@@ -33,6 +35,7 @@ const emptyValues: ItemFormValues = {
   name: '',
   quantity: '',
   expiryDate: '',
+  reminderDaysBefore: 1,
   notes: '',
 };
 
@@ -53,6 +56,9 @@ export function ItemForm({
   const [name, setName] = useState(initialValues.name);
   const [quantity, setQuantity] = useState(initialValues.quantity);
   const [expiryDate, setExpiryDate] = useState(initialValues.expiryDate);
+  const [reminderDaysBefore, setReminderDaysBefore] = useState(
+    String(initialValues.reminderDaysBefore),
+  );
   const [notes, setNotes] = useState(initialValues.notes);
 
   const [errors, setErrors] = useState<ItemFormErrors>({});
@@ -83,6 +89,11 @@ export function ItemForm({
     clearFieldError('expiryDate');
   }
 
+  function handleReminderDaysChange(value: string) {
+    setReminderDaysBefore(value);
+    clearFieldError('reminderDaysBefore');
+  }
+
   function handleNotesChange(value: string) {
     setNotes(value);
     clearFieldError();
@@ -93,6 +104,7 @@ export function ItemForm({
 
     const trimmedName = name.trim();
     const trimmedExpiryDate = expiryDate.trim();
+    const parsedReminderDays = Number(reminderDaysBefore);
 
     if (!trimmedName) {
       nextErrors.name = 'Enter a name for this item.';
@@ -102,6 +114,10 @@ export function ItemForm({
       nextErrors.expiryDate = 'Enter an expiry date.';
     } else if (!parseExpiryDate(trimmedExpiryDate)) {
       nextErrors.expiryDate = 'Use a valid date in YYYY-MM-DD format.';
+    }
+
+    if (!Number.isInteger(parsedReminderDays) || parsedReminderDays < 1 || parsedReminderDays > 7) {
+      nextErrors.reminderDaysBefore = 'Choose a whole number from 1 to 7.';
     }
 
     return nextErrors;
@@ -123,6 +139,7 @@ export function ItemForm({
         name: name.trim(),
         quantity: quantity.trim() || '1 item',
         expiryDate: expiryDate.trim(),
+        reminderDaysBefore: Number(reminderDaysBefore),
         notes: notes.trim(),
       });
 
@@ -130,6 +147,7 @@ export function ItemForm({
         setName('');
         setQuantity('');
         setExpiryDate('');
+        setReminderDaysBefore('1');
         setNotes('');
       }
     } catch {
@@ -198,6 +216,38 @@ export function ItemForm({
           ) : (
             <Text style={styles.helpText}>
               {expiryHelpText ?? 'Type the digits printed on the package, for example 20260920.'}
+            </Text>
+          )}
+        </View>
+
+        <View style={styles.field}>
+          <Text style={styles.label}>Remind me before expiry *</Text>
+
+          <View style={styles.reminderInputRow}>
+            <TextInput
+              accessibilityLabel="Number of days before expiry to send a reminder"
+              editable={!isSaving}
+              inputMode="numeric"
+              maxLength={1}
+              onChangeText={handleReminderDaysChange}
+              placeholder="1"
+              placeholderTextColor="#8a938c"
+              style={[
+                styles.input,
+                styles.reminderInput,
+                errors.reminderDaysBefore ? styles.inputError : null,
+              ]}
+              value={reminderDaysBefore}
+            />
+
+            <Text style={styles.reminderUnit}>day(s) before</Text>
+          </View>
+
+          {errors.reminderDaysBefore ? (
+            <Text style={styles.errorText}>{errors.reminderDaysBefore}</Text>
+          ) : (
+            <Text style={styles.helpText}>
+              Choose 1 to 7 days. You will also be reminded on the expiry day.
             </Text>
           )}
         </View>
@@ -278,6 +328,19 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: '#b83c33',
+  },
+  reminderInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  reminderInput: {
+    width: 72,
+    textAlign: 'center',
+  },
+  reminderUnit: {
+    color: '#3c463e',
+    fontSize: 15,
   },
   notesInput: {
     minHeight: 96,

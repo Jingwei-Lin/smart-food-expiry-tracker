@@ -88,11 +88,7 @@ export default function AddItemScreen() {
             size={22}
           />
 
-          <Text
-            style={
-              scanNotice?.tone === 'manual' ? styles.warningText : styles.informationText
-            }
-          >
+          <Text style={scanNotice?.tone === 'manual' ? styles.warningText : styles.informationText}>
             {scanNotice?.text ??
               'Required fields are marked with an asterisk. You can add quantity and notes if they are useful.'}
           </Text>
@@ -115,6 +111,7 @@ export default function AddItemScreen() {
             name: params.name ?? '',
             quantity: params.quantity ?? '',
             expiryDate: params.expiryDate ?? '',
+            reminderDaysBefore: 1,
             notes: '',
           }}
           onSubmit={handleSubmit}

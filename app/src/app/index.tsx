@@ -40,7 +40,7 @@ function describeInventory(items: FoodItem[]): string {
  * the add screen, so it stays above the list at all times.
  */
 export default function InventoryScreen() {
-  const { activeItems, isLoading, storageError } = useInventory();
+  const { activeItems, isLoading, reminderNotice, storageError } = useInventory();
 
   /* This screen has no header or tab bar of its own to sit inside. */
   const insets = useSafeAreaInsets();
@@ -96,6 +96,14 @@ export default function InventoryScreen() {
                 <Text style={styles.errorText}>{storageError}</Text>
               </View>
             ) : null}
+
+            {reminderNotice ? (
+              <View style={styles.reminderBanner}>
+                <Ionicons name="notifications-off-outline" size={19} color="#8b6b1f" />
+
+                <Text style={styles.reminderText}>{reminderNotice}</Text>
+              </View>
+            ) : null}
           </View>
         }
         ListEmptyComponent={
@@ -113,10 +121,7 @@ export default function InventoryScreen() {
             <Pressable
               accessibilityRole="button"
               onPress={() => router.push('/scan')}
-              style={({ pressed }) => [
-                styles.emptyButton,
-                pressed ? styles.pressedButton : null,
-              ]}
+              style={({ pressed }) => [styles.emptyButton, pressed ? styles.pressedButton : null]}
             >
               <Text style={styles.emptyButtonText}>Scan your first item</Text>
             </Pressable>
@@ -187,6 +192,21 @@ const styles = StyleSheet.create({
   errorText: {
     flex: 1,
     color: '#8b2c25',
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  reminderBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 12,
+    borderRadius: 12,
+    backgroundColor: '#fff0d5',
+    padding: 12,
+  },
+  reminderText: {
+    flex: 1,
+    color: '#8b6b1f',
     fontSize: 13,
     lineHeight: 18,
   },
