@@ -137,20 +137,6 @@ export default function InventoryScreen() {
         renderItem={renderSection}
         showsVerticalScrollIndicator={false}
       />
-
-      <View
-        pointerEvents="box-none"
-        style={[styles.addButtonContainer, { bottom: insets.bottom + 24 }]}
-      >
-        <Pressable
-          accessibilityLabel="Scan a grocery item"
-          accessibilityRole="button"
-          onPress={() => router.push('/scan')}
-          style={({ pressed }) => [styles.addButton, pressed ? styles.pressedButton : null]}
-        >
-          <Ionicons name="add" size={40} color="#ffffff" />
-        </Pressable>
-      </View>
     </View>
   );
 }

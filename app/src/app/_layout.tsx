@@ -22,12 +22,7 @@ export default function RootLayout() {
         <InventoryProvider>
           <Stack>
             <Stack.Screen
-              name="index"
-              options={{ headerShown: false }}
-            />
-
-            <Stack.Screen
-              name="summary"
+              name="(tabs)"
               options={{ headerShown: false }}
             />
 
