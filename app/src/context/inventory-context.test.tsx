@@ -73,11 +73,11 @@ function buildStoredItem(overrides: Partial<FoodItem> = {}): FoodItem {
 }
 
 /**
- * Stores a record saved before reminder choices existed, which loads on the
- * first reminder rule and is upgraded at launch.
+ * Stores an item the way v1.0 saved it, with no reminder fields, so it loads
+ * on rule version 1 and has its reminders scheduled at launch.
  */
-function storeLegacyItem(overrides: Record<string, unknown> = {}): Promise<void> {
-  const legacyItem: Record<string, unknown> = { ...buildStoredItem(), ...overrides };
+function storeLegacyItem(): Promise<void> {
+  const legacyItem: Record<string, unknown> = { ...buildStoredItem() };
 
   delete legacyItem.reminderDaysBefore;
   delete legacyItem.reminderRuleVersion;
@@ -151,19 +151,19 @@ describe('reading the stored inventory', () => {
 });
 
 describe('upgrading older reminders at launch', () => {
-  it('moves an older item to the one-day default and the two-reminder rule', async () => {
+  it('gives an item saved by v1.0 the one-day default and schedules its reminders', async () => {
     scheduleReminderMock.mockResolvedValueOnce({
       status: 'scheduled',
       notificationIds: ['new-advance', 'new-expiry'],
     });
-    await storeLegacyItem({ notificationId: 'legacy-notification' });
+    await storeLegacyItem();
 
     const { result } = await renderInventory();
 
     await waitFor(() => expect(result.current.items[0].reminderRuleVersion).toBe(2));
     expect(result.current.items[0].reminderDaysBefore).toBe(1);
     expect(result.current.items[0].notificationIds).toEqual(['new-advance', 'new-expiry']);
-    expect(cancelReminderMock).toHaveBeenCalledWith(['legacy-notification']);
+    expect(cancelReminderMock).not.toHaveBeenCalled();
   });
 
   it('explains that reminders are off without claiming an item was just saved', async () => {
@@ -203,7 +203,7 @@ describe('upgrading older reminders at launch', () => {
 
   it('withdraws the new reminders for an item deleted while the upgrade was waiting', async () => {
     const finishScheduling = holdNextSchedule();
-    await storeLegacyItem({ notificationId: 'legacy-notification' });
+    await storeLegacyItem();
 
     const { result } = await renderInventory();
 

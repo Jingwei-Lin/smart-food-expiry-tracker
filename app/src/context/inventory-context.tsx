@@ -35,8 +35,9 @@ type InventoryContextValue = {
 const InventoryContext = createContext<InventoryContextValue | null>(null);
 
 /**
- * Validates and upgrades a stored item. Items saved before reminder choices
- * existed receive the one-day default and keep their legacy notification ID.
+ * Validates a stored item. Items saved by v1.0 have no reminder fields, so they
+ * receive the one-day default and rule version 1 until their reminders are
+ * scheduled at launch.
  */
 function normalizeFoodItem(value: unknown): FoodItem | null {
   if (!value || typeof value !== 'object') {
@@ -80,9 +81,7 @@ function normalizeFoodItem(value: unknown): FoodItem | null {
     item.notificationIds.every((id) => typeof id === 'string')
   ) {
     notificationIds = item.notificationIds;
-  } else if (typeof item.notificationId === 'string') {
-    notificationIds = [item.notificationId];
-  } else if (item.notificationIds !== undefined || item.notificationId !== undefined) {
+  } else if (item.notificationIds !== undefined) {
     return null;
   }
 
@@ -129,8 +128,8 @@ function describeReminderResult(result: ReminderScheduleResult): string | null {
 }
 
 /**
- * An older record whose reminders fail to schedule stays on the first rule, so
- * the upgrade is simply tried again on the next launch.
+ * A v1.0 item whose reminders fail to schedule stays on rule version 1, so
+ * scheduling is simply tried again on the next launch.
  */
 function describeUpgradeFailure(result: ReminderScheduleResult): string | null {
   if (result.status === 'permission-denied') {
@@ -261,9 +260,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   );
 
   /*
-   * Records saved before reminder choices existed, or under the first one-alert
-   * rule, are on rule version 1. Upgrade them to the two-reminder rule without
-   * requiring manual edits.
+   * Items saved by v1.0 load on rule version 1 with no reminders. Schedule
+   * theirs at launch rather than waiting for each one to be edited.
    */
   useEffect(() => {
     if (!isStorageReady || hasReconciledRemindersRef.current) {
@@ -313,7 +311,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
        * Scheduling can wait on the permission prompt, so the inventory may have
        * changed since it was read. Only records that are still the same object
        * are upgraded. One that was edited, resolved or deleted meanwhile has
-       * already dealt with its old reminders, so the new ones made for it go.
+       * already been dealt with, so the reminders just made for it are cancelled.
        */
       const currentItems = itemsRef.current;
       const idsToCancel: string[][] = [];
@@ -322,10 +320,6 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       for (const [legacyItem, upgradedItem] of upgradedItems) {
         if (currentItems.includes(legacyItem)) {
           didChange = true;
-
-          if (legacyItem.notificationIds) {
-            idsToCancel.push(legacyItem.notificationIds);
-          }
         } else if (upgradedItem.notificationIds) {
           idsToCancel.push(upgradedItem.notificationIds);
         }
@@ -347,7 +341,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       if (isMounted) {
         setReminderNotice(
           cancellationResults.some((wasSuccessful) => !wasSuccessful)
-            ? 'Your reminders were upgraded, but one or more previous reminders could not be cancelled.'
+            ? 'Your reminders were set up, but one or more that are no longer needed could not be cancelled.'
             : migrationNotice,
         );
       }

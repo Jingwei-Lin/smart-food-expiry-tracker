@@ -10,7 +10,7 @@ export type FoodItem = {
   expiryDate: string;
   /** User-selected advance notice, constrained to one through seven days. */
   reminderDaysBefore: number;
-  /** Internal version used to upgrade reminders created under the earlier one-alert rule. */
+  /** 1 marks an item saved by v1.0 whose reminders still need scheduling; 2 is everything since. */
   reminderRuleVersion: 1 | 2;
   notes: string;
   createdAt: string;
