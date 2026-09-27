@@ -65,7 +65,6 @@ export default function InventoryScreen() {
           {section.items.map((item, index) => (
             <View key={item.id}>
               {index > 0 ? <View style={styles.divider} /> : null}
-
               <InventoryRow item={item} />
             </View>
           ))}
@@ -88,6 +87,19 @@ export default function InventoryScreen() {
             <Text style={styles.title}>My Food Inventory</Text>
 
             <Text style={styles.subtitle}>{describeInventory(activeItems)}</Text>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.push('/summary')}
+              style={({ pressed }) => [
+                styles.summaryButton,
+                pressed ? styles.pressedButton : null,
+              ]}
+            >
+              <Ionicons name="stats-chart-outline" size={20} color="#2f7d32" />
+
+              <Text style={styles.summaryButtonText}>Weekly Summary</Text>
+            </Pressable>
 
             {storageError ? (
               <View style={styles.errorBanner}>
@@ -130,20 +142,6 @@ export default function InventoryScreen() {
         renderItem={renderSection}
         showsVerticalScrollIndicator={false}
       />
-
-      <View
-        pointerEvents="box-none"
-        style={[styles.addButtonContainer, { bottom: insets.bottom + 24 }]}
-      >
-        <Pressable
-          accessibilityLabel="Scan a grocery item"
-          accessibilityRole="button"
-          onPress={() => router.push('/scan')}
-          style={({ pressed }) => [styles.addButton, pressed ? styles.pressedButton : null]}
-        >
-          <Ionicons name="add" size={40} color="#ffffff" />
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -300,5 +298,22 @@ const styles = StyleSheet.create({
   },
   pressedButton: {
     opacity: 0.72,
+  },
+  summaryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#2f7d32',
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    paddingVertical: 12,
+  },
+  summaryButtonText: {
+    color: '#2f7d32',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
