@@ -417,6 +417,22 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
       const editedItem = { ...currentItem, ...input, reminderRuleVersion: 2 as const };
 
+      /*
+       * Only the name, expiry date and notice change what a reminder says or
+       * when it arrives. Rescheduling for any other edit would re-send an
+       * advance reminder whose day has passed, as an urgent one a minute away.
+       */
+      const keepsReminders =
+        currentItem.notificationIds !== undefined &&
+        editedItem.name === currentItem.name &&
+        editedItem.expiryDate === currentItem.expiryDate &&
+        editedItem.reminderDaysBefore === currentItem.reminderDaysBefore;
+
+      if (keepsReminders) {
+        await persistItems(itemsRef.current.map((item) => (item.id === id ? editedItem : item)));
+        return;
+      }
+
       const reminderResult = await scheduleExpiryReminders(editedItem);
       const updatedItem = setNotificationIds(
         editedItem,

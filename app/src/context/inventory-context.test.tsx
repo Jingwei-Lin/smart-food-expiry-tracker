@@ -399,6 +399,54 @@ describe('editing an item', () => {
     expect(scheduleReminderMock).toHaveBeenCalled();
     expect(cancelReminderMock).toHaveBeenCalledWith(['old-advance', 'old-expiry']);
   });
+
+  it('keeps the scheduled reminders when only the quantity and notes change', async () => {
+    await storeItems([buildStoredItem({ notificationIds: ['advance', 'expiry'] })]);
+    const { result } = await renderInventory();
+
+    await act(async () => {
+      await result.current.updateItem('stored-1', {
+        name: 'Cheddar',
+        quantity: '500 g',
+        expiryDate: '2026-09-29',
+        reminderDaysBefore: 1,
+        notes: 'Opened on Sunday',
+      });
+    });
+
+    /* Rescheduling would re-send an advance reminder whose day has already passed. */
+    expect(scheduleReminderMock).not.toHaveBeenCalled();
+    expect(cancelReminderMock).not.toHaveBeenCalled();
+    expect(result.current.items[0]).toMatchObject({
+      quantity: '500 g',
+      notes: 'Opened on Sunday',
+      notificationIds: ['advance', 'expiry'],
+    });
+    expect((await readStoredItems())[0].notes).toBe('Opened on Sunday');
+  });
+
+  it('schedules reminders when an item without any is edited', async () => {
+    /* For example, notifications were off when it was added and are now on. */
+    await storeItems([buildStoredItem()]);
+    scheduleReminderMock.mockResolvedValueOnce({
+      status: 'scheduled',
+      notificationIds: ['new-advance', 'new-expiry'],
+    });
+    const { result } = await renderInventory();
+
+    await act(async () => {
+      await result.current.updateItem('stored-1', {
+        name: 'Cheddar',
+        quantity: '250 g',
+        expiryDate: '2026-09-29',
+        reminderDaysBefore: 1,
+        notes: '',
+      });
+    });
+
+    expect(scheduleReminderMock).toHaveBeenCalledTimes(1);
+    expect(result.current.items[0].notificationIds).toEqual(['new-advance', 'new-expiry']);
+  });
 });
 
 describe('deleting an item', () => {
