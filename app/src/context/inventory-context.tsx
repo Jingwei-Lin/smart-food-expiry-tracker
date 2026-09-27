@@ -129,6 +129,22 @@ function describeReminderResult(result: ReminderScheduleResult): string | null {
 }
 
 /**
+ * An older record whose reminders fail to schedule stays on the first rule, so
+ * the upgrade is simply tried again on the next launch.
+ */
+function describeUpgradeFailure(result: ReminderScheduleResult): string | null {
+  if (result.status === 'permission-denied') {
+    return 'Expiry reminders are off. Enable notifications in your device settings and your reminders will be set up the next time you open the app.';
+  }
+
+  if (result.status === 'error') {
+    return 'Some expiry reminders could not be set up. The app will try again the next time you open it.';
+  }
+
+  return null;
+}
+
+/**
  * Produces an identifier suitable for locally stored prototype data.
  */
 function createItemId(): string {
@@ -245,8 +261,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   );
 
   /*
-   * The first reminder implementation stored one native ID. Upgrade those
-   * active records to the two-reminder rule without requiring manual edits.
+   * Records saved before reminder choices existed, or under the first one-alert
+   * rule, are on rule version 1. Upgrade them to the two-reminder rule without
+   * requiring manual edits.
    */
   useEffect(() => {
     if (!isStorageReady || hasReconciledRemindersRef.current) {
@@ -263,10 +280,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      let nextItems = itemsRef.current;
-      let didChange = false;
+      /* Keyed by the record as it was read, so a later change to it shows up. */
+      const upgradedItems = new Map<FoodItem, FoodItem>();
       const newlyScheduledIds: string[][] = [];
-      const previousIdsToCancel: string[][] = [];
       let migrationNotice: string | null = null;
 
       for (const legacyItem of legacyItems) {
@@ -276,44 +292,56 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
             : ({ status: 'not-needed' } as const);
 
         if (reminderResult.status === 'permission-denied' || reminderResult.status === 'error') {
-          migrationNotice = describeReminderResult(reminderResult);
+          migrationNotice = describeUpgradeFailure(reminderResult);
           continue;
         }
-
-        const upgradedItem = setNotificationIds(
-          { ...legacyItem, reminderRuleVersion: 2 },
-          reminderResult.status === 'scheduled' ? reminderResult.notificationIds : undefined,
-        );
 
         if (reminderResult.status === 'scheduled') {
           newlyScheduledIds.push(reminderResult.notificationIds);
         }
 
-        if (legacyItem.notificationIds) {
-          previousIdsToCancel.push(legacyItem.notificationIds);
-        }
-
-        nextItems = nextItems.map((item) => (item.id === legacyItem.id ? upgradedItem : item));
-        didChange = true;
+        upgradedItems.set(
+          legacyItem,
+          setNotificationIds(
+            { ...legacyItem, reminderRuleVersion: 2 },
+            reminderResult.status === 'scheduled' ? reminderResult.notificationIds : undefined,
+          ),
+        );
       }
 
-      if (!didChange) {
-        if (isMounted) {
-          setReminderNotice(migrationNotice);
-        }
+      /*
+       * Scheduling can wait on the permission prompt, so the inventory may have
+       * changed since it was read. Only records that are still the same object
+       * are upgraded. One that was edited, resolved or deleted meanwhile has
+       * already dealt with its old reminders, so the new ones made for it go.
+       */
+      const currentItems = itemsRef.current;
+      const idsToCancel: string[][] = [];
+      let didChange = false;
 
-        return;
+      for (const [legacyItem, upgradedItem] of upgradedItems) {
+        if (currentItems.includes(legacyItem)) {
+          didChange = true;
+
+          if (legacyItem.notificationIds) {
+            idsToCancel.push(legacyItem.notificationIds);
+          }
+        } else if (upgradedItem.notificationIds) {
+          idsToCancel.push(upgradedItem.notificationIds);
+        }
       }
 
-      try {
-        await persistItems(nextItems);
-      } catch {
-        await Promise.all(newlyScheduledIds.map((ids) => cancelExpiryReminders(ids)));
-        return;
+      if (didChange) {
+        try {
+          await persistItems(currentItems.map((item) => upgradedItems.get(item) ?? item));
+        } catch {
+          await Promise.all(newlyScheduledIds.map((ids) => cancelExpiryReminders(ids)));
+          return;
+        }
       }
 
       const cancellationResults = await Promise.all(
-        previousIdsToCancel.map((ids) => cancelExpiryReminders(ids)),
+        idsToCancel.map((ids) => cancelExpiryReminders(ids)),
       );
 
       if (isMounted) {

@@ -2,7 +2,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { InventoryProvider, useInventory } from '@/context/inventory-context';
-import { cancelExpiryReminders, scheduleExpiryReminders } from '@/services/expiry-notifications';
+import {
+  cancelExpiryReminders,
+  ReminderScheduleResult,
+  scheduleExpiryReminders,
+} from '@/services/expiry-notifications';
 import { FoodItem, NewFoodItem } from '@/types/food-item';
 
 jest.mock('@/services/expiry-notifications', () => ({
@@ -68,6 +72,36 @@ function buildStoredItem(overrides: Partial<FoodItem> = {}): FoodItem {
   };
 }
 
+/**
+ * Stores a record saved before reminder choices existed, which loads on the
+ * first reminder rule and is upgraded at launch.
+ */
+function storeLegacyItem(overrides: Record<string, unknown> = {}): Promise<void> {
+  const legacyItem: Record<string, unknown> = { ...buildStoredItem(), ...overrides };
+
+  delete legacyItem.reminderDaysBefore;
+  delete legacyItem.reminderRuleVersion;
+
+  return AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([legacyItem]));
+}
+
+/**
+ * Holds the next reminder schedule open, the way a permission prompt does,
+ * until the test finishes it.
+ */
+function holdNextSchedule(): (result: ReminderScheduleResult) => void {
+  let finish: (result: ReminderScheduleResult) => void = () => undefined;
+
+  scheduleReminderMock.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+
+  return (result) => finish(result);
+}
+
 beforeEach(async () => {
   jest.clearAllMocks();
   scheduleReminderMock.mockResolvedValue({ status: 'not-needed' });
@@ -93,28 +127,6 @@ describe('reading the stored inventory', () => {
     expect(result.current.items[0].name).toBe('Cheddar');
   });
 
-  it('upgrades an older item to the one-day default and the two-reminder rule', async () => {
-    scheduleReminderMock.mockResolvedValueOnce({
-      status: 'scheduled',
-      notificationIds: ['new-advance', 'new-expiry'],
-    });
-    const legacyItem: Record<string, unknown> = {
-      ...buildStoredItem(),
-      notificationId: 'legacy-notification',
-    };
-
-    delete legacyItem.reminderDaysBefore;
-    delete legacyItem.reminderRuleVersion;
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([legacyItem]));
-
-    const { result } = await renderInventory();
-
-    await waitFor(() => expect(result.current.items[0].reminderRuleVersion).toBe(2));
-    expect(result.current.items[0].reminderDaysBefore).toBe(1);
-    expect(result.current.items[0].notificationIds).toEqual(['new-advance', 'new-expiry']);
-    expect(cancelReminderMock).toHaveBeenCalledWith(['legacy-notification']);
-  });
-
   it('drops records that are missing fields rather than failing the whole load', async () => {
     await storeItems([buildStoredItem(), { id: 'broken' } as FoodItem]);
 
@@ -135,6 +147,81 @@ describe('reading the stored inventory', () => {
 
     /* The unreadable value must survive, rather than being replaced by one item. */
     expect(await AsyncStorage.getItem(STORAGE_KEY)).toBe('{ not valid json');
+  });
+});
+
+describe('upgrading older reminders at launch', () => {
+  it('moves an older item to the one-day default and the two-reminder rule', async () => {
+    scheduleReminderMock.mockResolvedValueOnce({
+      status: 'scheduled',
+      notificationIds: ['new-advance', 'new-expiry'],
+    });
+    await storeLegacyItem({ notificationId: 'legacy-notification' });
+
+    const { result } = await renderInventory();
+
+    await waitFor(() => expect(result.current.items[0].reminderRuleVersion).toBe(2));
+    expect(result.current.items[0].reminderDaysBefore).toBe(1);
+    expect(result.current.items[0].notificationIds).toEqual(['new-advance', 'new-expiry']);
+    expect(cancelReminderMock).toHaveBeenCalledWith(['legacy-notification']);
+  });
+
+  it('explains that reminders are off without claiming an item was just saved', async () => {
+    scheduleReminderMock.mockResolvedValueOnce({ status: 'permission-denied' });
+    await storeLegacyItem();
+
+    const { result } = await renderInventory();
+
+    await waitFor(() => expect(result.current.reminderNotice).toContain('reminders are off'));
+    expect(result.current.reminderNotice).not.toContain('was saved');
+    expect(result.current.reminderNotice).toContain('next time you open the app');
+
+    /* It stays on the old rule so the upgrade is tried again on the next launch. */
+    expect(result.current.items[0].reminderRuleVersion).toBe(1);
+  });
+
+  it('keeps an item added while the upgrade was waiting', async () => {
+    const finishScheduling = holdNextSchedule();
+    await storeLegacyItem();
+
+    const { result } = await renderInventory();
+
+    await waitFor(() => expect(scheduleReminderMock).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await result.current.addItem(milk);
+    });
+
+    await act(async () => {
+      finishScheduling({ status: 'scheduled', notificationIds: ['new-advance', 'new-expiry'] });
+    });
+
+    await waitFor(() => expect(result.current.items[0].reminderRuleVersion).toBe(2));
+    expect(result.current.items.map((item) => item.name)).toEqual(['Cheddar', 'Milk']);
+    expect((await readStoredItems()).map((item) => item.name)).toEqual(['Cheddar', 'Milk']);
+  });
+
+  it('withdraws the new reminders for an item deleted while the upgrade was waiting', async () => {
+    const finishScheduling = holdNextSchedule();
+    await storeLegacyItem({ notificationId: 'legacy-notification' });
+
+    const { result } = await renderInventory();
+
+    await waitFor(() => expect(scheduleReminderMock).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await result.current.deleteItem('stored-1');
+    });
+
+    await act(async () => {
+      finishScheduling({ status: 'scheduled', notificationIds: ['new-advance', 'new-expiry'] });
+    });
+
+    await waitFor(() =>
+      expect(cancelReminderMock).toHaveBeenCalledWith(['new-advance', 'new-expiry']),
+    );
+    expect(result.current.items).toEqual([]);
+    expect(await readStoredItems()).toEqual([]);
   });
 });
 
