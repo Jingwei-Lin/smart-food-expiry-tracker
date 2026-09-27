@@ -78,6 +78,7 @@ export default function EditItemScreen() {
             name: item.name,
             quantity: item.quantity,
             expiryDate: item.expiryDate,
+            reminderDaysBefore: item.reminderDaysBefore,
             notes: item.notes,
           }}
           onSubmit={handleSubmit}

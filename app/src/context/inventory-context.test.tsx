@@ -2,7 +2,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, renderHook, waitFor } from '@testing-library/react-native';
 
 import { InventoryProvider, useInventory } from '@/context/inventory-context';
+import {
+  cancelExpiryReminders,
+  ReminderScheduleResult,
+  scheduleExpiryReminders,
+} from '@/services/expiry-notifications';
 import { FoodItem, NewFoodItem } from '@/types/food-item';
+
+jest.mock('@/services/expiry-notifications', () => ({
+  cancelExpiryReminders: jest.fn(),
+  scheduleExpiryReminders: jest.fn(),
+}));
 
 const STORAGE_KEY = '@smart-food-expiry-tracker/inventory-v1';
 
@@ -10,6 +20,7 @@ const milk: NewFoodItem = {
   name: 'Milk',
   quantity: '2 L',
   expiryDate: '2026-09-20',
+  reminderDaysBefore: 1,
   notes: 'Opened on Monday',
 };
 
@@ -17,8 +28,12 @@ const spinach: NewFoodItem = {
   name: 'Baby spinach',
   quantity: '1 bag',
   expiryDate: '2026-09-17',
+  reminderDaysBefore: 1,
   notes: '',
 };
+
+const scheduleReminderMock = jest.mocked(scheduleExpiryReminders);
+const cancelReminderMock = jest.mocked(cancelExpiryReminders);
 
 /**
  * Mounts the inventory and waits for the stored list to be read, which is what
@@ -48,6 +63,8 @@ function buildStoredItem(overrides: Partial<FoodItem> = {}): FoodItem {
     name: 'Cheddar',
     quantity: '250 g',
     expiryDate: '2026-09-29',
+    reminderDaysBefore: 1,
+    reminderRuleVersion: 2,
     notes: '',
     createdAt: '2026-09-10T00:00:00.000Z',
     status: 'active',
@@ -55,7 +72,40 @@ function buildStoredItem(overrides: Partial<FoodItem> = {}): FoodItem {
   };
 }
 
+/**
+ * Stores an item the way v1.0 saved it, with no reminder fields, so it loads
+ * on rule version 1 and has its reminders scheduled at launch.
+ */
+function storeLegacyItem(): Promise<void> {
+  const legacyItem: Record<string, unknown> = { ...buildStoredItem() };
+
+  delete legacyItem.reminderDaysBefore;
+  delete legacyItem.reminderRuleVersion;
+
+  return AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([legacyItem]));
+}
+
+/**
+ * Holds the next reminder schedule open, the way a permission prompt does,
+ * until the test finishes it.
+ */
+function holdNextSchedule(): (result: ReminderScheduleResult) => void {
+  let finish: (result: ReminderScheduleResult) => void = () => undefined;
+
+  scheduleReminderMock.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+  );
+
+  return (result) => finish(result);
+}
+
 beforeEach(async () => {
+  jest.clearAllMocks();
+  scheduleReminderMock.mockResolvedValue({ status: 'not-needed' });
+  cancelReminderMock.mockResolvedValue(true);
   await AsyncStorage.clear();
 });
 
@@ -100,6 +150,81 @@ describe('reading the stored inventory', () => {
   });
 });
 
+describe('upgrading older reminders at launch', () => {
+  it('gives an item saved by v1.0 the one-day default and schedules its reminders', async () => {
+    scheduleReminderMock.mockResolvedValueOnce({
+      status: 'scheduled',
+      notificationIds: ['new-advance', 'new-expiry'],
+    });
+    await storeLegacyItem();
+
+    const { result } = await renderInventory();
+
+    await waitFor(() => expect(result.current.items[0].reminderRuleVersion).toBe(2));
+    expect(result.current.items[0].reminderDaysBefore).toBe(1);
+    expect(result.current.items[0].notificationIds).toEqual(['new-advance', 'new-expiry']);
+    expect(cancelReminderMock).not.toHaveBeenCalled();
+  });
+
+  it('explains that reminders are off without claiming an item was just saved', async () => {
+    scheduleReminderMock.mockResolvedValueOnce({ status: 'permission-denied' });
+    await storeLegacyItem();
+
+    const { result } = await renderInventory();
+
+    await waitFor(() => expect(result.current.reminderNotice).toContain('reminders are off'));
+    expect(result.current.reminderNotice).not.toContain('was saved');
+    expect(result.current.reminderNotice).toContain('next time you open the app');
+
+    /* It stays on the old rule so the upgrade is tried again on the next launch. */
+    expect(result.current.items[0].reminderRuleVersion).toBe(1);
+  });
+
+  it('keeps an item added while the upgrade was waiting', async () => {
+    const finishScheduling = holdNextSchedule();
+    await storeLegacyItem();
+
+    const { result } = await renderInventory();
+
+    await waitFor(() => expect(scheduleReminderMock).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await result.current.addItem(milk);
+    });
+
+    await act(async () => {
+      finishScheduling({ status: 'scheduled', notificationIds: ['new-advance', 'new-expiry'] });
+    });
+
+    await waitFor(() => expect(result.current.items[0].reminderRuleVersion).toBe(2));
+    expect(result.current.items.map((item) => item.name)).toEqual(['Cheddar', 'Milk']);
+    expect((await readStoredItems()).map((item) => item.name)).toEqual(['Cheddar', 'Milk']);
+  });
+
+  it('withdraws the new reminders for an item deleted while the upgrade was waiting', async () => {
+    const finishScheduling = holdNextSchedule();
+    await storeLegacyItem();
+
+    const { result } = await renderInventory();
+
+    await waitFor(() => expect(scheduleReminderMock).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      await result.current.deleteItem('stored-1');
+    });
+
+    await act(async () => {
+      finishScheduling({ status: 'scheduled', notificationIds: ['new-advance', 'new-expiry'] });
+    });
+
+    await waitFor(() =>
+      expect(cancelReminderMock).toHaveBeenCalledWith(['new-advance', 'new-expiry']),
+    );
+    expect(result.current.items).toEqual([]);
+    expect(await readStoredItems()).toEqual([]);
+  });
+});
+
 describe('adding an item', () => {
   it('saves it and returns it with an id, a created date and an active status', async () => {
     const { result } = await renderInventory();
@@ -113,6 +238,7 @@ describe('adding an item', () => {
     expect(added?.id).toEqual(expect.any(String));
     expect(added?.createdAt).toEqual(expect.any(String));
     expect(added?.status).toBe('active');
+    expect(added?.reminderDaysBefore).toBe(1);
 
     expect(result.current.items).toHaveLength(1);
     expect(await readStoredItems()).toHaveLength(1);
@@ -143,6 +269,39 @@ describe('adding an item', () => {
 
     expect(second.result.current.items).toHaveLength(1);
     expect(second.result.current.items[0].name).toBe('Milk');
+  });
+
+  it('stores the scheduled notification identifier with the item', async () => {
+    scheduleReminderMock.mockResolvedValueOnce({
+      status: 'scheduled',
+      notificationIds: ['advance-notification', 'expiry-notification'],
+    });
+    const { result } = await renderInventory();
+
+    await act(async () => {
+      await result.current.addItem(milk);
+    });
+
+    expect(result.current.items[0].notificationIds).toEqual([
+      'advance-notification',
+      'expiry-notification',
+    ]);
+    expect((await readStoredItems())[0].notificationIds).toEqual([
+      'advance-notification',
+      'expiry-notification',
+    ]);
+  });
+
+  it('still saves when notification permission is denied', async () => {
+    scheduleReminderMock.mockResolvedValueOnce({ status: 'permission-denied' });
+    const { result } = await renderInventory();
+
+    await act(async () => {
+      await result.current.addItem(milk);
+    });
+
+    expect(result.current.items).toHaveLength(1);
+    expect(result.current.reminderNotice).toContain('reminders are off');
   });
 });
 
@@ -194,6 +353,100 @@ describe('editing an item', () => {
       'Baby spinach',
     ]);
   });
+
+  it('replaces and cancels the previous expiry reminder', async () => {
+    await storeItems([buildStoredItem({ notificationIds: ['old-advance', 'old-expiry'] })]);
+    scheduleReminderMock.mockResolvedValueOnce({
+      status: 'scheduled',
+      notificationIds: ['new-advance', 'new-expiry'],
+    });
+    const { result } = await renderInventory();
+
+    await act(async () => {
+      await result.current.updateItem('stored-1', {
+        name: 'Cheddar',
+        quantity: '250 g',
+        expiryDate: '2026-10-02',
+        reminderDaysBefore: 3,
+        notes: '',
+      });
+    });
+
+    expect(result.current.items[0].notificationIds).toEqual(['new-advance', 'new-expiry']);
+    expect(result.current.items[0].reminderDaysBefore).toBe(3);
+    expect(cancelReminderMock).toHaveBeenCalledWith(['old-advance', 'old-expiry']);
+  });
+
+  it('reschedules reminders when only the custom reminder choice changes', async () => {
+    await storeItems([buildStoredItem({ notificationIds: ['old-advance', 'old-expiry'] })]);
+    scheduleReminderMock.mockResolvedValueOnce({
+      status: 'scheduled',
+      notificationIds: ['new-advance', 'new-expiry'],
+    });
+    const { result } = await renderInventory();
+
+    await act(async () => {
+      await result.current.updateItem('stored-1', {
+        name: 'Mature cheddar',
+        quantity: '250 g',
+        expiryDate: '2026-09-29',
+        reminderDaysBefore: 7,
+        notes: '',
+      });
+    });
+
+    expect(result.current.items[0].reminderDaysBefore).toBe(7);
+    expect(scheduleReminderMock).toHaveBeenCalled();
+    expect(cancelReminderMock).toHaveBeenCalledWith(['old-advance', 'old-expiry']);
+  });
+
+  it('keeps the scheduled reminders when only the quantity and notes change', async () => {
+    await storeItems([buildStoredItem({ notificationIds: ['advance', 'expiry'] })]);
+    const { result } = await renderInventory();
+
+    await act(async () => {
+      await result.current.updateItem('stored-1', {
+        name: 'Cheddar',
+        quantity: '500 g',
+        expiryDate: '2026-09-29',
+        reminderDaysBefore: 1,
+        notes: 'Opened on Sunday',
+      });
+    });
+
+    /* Rescheduling would re-send an advance reminder whose day has already passed. */
+    expect(scheduleReminderMock).not.toHaveBeenCalled();
+    expect(cancelReminderMock).not.toHaveBeenCalled();
+    expect(result.current.items[0]).toMatchObject({
+      quantity: '500 g',
+      notes: 'Opened on Sunday',
+      notificationIds: ['advance', 'expiry'],
+    });
+    expect((await readStoredItems())[0].notes).toBe('Opened on Sunday');
+  });
+
+  it('schedules reminders when an item without any is edited', async () => {
+    /* For example, notifications were off when it was added and are now on. */
+    await storeItems([buildStoredItem()]);
+    scheduleReminderMock.mockResolvedValueOnce({
+      status: 'scheduled',
+      notificationIds: ['new-advance', 'new-expiry'],
+    });
+    const { result } = await renderInventory();
+
+    await act(async () => {
+      await result.current.updateItem('stored-1', {
+        name: 'Cheddar',
+        quantity: '250 g',
+        expiryDate: '2026-09-29',
+        reminderDaysBefore: 1,
+        notes: '',
+      });
+    });
+
+    expect(scheduleReminderMock).toHaveBeenCalledTimes(1);
+    expect(result.current.items[0].notificationIds).toEqual(['new-advance', 'new-expiry']);
+  });
 });
 
 describe('deleting an item', () => {
@@ -213,6 +466,22 @@ describe('deleting an item', () => {
 
     expect(result.current.items.map((item) => item.name)).toEqual(['Baby spinach']);
     expect(await readStoredItems()).toHaveLength(1);
+  });
+
+  it('cancels its expiry reminders', async () => {
+    await storeItems([
+      buildStoredItem({ notificationIds: ['advance-notification', 'expiry-notification'] }),
+    ]);
+    const { result } = await renderInventory();
+
+    await act(async () => {
+      await result.current.deleteItem('stored-1');
+    });
+
+    expect(cancelReminderMock).toHaveBeenCalledWith([
+      'advance-notification',
+      'expiry-notification',
+    ]);
   });
 });
 
@@ -242,6 +511,23 @@ describe('resolving an item', () => {
       expect((await readStoredItems())[0].status).toBe(status);
     },
   );
+
+  it('cancels the reminder and removes its identifier', async () => {
+    await storeItems([
+      buildStoredItem({ notificationIds: ['advance-notification', 'expiry-notification'] }),
+    ]);
+    const { result } = await renderInventory();
+
+    await act(async () => {
+      await result.current.resolveItem('stored-1', 'eaten');
+    });
+
+    expect(result.current.items[0].notificationIds).toBeUndefined();
+    expect(cancelReminderMock).toHaveBeenCalledWith([
+      'advance-notification',
+      'expiry-notification',
+    ]);
+  });
 });
 
 describe('querying the active inventory', () => {

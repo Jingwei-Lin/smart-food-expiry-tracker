@@ -9,6 +9,8 @@ function buildItem(id: string, expiryDate: string): FoodItem {
     name: id,
     quantity: '1 item',
     expiryDate,
+    reminderDaysBefore: 1,
+    reminderRuleVersion: 2,
     notes: '',
     createdAt: '2026-09-10T00:00:00.000Z',
     status: 'active',
@@ -57,7 +59,10 @@ describe('buildInventorySections', () => {
     const sections = buildInventorySections([buildItem('mystery', 'whenever')], today);
 
     expect(sections).toEqual([
-      expect.objectContaining({ title: 'Later', items: [expect.objectContaining({ id: 'mystery' })] }),
+      expect.objectContaining({
+        title: 'Later',
+        items: [expect.objectContaining({ id: 'mystery' })],
+      }),
     ]);
   });
 

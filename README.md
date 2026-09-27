@@ -11,15 +11,15 @@ The idea is that you scan a product's barcode when you unpack your shopping, and
 
 ## Key Features
 
-This is our Phase 2 mid-progress submission, so not everything we proposed is finished. The table below is what v1.0 actually does. "Partly working" means you can open the screen and use it, but it is not reading real data yet.
+Our Phase 2 mid-progress submission is tagged `v1.0`, and not everything we proposed is finished yet. The table below is what `main` does now. "Partly working" means you can open the screen and use it, but it is not reading real data yet.
 
-| Feature | Status in v1.0 | What that means right now |
+| Feature | Status | What that means right now |
 | --- | --- | --- |
 | **Barcode scanning** | Working | Scan a product barcode, the app looks it up in Open Food Facts and fills in the name and a guessed expiry date, which you can correct |
 | **Manual entry** | Working | Add, edit and delete items by hand, for loose produce or anything without a barcode |
 | **Waste summary** | Partly working | The screen works, but the totals on it are example numbers, not counted from your real inventory |
 | **Donation point finder** | Partly working | The list and the search box work, but the places are invented and sit at fixed distances. No GPS yet |
-| **Expiry reminders** | Not complete | We wrote the code on a branch but never merged it into `main`, so v1.0 does not send any notifications |
+| **Expiry reminders** | Working | Choose 1 to 7 days' notice (1 by default) and get a second reminder on the expiry day. Reminders are rescheduled or cancelled when you edit, resolve or delete an item, and tapping one opens that item. Added after `v1.0` |
 | **Recipe suggestions** | Not started | Placeholder screen only |
 
 
@@ -30,7 +30,7 @@ This is our Phase 2 mid-progress submission, so not everything we proposed is fi
 
 ## TODO for Phase 3
 
-- Merge the expiry reminders branch, then test notifications on real Android and iOS devices
+- Test expiry notifications on real Android and iOS devices
 - Count the waste summary totals from real item outcomes, and add a `donated` outcome to the data model (at the moment you can only mark an item eaten or thrown out, but the summary counts donations)
 - Replace the invented donation points with `expo-location` and a real data source
 - Recipe suggestions from an LLM, built from the ingredients closest to expiring
@@ -45,10 +45,10 @@ This is our Phase 2 mid-progress submission, so not everything we proposed is fi
 
 ## Mobile technologies
 
-| Technology                                 | Used for                                       | Status in this submission                 |
-| ------------------------------------------ | ---------------------------------------------- | ----------------------------------------- |
+| Technology                                 | Used for                                       | Status                                     |
+| ------------------------------------------ | ---------------------------------------------- | ------------------------------------------ |
 | Camera (`expo-camera`)                     | Scanning product barcodes                      | Working                                    |
-| Local notifications (`expo-notifications`) | Scheduled expiry reminders                     | Not complete, code is on a branch      |
+| Local notifications (`expo-notifications`) | Scheduled expiry reminders                     | Working, needs a real-device test pass     |
 | GPS / geolocation (`expo-location`)        | Locating nearby food donation points           | Phase 3                                    |
 | Mobile data networks                       | Open Food Facts lookups and recipe suggestions | Open Food Facts works; recipes are Phase 3 |
 
@@ -72,12 +72,12 @@ Then scan the QR code with Expo Go. You need a real phone to test the barcode sc
 All three pass on `main`. Run them from the `app/` folder.
 
 ```bash
-npm test          # 67 unit tests
+npm test          # 96 unit tests
 npm run typecheck # TypeScript, strict mode
 npm run lint
 ```
 
-The tests cover the storage layer, the expiry date handling, the shelf-life estimates and the Open Food Facts response parsing.
+The tests cover the storage layer, the expiry date handling, the reminder scheduling rules, the shelf-life estimates and the Open Food Facts response parsing.
 
 ## Project structure
 
@@ -86,6 +86,7 @@ app/                  Expo project
   src/app/            screens and routes
   src/components/     shared UI
   src/context/        inventory state and saving to the device
+  src/services/       local expiry reminder scheduling
   src/utils/          expiry dates, shelf-life estimates, Open Food Facts lookup
   src/types/          the food item data model
   assets/             icons and splash images

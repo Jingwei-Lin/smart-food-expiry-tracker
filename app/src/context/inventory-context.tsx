@@ -11,6 +11,11 @@ import {
 } from 'react';
 
 import { FoodItem, NewFoodItem, ResolvedFoodItemStatus } from '@/types/food-item';
+import {
+  cancelExpiryReminders,
+  ReminderScheduleResult,
+  scheduleExpiryReminders,
+} from '@/services/expiry-notifications';
 
 const STORAGE_KEY = '@smart-food-expiry-tracker/inventory-v1';
 
@@ -19,6 +24,7 @@ type InventoryContextValue = {
   activeItems: FoodItem[];
   isLoading: boolean;
   storageError: string | null;
+  reminderNotice: string | null;
   isStorageReady: boolean;
   addItem: (input: NewFoodItem) => Promise<FoodItem>;
   updateItem: (id: string, input: NewFoodItem) => Promise<void>;
@@ -29,24 +35,112 @@ type InventoryContextValue = {
 const InventoryContext = createContext<InventoryContextValue | null>(null);
 
 /**
- * Checks that a value loaded from storage has the expected FoodItem fields.
+ * Validates a stored item. Items saved by v1.0 have no reminder fields, so they
+ * receive the one-day default and rule version 1 until their reminders are
+ * scheduled at launch.
  */
-function isFoodItem(value: unknown): value is FoodItem {
+function normalizeFoodItem(value: unknown): FoodItem | null {
   if (!value || typeof value !== 'object') {
-    return false;
+    return null;
   }
 
-  const item = value as Partial<FoodItem>;
+  const item = value as Record<string, unknown>;
 
-  return (
-    typeof item.id === 'string' &&
-    typeof item.name === 'string' &&
-    typeof item.quantity === 'string' &&
-    typeof item.expiryDate === 'string' &&
-    typeof item.notes === 'string' &&
-    typeof item.createdAt === 'string' &&
-    (item.status === 'active' || item.status === 'eaten' || item.status === 'discarded')
-  );
+  if (
+    typeof item.id !== 'string' ||
+    typeof item.name !== 'string' ||
+    typeof item.quantity !== 'string' ||
+    typeof item.expiryDate !== 'string' ||
+    typeof item.notes !== 'string' ||
+    typeof item.createdAt !== 'string' ||
+    (item.status !== 'active' && item.status !== 'eaten' && item.status !== 'discarded')
+  ) {
+    return null;
+  }
+
+  const reminderDaysBefore = item.reminderDaysBefore ?? 1;
+  const reminderRuleVersion = item.reminderRuleVersion ?? 1;
+
+  if (
+    typeof reminderDaysBefore !== 'number' ||
+    !Number.isInteger(reminderDaysBefore) ||
+    reminderDaysBefore < 1 ||
+    reminderDaysBefore > 7
+  ) {
+    return null;
+  }
+
+  if (reminderRuleVersion !== 1 && reminderRuleVersion !== 2) {
+    return null;
+  }
+
+  let notificationIds: string[] | undefined;
+
+  if (
+    Array.isArray(item.notificationIds) &&
+    item.notificationIds.every((id) => typeof id === 'string')
+  ) {
+    notificationIds = item.notificationIds;
+  } else if (item.notificationIds !== undefined) {
+    return null;
+  }
+
+  return {
+    id: item.id,
+    name: item.name,
+    quantity: item.quantity,
+    expiryDate: item.expiryDate,
+    reminderDaysBefore,
+    reminderRuleVersion,
+    notes: item.notes,
+    createdAt: item.createdAt,
+    status: item.status,
+    ...(typeof item.statusUpdatedAt === 'string'
+      ? { statusUpdatedAt: item.statusUpdatedAt }
+      : null),
+    ...(typeof item.barcode === 'string' ? { barcode: item.barcode } : null),
+    ...(notificationIds && notificationIds.length > 0 ? { notificationIds } : null),
+  };
+}
+
+function setNotificationIds(item: FoodItem, notificationIds?: string[]): FoodItem {
+  const nextItem = { ...item };
+
+  delete nextItem.notificationIds;
+
+  if (notificationIds && notificationIds.length > 0) {
+    nextItem.notificationIds = notificationIds;
+  }
+
+  return nextItem;
+}
+
+function describeReminderResult(result: ReminderScheduleResult): string | null {
+  if (result.status === 'permission-denied') {
+    return 'This item was saved, but expiry reminders are off. Enable notifications in your device settings, then edit the item to schedule its reminders.';
+  }
+
+  if (result.status === 'error') {
+    return 'This item was saved, but one or more expiry reminders could not be scheduled.';
+  }
+
+  return null;
+}
+
+/**
+ * A v1.0 item whose reminders fail to schedule stays on rule version 1, so
+ * scheduling is simply tried again on the next launch.
+ */
+function describeUpgradeFailure(result: ReminderScheduleResult): string | null {
+  if (result.status === 'permission-denied') {
+    return 'Expiry reminders are off. Enable notifications in your device settings and your reminders will be set up the next time you open the app.';
+  }
+
+  if (result.status === 'error') {
+    return 'Some expiry reminders could not be set up. The app will try again the next time you open it.';
+  }
+
+  return null;
 }
 
 /**
@@ -63,6 +157,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<FoodItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [reminderNotice, setReminderNotice] = useState<string | null>(null);
 
   /*
    * Saving is only safe once the stored inventory has been read. Writing before
@@ -81,6 +176,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
    * from using an older copy of the inventory.
    */
   const itemsRef = useRef<FoodItem[]>([]);
+  const hasReconciledRemindersRef = useRef(false);
 
   const setCurrentItems = useCallback((nextItems: FoodItem[]) => {
     itemsRef.current = nextItems;
@@ -112,7 +208,9 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
           throw new Error('The stored inventory is not an array.');
         }
 
-        const validItems = parsedValue.filter(isFoodItem);
+        const validItems = parsedValue
+          .map(normalizeFoodItem)
+          .filter((item): item is FoodItem => item !== null);
 
         if (isMounted) {
           setCurrentItems(validItems);
@@ -162,24 +260,137 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   );
 
   /*
+   * Items saved by v1.0 load on rule version 1 with no reminders. Schedule
+   * theirs at launch rather than waiting for each one to be edited.
+   */
+  useEffect(() => {
+    if (!isStorageReady || hasReconciledRemindersRef.current) {
+      return;
+    }
+
+    hasReconciledRemindersRef.current = true;
+    let isMounted = true;
+
+    async function reconcileLegacyReminders() {
+      const legacyItems = itemsRef.current.filter((item) => item.reminderRuleVersion === 1);
+
+      if (legacyItems.length === 0) {
+        return;
+      }
+
+      /* Keyed by the record as it was read, so a later change to it shows up. */
+      const upgradedItems = new Map<FoodItem, FoodItem>();
+      const newlyScheduledIds: string[][] = [];
+      let migrationNotice: string | null = null;
+
+      for (const legacyItem of legacyItems) {
+        const reminderResult =
+          legacyItem.status === 'active'
+            ? await scheduleExpiryReminders(legacyItem)
+            : ({ status: 'not-needed' } as const);
+
+        if (reminderResult.status === 'permission-denied' || reminderResult.status === 'error') {
+          migrationNotice = describeUpgradeFailure(reminderResult);
+          continue;
+        }
+
+        if (reminderResult.status === 'scheduled') {
+          newlyScheduledIds.push(reminderResult.notificationIds);
+        }
+
+        upgradedItems.set(
+          legacyItem,
+          setNotificationIds(
+            { ...legacyItem, reminderRuleVersion: 2 },
+            reminderResult.status === 'scheduled' ? reminderResult.notificationIds : undefined,
+          ),
+        );
+      }
+
+      /*
+       * Scheduling can wait on the permission prompt, so the inventory may have
+       * changed since it was read. Only records that are still the same object
+       * are upgraded. One that was edited, resolved or deleted meanwhile has
+       * already been dealt with, so the reminders just made for it are cancelled.
+       */
+      const currentItems = itemsRef.current;
+      const idsToCancel: string[][] = [];
+      let didChange = false;
+
+      for (const [legacyItem, upgradedItem] of upgradedItems) {
+        if (currentItems.includes(legacyItem)) {
+          didChange = true;
+        } else if (upgradedItem.notificationIds) {
+          idsToCancel.push(upgradedItem.notificationIds);
+        }
+      }
+
+      if (didChange) {
+        try {
+          await persistItems(currentItems.map((item) => upgradedItems.get(item) ?? item));
+        } catch {
+          await Promise.all(newlyScheduledIds.map((ids) => cancelExpiryReminders(ids)));
+          return;
+        }
+      }
+
+      const cancellationResults = await Promise.all(
+        idsToCancel.map((ids) => cancelExpiryReminders(ids)),
+      );
+
+      if (isMounted) {
+        setReminderNotice(
+          cancellationResults.some((wasSuccessful) => !wasSuccessful)
+            ? 'Your reminders were set up, but one or more that are no longer needed could not be cancelled.'
+            : migrationNotice,
+        );
+      }
+    }
+
+    void reconcileLegacyReminders();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isStorageReady, persistItems]);
+
+  /*
    * Convert manual-entry values into a complete FoodItem and save it.
    */
   const addItem = useCallback(
     async (input: NewFoodItem) => {
-      const newItem: FoodItem = {
+      let newItem: FoodItem = {
         id: createItemId(),
         name: input.name,
         quantity: input.quantity,
         expiryDate: input.expiryDate,
+        reminderDaysBefore: input.reminderDaysBefore,
+        reminderRuleVersion: 2,
         notes: input.notes,
         createdAt: new Date().toISOString(),
         status: 'active',
         ...(input.barcode ? { barcode: input.barcode } : null),
       };
 
+      const reminderResult = await scheduleExpiryReminders(newItem);
+
+      if (reminderResult.status === 'scheduled') {
+        newItem = setNotificationIds(newItem, reminderResult.notificationIds);
+      }
+
       const nextItems = [...itemsRef.current, newItem];
 
-      await persistItems(nextItems);
+      try {
+        await persistItems(nextItems);
+      } catch (error) {
+        if (reminderResult.status === 'scheduled') {
+          await cancelExpiryReminders(reminderResult.notificationIds);
+        }
+
+        throw error;
+      }
+
+      setReminderNotice(describeReminderResult(reminderResult));
 
       return newItem;
     },
@@ -192,18 +403,75 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
    */
   const updateItem = useCallback(
     async (id: string, input: NewFoodItem) => {
-      const nextItems = itemsRef.current.map((item) =>
-        item.id === id ? { ...item, ...input } : item,
-      );
+      const currentItem = itemsRef.current.find((item) => item.id === id);
 
-      await persistItems(nextItems);
+      if (!currentItem) {
+        return;
+      }
+
+      const editedItem = { ...currentItem, ...input, reminderRuleVersion: 2 as const };
+
+      /*
+       * Only the name, expiry date and notice change what a reminder says or
+       * when it arrives. Rescheduling for any other edit would re-send an
+       * advance reminder whose day has passed, as an urgent one a minute away.
+       */
+      const keepsReminders =
+        currentItem.notificationIds !== undefined &&
+        editedItem.name === currentItem.name &&
+        editedItem.expiryDate === currentItem.expiryDate &&
+        editedItem.reminderDaysBefore === currentItem.reminderDaysBefore;
+
+      if (keepsReminders) {
+        await persistItems(itemsRef.current.map((item) => (item.id === id ? editedItem : item)));
+        return;
+      }
+
+      const reminderResult = await scheduleExpiryReminders(editedItem);
+      const updatedItem = setNotificationIds(
+        editedItem,
+        reminderResult.status === 'scheduled' ? reminderResult.notificationIds : undefined,
+      );
+      const nextItems = itemsRef.current.map((item) => (item.id === id ? updatedItem : item));
+
+      try {
+        await persistItems(nextItems);
+      } catch (error) {
+        if (reminderResult.status === 'scheduled') {
+          await cancelExpiryReminders(reminderResult.notificationIds);
+        }
+
+        throw error;
+      }
+
+      setReminderNotice(describeReminderResult(reminderResult));
+
+      if (
+        currentItem.notificationIds &&
+        !(await cancelExpiryReminders(currentItem.notificationIds))
+      ) {
+        setReminderNotice(
+          'The item was updated, but one or more previous reminders could not be cancelled.',
+        );
+      }
     },
     [persistItems],
   );
 
   const deleteItem = useCallback(
     async (id: string) => {
+      const deletedItem = itemsRef.current.find((item) => item.id === id);
+
       await persistItems(itemsRef.current.filter((item) => item.id !== id));
+
+      if (
+        deletedItem?.notificationIds &&
+        !(await cancelExpiryReminders(deletedItem.notificationIds))
+      ) {
+        setReminderNotice(
+          'The item was deleted, but one or more reminders could not be cancelled.',
+        );
+      }
     },
     [persistItems],
   );
@@ -215,11 +483,29 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
    */
   const resolveItem = useCallback(
     async (id: string, status: ResolvedFoodItemStatus) => {
-      const nextItems = itemsRef.current.map((item) =>
-        item.id === id ? { ...item, status, statusUpdatedAt: new Date().toISOString() } : item,
-      );
+      const resolvedItem = itemsRef.current.find((item) => item.id === id);
+      const nextItems = itemsRef.current.map((item) => {
+        if (item.id !== id) {
+          return item;
+        }
+
+        return setNotificationIds({
+          ...item,
+          status,
+          statusUpdatedAt: new Date().toISOString(),
+        });
+      });
 
       await persistItems(nextItems);
+
+      if (
+        resolvedItem?.notificationIds &&
+        !(await cancelExpiryReminders(resolvedItem.notificationIds))
+      ) {
+        setReminderNotice(
+          'The item was updated, but one or more reminders could not be cancelled.',
+        );
+      }
     },
     [persistItems],
   );
@@ -228,9 +514,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     () =>
       items
         .filter((item) => item.status === 'active')
-        .sort((firstItem, secondItem) =>
-          firstItem.expiryDate.localeCompare(secondItem.expiryDate),
-        ),
+        .sort((firstItem, secondItem) => firstItem.expiryDate.localeCompare(secondItem.expiryDate)),
     [items],
   );
 
@@ -240,18 +524,28 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       activeItems,
       isLoading,
       storageError,
+      reminderNotice,
       isStorageReady,
       addItem,
       updateItem,
       deleteItem,
       resolveItem,
     }),
-    [items, activeItems, isLoading, storageError, isStorageReady, addItem, updateItem, deleteItem, resolveItem],
+    [
+      items,
+      activeItems,
+      isLoading,
+      storageError,
+      reminderNotice,
+      isStorageReady,
+      addItem,
+      updateItem,
+      deleteItem,
+      resolveItem,
+    ],
   );
 
-  return (
-    <InventoryContext.Provider value={contextValue}>{children}</InventoryContext.Provider>
-  );
+  return <InventoryContext.Provider value={contextValue}>{children}</InventoryContext.Provider>;
 }
 
 export function useInventory(): InventoryContextValue {

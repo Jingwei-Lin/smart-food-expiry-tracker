@@ -1,14 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { ComponentProps, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ExpiryBadge } from '@/components/expiry-badge';
 import { useInventory } from '@/context/inventory-context';
@@ -117,10 +110,7 @@ export default function ItemDetailScreen() {
           <Pressable
             accessibilityRole="button"
             onPress={returnToInventory}
-            style={({ pressed }) => [
-              styles.returnButton,
-              pressed ? styles.pressedButton : null,
-            ]}
+            style={({ pressed }) => [styles.returnButton, pressed ? styles.pressedButton : null]}
           >
             <Text style={styles.returnButtonText}>Return to inventory</Text>
           </Pressable>
@@ -139,10 +129,7 @@ export default function ItemDetailScreen() {
         }}
       />
 
-      <ScrollView
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.summaryCard}>
           <View style={styles.itemIcon}>
             <Ionicons name="nutrition-outline" size={32} color="#2f7d32" />
@@ -172,20 +159,20 @@ export default function ItemDetailScreen() {
           <View style={styles.divider} />
 
           <DetailRow
-            icon="cube-outline"
-            label="Quantity"
-            value={item.quantity}
+            icon="notifications-outline"
+            label="Reminders"
+            value={`${item.reminderDaysBefore} ${item.reminderDaysBefore === 1 ? 'day' : 'days'} before and on expiry day`}
           />
+
+          <View style={styles.divider} />
+
+          <DetailRow icon="cube-outline" label="Quantity" value={item.quantity} />
 
           {item.notes ? (
             <>
               <View style={styles.divider} />
 
-              <DetailRow
-                icon="document-text-outline"
-                label="Notes"
-                value={item.notes}
-              />
+              <DetailRow icon="document-text-outline" label="Notes" value={item.notes} />
             </>
           ) : null}
         </View>
@@ -243,9 +230,7 @@ export default function ItemDetailScreen() {
                   areActionsDisabled ? styles.disabledButton : null,
                 ]}
               >
-                <Text style={styles.confirmDeleteText}>
-                  {isWorking ? 'Deleting...' : 'Delete'}
-                </Text>
+                <Text style={styles.confirmDeleteText}>{isWorking ? 'Deleting...' : 'Delete'}</Text>
               </Pressable>
             </View>
           </View>
@@ -298,15 +283,7 @@ export default function ItemDetailScreen() {
   );
 }
 
-function DetailRow({
-  icon,
-  label,
-  value,
-}: {
-  icon: IconName;
-  label: string;
-  value: string;
-}) {
+function DetailRow({ icon, label, value }: { icon: IconName; label: string; value: string }) {
   return (
     <View style={styles.detailRow}>
       <Ionicons name={icon} size={22} color="#537059" />
