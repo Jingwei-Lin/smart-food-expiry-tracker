@@ -8,7 +8,8 @@ export type InventorySection = {
   items: FoodItem[];
 };
 
-const EAT_SOON_DAYS = 3;
+/* Shared with recipe suggestions, so "eat soon" means the same thing on every screen. */
+export const EAT_SOON_DAYS = 3;
 const THIS_WEEK_DAYS = 7;
 
 /**
