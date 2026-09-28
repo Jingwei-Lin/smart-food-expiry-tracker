@@ -6,6 +6,7 @@ import {
   maskApiKey,
   removeRecipeKey,
   saveRecipeCredentials,
+  selectRecipeProvider,
 } from '@/utils/recipe-credentials';
 import { RECIPE_PROVIDERS } from '@/utils/recipe-providers';
 
@@ -50,6 +51,20 @@ describe('saveRecipeCredentials', () => {
 
     expect(credentials?.provider.id).toBe('deepseek');
     await expect(getSavedKeyHint('openai')).resolves.toBe('sk-…a1B2');
+  });
+});
+
+describe('selectRecipeProvider', () => {
+  it('switches back to a provider whose key is already saved, without re-entering it', async () => {
+    await saveRecipeCredentials('openai', OPENAI_KEY);
+    await saveRecipeCredentials('deepseek', DEEPSEEK_KEY);
+
+    await selectRecipeProvider('openai');
+
+    await expect(getRecipeCredentials()).resolves.toEqual({
+      provider: RECIPE_PROVIDERS.openai,
+      apiKey: OPENAI_KEY,
+    });
   });
 });
 

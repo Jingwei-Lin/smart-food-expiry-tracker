@@ -69,6 +69,11 @@ export async function getSavedKeyHint(id: RecipeProviderId): Promise<string | nu
  */
 export async function saveRecipeCredentials(id: RecipeProviderId, apiKey: string): Promise<void> {
   await SecureStore.setItemAsync(apiKeyStorageKey(id), apiKey.trim());
+  await selectRecipeProvider(id);
+}
+
+/** Switches the Recipes tab to a provider whose key is already saved. */
+export async function selectRecipeProvider(id: RecipeProviderId): Promise<void> {
   await SecureStore.setItemAsync(SELECTED_PROVIDER_KEY, id);
 }
 
