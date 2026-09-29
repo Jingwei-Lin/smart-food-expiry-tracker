@@ -3,13 +3,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Recipe } from '@/utils/recipe-prompt';
 import {
   loadRecipeSnapshot,
+  loadSavedRecipes,
   RecipeScreenSnapshot,
+  saveRecipe,
   saveRecipeSnapshot,
   SuggestedRecipe,
   toSuggestedRecipes,
+  unsaveRecipe,
 } from '@/utils/recipe-storage';
 
 const SNAPSHOT_KEY = '@smart-food-expiry-tracker/recipes-screen-v1';
+const SAVED_KEY = '@smart-food-expiry-tracker/recipes-saved-v1';
 
 const recipe: Recipe = {
   title: 'Spinach omelette',
@@ -100,5 +104,64 @@ describe('loadRecipeSnapshot and saveRecipeSnapshot', () => {
       selectedIds: ['spinach'],
       lastResult: null,
     });
+  });
+});
+
+describe('saved recipes', () => {
+  const pasta: SuggestedRecipe = { ...recipe, id: 'r-2', title: 'Spinach pasta' };
+
+  it('starts empty', async () => {
+    await expect(loadSavedRecipes()).resolves.toEqual([]);
+  });
+
+  it('saves a copy of the recipe, newest first, and reads it back', async () => {
+    await saveRecipe(omelette, new Date('2026-09-28T09:00:00.000Z'));
+    const saved = await saveRecipe(pasta, new Date('2026-09-29T09:00:00.000Z'));
+
+    expect(saved).toEqual([
+      {
+        id: 'r-2',
+        savedAt: '2026-09-29T09:00:00.000Z',
+        recipe: { ...recipe, title: 'Spinach pasta' },
+      },
+      { id: 'r-1', savedAt: '2026-09-28T09:00:00.000Z', recipe },
+    ]);
+    await expect(loadSavedRecipes()).resolves.toEqual(saved);
+  });
+
+  it('changes nothing when a recipe is saved twice', async () => {
+    await saveRecipe(omelette);
+    await saveRecipe(omelette);
+
+    await expect(loadSavedRecipes()).resolves.toHaveLength(1);
+  });
+
+  it('removes only the recipe asked for', async () => {
+    await saveRecipe(omelette);
+    await saveRecipe(pasta);
+
+    const saved = await unsaveRecipe('r-1');
+
+    expect(saved.map((entry) => entry.id)).toEqual(['r-2']);
+    await expect(loadSavedRecipes()).resolves.toEqual(saved);
+  });
+
+  it('drops entries that cannot be read, and treats a broken list as empty', async () => {
+    await AsyncStorage.setItem(
+      SAVED_KEY,
+      JSON.stringify([
+        { id: 'r-1', savedAt: '2026-09-29T09:00:00.000Z', recipe },
+        { id: 'r-2', savedAt: '2026-09-29T09:00:00.000Z', recipe: { title: 'No steps' } },
+        { id: 'r-3', recipe },
+      ]),
+    );
+
+    await expect(loadSavedRecipes()).resolves.toEqual([
+      { id: 'r-1', savedAt: '2026-09-29T09:00:00.000Z', recipe },
+    ]);
+
+    await AsyncStorage.setItem(SAVED_KEY, '{ not json');
+
+    await expect(loadSavedRecipes()).resolves.toEqual([]);
   });
 });

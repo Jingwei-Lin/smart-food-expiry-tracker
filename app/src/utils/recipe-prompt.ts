@@ -215,3 +215,15 @@ export function rememberShownTitles(shownTitles: string[], newTitles: string[]):
     ...newTitles,
   ].slice(-MAX_AVOID_TITLES);
 }
+
+/**
+ * The titles a request asks the model to avoid: every title shown this
+ * session, so new ideas never repeat what is on screen, then the newest saved
+ * titles, so a starred recipe is not suggested again. At most ten in total.
+ */
+export function buildAvoidTitles(shownTitles: string[], savedTitles: string[]): string[] {
+  const shownNames = new Set(shownTitles.map(normalizeName));
+  const newSaved = savedTitles.filter((title) => !shownNames.has(normalizeName(title)));
+
+  return [...shownTitles, ...newSaved].slice(0, MAX_AVOID_TITLES);
+}

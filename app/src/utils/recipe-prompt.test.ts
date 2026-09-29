@@ -1,5 +1,6 @@
 import { RecipeIngredient } from '@/utils/recipe-ingredients';
 import {
+  buildAvoidTitles,
   buildRecipeMessages,
   findExpiredIngredients,
   parseRecipeReply,
@@ -192,5 +193,23 @@ describe('rememberShownTitles', () => {
     const twelve = Array.from({ length: 12 }, (_, index) => `Recipe ${index + 1}`);
 
     expect(rememberShownTitles([], twelve)).toEqual(twelve.slice(2));
+  });
+});
+
+describe('buildAvoidTitles', () => {
+  it('lists the titles shown this session, then saved titles not already listed', () => {
+    expect(
+      buildAvoidTitles(
+        ['Spinach omelette', 'Milk pudding'],
+        ['Egg fried rice', 'spinach omelette'],
+      ),
+    ).toEqual(['Spinach omelette', 'Milk pudding', 'Egg fried rice']);
+  });
+
+  it('keeps every shown title and fills the rest of the ten with the newest saved ones', () => {
+    const shown = Array.from({ length: 8 }, (_, index) => `Shown ${index + 1}`);
+    const saved = ['Saved newest', 'Saved older', 'Saved oldest'];
+
+    expect(buildAvoidTitles(shown, saved)).toEqual([...shown, 'Saved newest', 'Saved older']);
   });
 });

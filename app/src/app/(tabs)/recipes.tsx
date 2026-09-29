@@ -24,13 +24,21 @@ import {
   RecipeIngredient,
   toRecipeIngredients,
 } from '@/utils/recipe-ingredients';
-import { findExpiredIngredients, rememberShownTitles } from '@/utils/recipe-prompt';
+import {
+  buildAvoidTitles,
+  findExpiredIngredients,
+  rememberShownTitles,
+} from '@/utils/recipe-prompt';
 import {
   loadRecipeSnapshot,
+  loadSavedRecipes,
   RecipeScreenSnapshot,
+  SavedRecipe,
+  saveRecipe,
   saveRecipeSnapshot,
   SuggestedRecipe,
   toSuggestedRecipes,
+  unsaveRecipe,
 } from '@/utils/recipe-storage';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -153,6 +161,9 @@ export default function RecipesScreen() {
   /* The last successful result, saved with the ticks so it comes back after a restart. */
   const lastResult = useRef<RecipeScreenSnapshot['lastResult']>(null);
 
+  /* The starred recipes, newest first. */
+  const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
+
   /* Every title shown this session: "Suggest different recipes" asks the model to avoid them. */
   const shownTitles = useRef<string[]>([]);
 
@@ -207,14 +218,16 @@ export default function RecipesScreen() {
     }, []),
   );
 
-  /* Bring back the last suggestions and ticks once, without asking the provider again. */
+  /* Bring back the saved recipes, and the last suggestions and ticks, without asking the provider again. */
   useEffect(() => {
     let isActive = true;
 
-    void loadRecipeSnapshot().then((snapshot) => {
+    void Promise.all([loadRecipeSnapshot(), loadSavedRecipes()]).then(([snapshot, saved]) => {
       if (!isActive) {
         return;
       }
+
+      setSavedRecipes(saved);
 
       if (snapshot) {
         setChosenIds(snapshot.selectedIds);
@@ -297,13 +310,32 @@ export default function RecipesScreen() {
     void saveRecipeSnapshot({ selectedIds: ids, lastResult: lastResult.current });
   }
 
-  function suggestForTickedFood() {
-    void requestRecipes(toRecipeIngredients(candidates, selectedIds), []);
+  /* Every request avoids what was shown this session and what is already saved. */
+  function currentAvoidTitles(): string[] {
+    return buildAvoidTitles(
+      shownTitles.current,
+      savedRecipes.map((entry) => entry.recipe.title),
+    );
   }
 
-  /* New ideas for the same food as the recipes on screen, without repeating any shown so far. */
+  function suggestForTickedFood() {
+    void requestRecipes(toRecipeIngredients(candidates, selectedIds), currentAvoidTitles());
+  }
+
+  /* New ideas for the same food as the recipes on screen. */
   function suggestDifferentRecipes(ingredients: RecipeIngredient[]) {
-    void requestRecipes(ingredients, shownTitles.current);
+    void requestRecipes(ingredients, currentAvoidTitles());
+  }
+
+  /* The star fills or empties only once the change is saved. */
+  async function toggleSaved(recipe: SuggestedRecipe) {
+    const isSaved = savedRecipes.some((entry) => entry.id === recipe.id);
+
+    try {
+      setSavedRecipes(isSaved ? await unsaveRecipe(recipe.id) : await saveRecipe(recipe));
+    } catch {
+      // Storage failed, so the star keeps showing what is really saved.
+    }
   }
 
   /* A retry repeats what failed, so a failed "different" request stays different. */
@@ -565,6 +597,8 @@ export default function RecipesScreen() {
               <RecipeCard
                 key={recipe.id}
                 expiredNames={findExpiredIngredients(recipe, askedFor)}
+                isSaved={savedRecipes.some((entry) => entry.id === recipe.id)}
+                onToggleSaved={() => void toggleSaved(recipe)}
                 recipe={recipe}
               />
             ))}
@@ -579,7 +613,7 @@ export default function RecipesScreen() {
             <Text style={styles.differentButtonText}>Suggest different recipes</Text>
           </Pressable>
 
-          <Text style={styles.hintText}>New ideas replace these ones.</Text>
+          <Text style={styles.hintText}>New ideas replace the ones you haven't saved.</Text>
 
           <Text style={[styles.footnote, styles.resultsFootnote]}>
             AI-generated. Check ingredients for allergies before cooking.

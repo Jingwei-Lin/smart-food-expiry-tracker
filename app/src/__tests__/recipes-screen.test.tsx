@@ -8,6 +8,7 @@ import { FoodItem } from '@/types/food-item';
 import { fetchRecipeSuggestions } from '@/utils/recipe-client';
 import { saveRecipeCredentials } from '@/utils/recipe-credentials';
 import { RECIPE_PROVIDERS } from '@/utils/recipe-providers';
+import { loadSavedRecipes, saveRecipe } from '@/utils/recipe-storage';
 
 jest.mock('@/services/expiry-notifications', () => ({
   cancelExpiryReminders: jest.fn().mockResolvedValue(true),
@@ -106,6 +107,16 @@ function checkbox(view: View, name: string) {
 
 function isChecked(view: View, name: string): boolean {
   return checkbox(view, name).props.accessibilityState?.checked === true;
+}
+
+/** Leaves the screen and opens it again over the given inventory, as reopening the app does. */
+async function restart(view: View, items: FoodItem[] = fridge) {
+  await view.unmount();
+
+  const reopened = await renderScreen(items);
+  await reopened.findByText('Recipes');
+
+  return reopened;
 }
 
 /** A successful reply carrying one recipe per title, each using the given food. */
@@ -423,7 +434,7 @@ describe('RecipesScreen asking for different recipes', () => {
 
     await fireEvent.press(view.getByText('Suggest recipes (2)'));
     expect(await view.findByText('Spinach omelette')).toBeTruthy();
-    expect(view.getByText('New ideas replace these ones.')).toBeTruthy();
+    expect(view.getByText("New ideas replace the ones you haven't saved.")).toBeTruthy();
 
     await fireEvent.press(view.getByText('Suggest different recipes'));
     expect(await view.findByText('Creamy spinach pasta')).toBeTruthy();
@@ -462,16 +473,6 @@ describe('RecipesScreen asking for different recipes', () => {
 });
 
 describe('RecipesScreen after the app restarts', () => {
-  /** Leaves the screen and opens it again over the given inventory, as reopening the app does. */
-  async function restart(view: View, items: FoodItem[] = fridge) {
-    await view.unmount();
-
-    const reopened = await renderScreen(items);
-    await reopened.findByText('Recipes');
-
-    return reopened;
-  }
-
   it('shows the last suggestions again without asking the provider', async () => {
     fetchSuggestionsMock.mockResolvedValue(recipesReply(['Spinach omelette']));
     const view = await renderScreen(fridge);
@@ -560,5 +561,81 @@ describe('RecipesScreen after the app restarts', () => {
 
     expect(await reopened.findByText('YOUR FOOD')).toBeTruthy();
     expect(reopened.queryByText("Couldn't reach OpenAI")).toBeNull();
+  });
+});
+
+describe('RecipesScreen saving recipes', () => {
+  /** Asks for recipes and waits for the first title to show. */
+  async function showRecipes(title: string) {
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await view.findByText(title);
+
+    return view;
+  }
+
+  async function savedTitles() {
+    return (await loadSavedRecipes()).map((entry) => entry.recipe.title);
+  }
+
+  it('fills the star once the recipe is saved, and keeps it after a restart', async () => {
+    fetchSuggestionsMock.mockResolvedValue(recipesReply(['Spinach omelette']));
+    const view = await showRecipes('Spinach omelette');
+
+    await fireEvent.press(view.getByLabelText('Save Spinach omelette'));
+
+    const star = await view.findByLabelText('Remove Spinach omelette from saved recipes');
+    expect(star.props.accessibilityState).toMatchObject({ selected: true });
+    await expect(savedTitles()).resolves.toEqual(['Spinach omelette']);
+
+    const reopened = await restart(view);
+
+    expect(
+      await reopened.findByLabelText('Remove Spinach omelette from saved recipes'),
+    ).toBeTruthy();
+  });
+
+  it('empties the star and forgets the recipe on a second tap', async () => {
+    fetchSuggestionsMock.mockResolvedValue(recipesReply(['Spinach omelette']));
+    const view = await showRecipes('Spinach omelette');
+
+    await fireEvent.press(view.getByLabelText('Save Spinach omelette'));
+    await fireEvent.press(await view.findByLabelText('Remove Spinach omelette from saved recipes'));
+
+    expect(await view.findByLabelText('Save Spinach omelette')).toBeTruthy();
+    await expect(savedTitles()).resolves.toEqual([]);
+  });
+
+  it('keeps a saved recipe when new ideas replace its card, and avoids it', async () => {
+    fetchSuggestionsMock
+      .mockResolvedValueOnce(recipesReply(['Spinach omelette']))
+      .mockResolvedValueOnce(recipesReply(['Creamy spinach pasta']));
+    const view = await showRecipes('Spinach omelette');
+
+    await fireEvent.press(view.getByLabelText('Save Spinach omelette'));
+    await view.findByLabelText('Remove Spinach omelette from saved recipes');
+    await fireEvent.press(view.getByText('Suggest different recipes'));
+
+    expect(await view.findByText('Creamy spinach pasta')).toBeTruthy();
+    expect(view.queryByText('Spinach omelette')).toBeNull();
+    await expect(savedTitles()).resolves.toEqual(['Spinach omelette']);
+    expect(fetchSuggestionsMock.mock.calls[1][2]?.avoidTitles).toEqual(['Spinach omelette']);
+  });
+
+  it('asks the model to avoid recipes saved earlier, even on the first request', async () => {
+    await saveRecipe({
+      id: 'saved-before',
+      title: 'Milk pudding',
+      minutes: 25,
+      usesIngredients: ['Milk'],
+      extraIngredients: ['Sugar'],
+      steps: ['Warm the milk.'],
+    });
+    fetchSuggestionsMock.mockResolvedValue(recipesReply(['Spinach omelette']));
+
+    await showRecipes('Spinach omelette');
+
+    expect(fetchSuggestionsMock.mock.calls[0][2]?.avoidTitles).toEqual(['Milk pudding']);
   });
 });

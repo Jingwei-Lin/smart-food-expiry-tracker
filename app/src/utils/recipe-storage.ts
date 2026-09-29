@@ -3,14 +3,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Recipe } from '@/utils/recipe-prompt';
 
 /*
- * The Recipes tab's last suggestions and ticks, kept next to the inventory so
- * reopening the app shows them again without a new (possibly billed) request.
- * None of it is secret, so it lives in AsyncStorage rather than SecureStore.
+ * The Recipes tab's last suggestions and ticks, and the recipes the student
+ * starred, kept next to the inventory. Reopening the app shows them again
+ * without a new (possibly billed) request. None of it is secret, so it lives
+ * in AsyncStorage rather than SecureStore.
  */
 const SNAPSHOT_KEY = '@smart-food-expiry-tracker/recipes-screen-v1';
+const SAVED_KEY = '@smart-food-expiry-tracker/recipes-saved-v1';
 
 /** A suggestion as the app keeps it: the model's recipe, unchanged, plus our own id. */
 export type SuggestedRecipe = Recipe & { id: string };
+
+/**
+ * A starred recipe. It is a copy, so it keeps its title, steps and ingredient
+ * names after new suggestions replace its card, or its food is eaten.
+ */
+export type SavedRecipe = { id: string; savedAt: string; recipe: Recipe };
 
 export type RecipeScreenSnapshot = {
   /** Ticked inventory items. Ones since eaten or deleted are dropped by the screen. */
@@ -36,15 +44,14 @@ function isStringList(value: unknown): value is string[] {
 }
 
 /** A stored recipe with every field the cards need, or null. */
-function readSuggestedRecipe(value: unknown): SuggestedRecipe | null {
+function readRecipe(value: unknown): Recipe | null {
   if (!isRecord(value)) {
     return null;
   }
 
-  const { id, title, minutes, usesIngredients, extraIngredients, steps } = value;
+  const { title, minutes, usesIngredients, extraIngredients, steps } = value;
 
   if (
-    typeof id !== 'string' ||
     typeof title !== 'string' ||
     !title.trim() ||
     typeof minutes !== 'number' ||
@@ -59,7 +66,25 @@ function readSuggestedRecipe(value: unknown): SuggestedRecipe | null {
     return null;
   }
 
-  return { id, title, minutes, usesIngredients, extraIngredients, steps };
+  return { title, minutes, usesIngredients, extraIngredients, steps };
+}
+
+function readSuggestedRecipe(value: unknown): SuggestedRecipe | null {
+  const recipe = readRecipe(value);
+
+  return recipe && isRecord(value) && typeof value.id === 'string'
+    ? { ...recipe, id: value.id }
+    : null;
+}
+
+function readSavedRecipe(value: unknown): SavedRecipe | null {
+  if (!isRecord(value) || typeof value.id !== 'string' || typeof value.savedAt !== 'string') {
+    return null;
+  }
+
+  const recipe = readRecipe(value.recipe);
+
+  return recipe ? { id: value.id, savedAt: value.savedAt, recipe } : null;
 }
 
 /** The stored result, keeping its readable recipes; null when none survive. */
@@ -112,4 +137,54 @@ export async function saveRecipeSnapshot(snapshot: RecipeScreenSnapshot): Promis
   } catch {
     // Nothing to recover: the next save or a fresh start covers it.
   }
+}
+
+/**
+ * The starred recipes, newest first. Entries that cannot be read are dropped,
+ * and a missing or malformed list counts as nothing saved. Never throws.
+ */
+export async function loadSavedRecipes(): Promise<SavedRecipe[]> {
+  try {
+    const stored = await AsyncStorage.getItem(SAVED_KEY);
+    const value: unknown = stored ? JSON.parse(stored) : [];
+
+    return Array.isArray(value)
+      ? value.map(readSavedRecipe).filter((entry): entry is SavedRecipe => entry !== null)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+/*
+ * Unlike the snapshot, these writes throw when storage fails, so the screen
+ * only fills or empties a star once the change is really saved.
+ */
+async function writeSavedRecipes(saved: SavedRecipe[]): Promise<SavedRecipe[]> {
+  await AsyncStorage.setItem(SAVED_KEY, JSON.stringify(saved));
+
+  return saved;
+}
+
+/** Stars a suggestion. Starring one that is already saved changes nothing. */
+export async function saveRecipe(
+  suggestion: SuggestedRecipe,
+  now = new Date(),
+): Promise<SavedRecipe[]> {
+  const saved = await loadSavedRecipes();
+
+  if (saved.some((entry) => entry.id === suggestion.id)) {
+    return saved;
+  }
+
+  const { id, ...recipe } = suggestion;
+
+  return writeSavedRecipes([{ id, savedAt: now.toISOString(), recipe }, ...saved]);
+}
+
+/** Removes a recipe from the saved list. */
+export async function unsaveRecipe(id: string): Promise<SavedRecipe[]> {
+  const saved = await loadSavedRecipes();
+
+  return writeSavedRecipes(saved.filter((entry) => entry.id !== id));
 }
