@@ -4,6 +4,7 @@ import {
   findExpiredIngredients,
   parseRecipeReply,
   Recipe,
+  rememberShownTitles,
 } from '@/utils/recipe-prompt';
 
 const ticked: RecipeIngredient[] = [
@@ -169,5 +170,27 @@ describe('findExpiredIngredients', () => {
     const withExpiredCheese: RecipeIngredient[] = [...ticked, { name: 'Cheddar', daysLeft: -4 }];
 
     expect(findExpiredIngredients(recipeUsing('Milk'), withExpiredCheese)).toEqual(['Milk']);
+  });
+});
+
+describe('rememberShownTitles', () => {
+  it('adds new titles after the ones already shown', () => {
+    expect(rememberShownTitles(['Spinach omelette'], ['Milk pudding', 'Egg fried rice'])).toEqual([
+      'Spinach omelette',
+      'Milk pudding',
+      'Egg fried rice',
+    ]);
+  });
+
+  it('moves a title shown again to the end instead of listing it twice', () => {
+    expect(
+      rememberShownTitles(['Spinach omelette', 'Milk pudding'], ['spinach omelette ']),
+    ).toEqual(['Milk pudding', 'spinach omelette ']);
+  });
+
+  it('keeps only the ten newest titles', () => {
+    const twelve = Array.from({ length: 12 }, (_, index) => `Recipe ${index + 1}`);
+
+    expect(rememberShownTitles([], twelve)).toEqual(twelve.slice(2));
   });
 });

@@ -76,7 +76,7 @@ export function RecipeChecklist({
 
   return (
     <View>
-      <View style={styles.toolbar}>
+      <View style={[styles.toolbar, disabled ? styles.busy : null]}>
         <Text style={styles.sectionTitle}>YOUR FOOD</Text>
 
         <Pressable
@@ -102,7 +102,7 @@ export function RecipeChecklist({
         </Text>
       </View>
 
-      <View style={[styles.card, disabled ? styles.dimmed : null]}>
+      <View style={[styles.card, disabled ? styles.busy : null]}>
         {candidates.map((candidate, index) => {
           const isChecked = selectedIds.includes(candidate.id);
           const isRowDisabled = disabled || (!isChecked && isAtLimit);
@@ -236,8 +236,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  /* A row that cannot be ticked because ten already are. */
   dimmed: {
     opacity: 0.45,
+  },
+  /* The whole list while a request runs, as in the design's loading state. */
+  busy: {
+    opacity: 0.55,
   },
   pressed: {
     opacity: 0.72,

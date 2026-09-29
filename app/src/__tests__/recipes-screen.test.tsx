@@ -344,3 +344,121 @@ describe('RecipesScreen after the key changes in settings', () => {
     expect(view.getByText("Couldn't reach OpenAI")).toBeTruthy();
   });
 });
+
+describe('RecipesScreen states from the hi-fi design', () => {
+  it('shows the food that was asked for above an error, and Change reopens the checklist', async () => {
+    fetchSuggestionsMock.mockResolvedValue({ outcome: 'unavailable' });
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    expect(await view.findByText("Couldn't reach OpenAI")).toBeTruthy();
+
+    expect(view.getByText('COOKING WITH')).toBeTruthy();
+    expect(view.queryByText('YOUR FOOD')).toBeNull();
+
+    await fireEvent.press(view.getByText('Change'));
+
+    expect(view.getByText('YOUR FOOD')).toBeTruthy();
+  });
+
+  it('disables the model button while recipes are being found', async () => {
+    fetchSuggestionsMock.mockReturnValue(new Promise(() => undefined));
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await view.findByText('Finding recipes…');
+
+    expect(
+      view.getByLabelText('Recipe settings, using GPT-5.4 mini').props.accessibilityState,
+    ).toMatchObject({ disabled: true });
+  });
+
+  it.each([
+    [1, 'One idea for the food you ticked.'],
+    [2, 'Two ideas for the food you ticked.'],
+  ])('counts %i idea(s) in the subtitle', async (count, subtitle) => {
+    fetchSuggestionsMock.mockResolvedValue({
+      outcome: 'ok',
+      recipes: ['Spinach omelette', 'Creamy spinach pasta'].slice(0, count).map((title) => ({
+        title,
+        minutes: 15,
+        usesIngredients: ['Spinach'],
+        extraIngredients: [],
+        steps: ['Cook it.'],
+      })),
+    });
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+
+    expect(await view.findByText(subtitle)).toBeTruthy();
+  });
+});
+
+describe('RecipesScreen asking for different recipes', () => {
+  /** A successful reply carrying one recipe that uses spinach. */
+  function oneRecipe(title: string) {
+    return {
+      outcome: 'ok' as const,
+      recipes: [
+        {
+          title,
+          minutes: 15,
+          usesIngredients: ['Spinach'],
+          extraIngredients: [],
+          steps: ['Cook it.'],
+        },
+      ],
+    };
+  }
+
+  it('asks again for the same food, avoiding every title shown so far', async () => {
+    fetchSuggestionsMock
+      .mockResolvedValueOnce(oneRecipe('Spinach omelette'))
+      .mockResolvedValueOnce(oneRecipe('Creamy spinach pasta'))
+      .mockResolvedValueOnce(oneRecipe('Spinach fritters'));
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    expect(await view.findByText('Spinach omelette')).toBeTruthy();
+    expect(view.getByText('New ideas replace these ones.')).toBeTruthy();
+
+    await fireEvent.press(view.getByText('Suggest different recipes'));
+    expect(await view.findByText('Creamy spinach pasta')).toBeTruthy();
+    expect(view.queryByText('Spinach omelette')).toBeNull();
+
+    await fireEvent.press(view.getByText('Suggest different recipes'));
+    expect(await view.findByText('Spinach fritters')).toBeTruthy();
+
+    const [first, second, third] = fetchSuggestionsMock.mock.calls;
+    expect(first[2]?.avoidTitles).toEqual([]);
+    expect(second[1]).toEqual(first[1]);
+    expect(second[2]?.avoidTitles).toEqual(['Spinach omelette']);
+    expect(third[2]?.avoidTitles).toEqual(['Spinach omelette', 'Creamy spinach pasta']);
+  });
+
+  it('tries a failed request for different recipes again exactly as it was', async () => {
+    fetchSuggestionsMock
+      .mockResolvedValueOnce(oneRecipe('Spinach omelette'))
+      .mockResolvedValueOnce({ outcome: 'unavailable' })
+      .mockResolvedValueOnce(oneRecipe('Creamy spinach pasta'));
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await view.findByText('Spinach omelette');
+    await fireEvent.press(view.getByText('Suggest different recipes'));
+    await view.findByText("Couldn't reach OpenAI");
+
+    await fireEvent.press(view.getByText('Try again'));
+    expect(await view.findByText('Creamy spinach pasta')).toBeTruthy();
+
+    const [first, , retry] = fetchSuggestionsMock.mock.calls;
+    expect(retry[1]).toEqual(first[1]);
+    expect(retry[2]?.avoidTitles).toEqual(['Spinach omelette']);
+  });
+});

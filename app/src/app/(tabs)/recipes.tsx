@@ -23,7 +23,7 @@ import {
   RecipeIngredient,
   toRecipeIngredients,
 } from '@/utils/recipe-ingredients';
-import { findExpiredIngredients, Recipe } from '@/utils/recipe-prompt';
+import { findExpiredIngredients, Recipe, rememberShownTitles } from '@/utils/recipe-prompt';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -34,7 +34,7 @@ type RequestState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'done'; recipes: Recipe[]; ingredients: RecipeIngredient[] }
-  | { status: 'error'; outcome: FailedOutcome };
+  | { status: 'error'; outcome: FailedOutcome; ingredients: RecipeIngredient[] };
 
 type ErrorCopy = {
   icon: IconName;
@@ -91,6 +91,11 @@ function describeFailure(outcome: FailedOutcome, company: string): ErrorCopy {
   }
 }
 
+/* The parser keeps at most two recipes, and Matilda often returns only one. */
+function describeResults(count: number): string {
+  return count === 1 ? 'One idea for the food you ticked.' : 'Two ideas for the food you ticked.';
+}
+
 /** Whether two reads of the saved key name the same model and the same key. */
 function isSameCredentials(
   first: RecipeCredentials | null,
@@ -126,6 +131,12 @@ export default function RecipesScreen() {
   const [request, setRequest] = useState<RequestState>({ status: 'idle' });
   const [isChecklistOpen, setIsChecklistOpen] = useState(true);
   const pendingRequest = useRef<AbortController | null>(null);
+
+  /* Every title shown this session: "Suggest different recipes" asks the model to avoid them. */
+  const shownTitles = useRef<string[]>([]);
+
+  /* What the last request asked for, so Try again repeats it exactly. */
+  const lastAsk = useRef<{ ingredients: RecipeIngredient[]; avoidTitles: string[] } | null>(null);
 
   /* ---- Checklist rows and ticks ---- */
 
@@ -180,13 +191,13 @@ export default function RecipesScreen() {
 
   /* ---- Actions ---- */
 
-  /* Sends the ticked food to the provider and shows whatever comes back. */
-  async function suggestRecipes() {
-    const ingredients = toRecipeIngredients(candidates, selectedIds);
-
+  /* Sends food to the provider and shows whatever comes back. */
+  async function requestRecipes(ingredients: RecipeIngredient[], avoidTitles: string[]) {
     if (!credentials || ingredients.length === 0) {
       return;
     }
+
+    lastAsk.current = { ingredients, avoidTitles };
 
     /* Only one request at a time: a new tap cancels the one still running. */
     pendingRequest.current?.abort();
@@ -195,6 +206,7 @@ export default function RecipesScreen() {
     setRequest({ status: 'loading' });
 
     const result = await fetchRecipeSuggestions(credentials, ingredients, {
+      avoidTitles,
       signal: controller.signal,
     });
 
@@ -206,10 +218,31 @@ export default function RecipesScreen() {
     pendingRequest.current = null;
 
     if (result.outcome === 'ok') {
+      shownTitles.current = rememberShownTitles(
+        shownTitles.current,
+        result.recipes.map((recipe) => recipe.title),
+      );
       setRequest({ status: 'done', recipes: result.recipes, ingredients });
       setIsChecklistOpen(false);
     } else {
-      setRequest({ status: 'error', outcome: result.outcome });
+      setRequest({ status: 'error', outcome: result.outcome, ingredients });
+      setIsChecklistOpen(false);
+    }
+  }
+
+  function suggestForTickedFood() {
+    void requestRecipes(toRecipeIngredients(candidates, selectedIds), []);
+  }
+
+  /* New ideas for the same food as the recipes on screen, without repeating any shown so far. */
+  function suggestDifferentRecipes(ingredients: RecipeIngredient[]) {
+    void requestRecipes(ingredients, shownTitles.current);
+  }
+
+  /* A retry repeats what failed, so a failed "different" request stays different. */
+  function tryAgain() {
+    if (lastAsk.current) {
+      void requestRecipes(lastAsk.current.ingredients, lastAsk.current.avoidTitles);
     }
   }
 
@@ -219,6 +252,8 @@ export default function RecipesScreen() {
 
   /* ---- Header: title, subtitle, and the model pill that opens settings ---- */
 
+  const isLoading = request.status === 'loading';
+
   const header = (
     <View style={styles.header}>
       <View style={styles.headerText}>
@@ -227,17 +262,24 @@ export default function RecipesScreen() {
         </Text>
         <Text style={styles.subtitle}>
           {request.status === 'done' && !isChecklistOpen
-            ? 'Ideas for the food you ticked.'
+            ? describeResults(request.recipes.length)
             : 'Tick the food you want to cook with.'}
         </Text>
       </View>
 
+      {/* Settings stay closed while a request runs, so the key cannot change under it. */}
       {credentials ? (
         <Pressable
           accessibilityLabel={`Recipe settings, using ${credentials.provider.label}`}
           accessibilityRole="button"
+          accessibilityState={{ disabled: isLoading }}
+          disabled={isLoading}
           onPress={openSettings}
-          style={({ pressed }) => [styles.modelPill, pressed ? styles.pressed : null]}
+          style={({ pressed }) => [
+            styles.modelPill,
+            isLoading ? styles.disabledButton : null,
+            pressed ? styles.pressed : null,
+          ]}
         >
           <Text style={styles.modelPillText}>{credentials.provider.label}</Text>
           <Ionicons color="#263229" name="options-outline" size={18} />
@@ -331,8 +373,11 @@ export default function RecipesScreen() {
 
   /* ---- Main screen ---- */
 
-  const isLoading = request.status === 'loading';
   const tickedCount = selectedIds.length;
+
+  /* The food a finished or failed request was for, shown as chips in place of the checklist. */
+  const askedFor =
+    request.status === 'done' || request.status === 'error' ? request.ingredients : null;
   const failure =
     request.status === 'error'
       ? describeFailure(request.outcome, credentials.provider.company)
@@ -346,8 +391,8 @@ export default function RecipesScreen() {
     >
       {header}
 
-      {/* After results: the ticked food folds into "cooking with" chips. */}
-      {request.status === 'done' && !isChecklistOpen ? (
+      {/* After results or an error: the food asked for folds into "cooking with" chips. */}
+      {askedFor && !isChecklistOpen ? (
         <View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>COOKING WITH</Text>
@@ -362,7 +407,7 @@ export default function RecipesScreen() {
           </View>
 
           <View style={styles.chipCard}>
-            {request.ingredients.map((ingredient) => {
+            {askedFor.map((ingredient) => {
               const isExpired = ingredient.daysLeft < 0;
 
               return (
@@ -393,7 +438,7 @@ export default function RecipesScreen() {
             accessibilityRole="button"
             accessibilityState={{ disabled: isLoading || tickedCount === 0, busy: isLoading }}
             disabled={isLoading || tickedCount === 0}
-            onPress={() => void suggestRecipes()}
+            onPress={suggestForTickedFood}
             style={({ pressed }) => [
               styles.primaryButton,
               isLoading || tickedCount === 0 ? styles.disabledButton : null,
@@ -428,9 +473,12 @@ export default function RecipesScreen() {
 
           <Pressable
             accessibilityRole="button"
-            onPress={failure.action === 'retry' ? () => void suggestRecipes() : openSettings}
+            onPress={failure.action === 'retry' ? tryAgain : openSettings}
             style={({ pressed }) => [styles.outlineButton, pressed ? styles.pressed : null]}
           >
+            {failure.action === 'retry' ? (
+              <Ionicons color="#2f7d32" name="refresh-outline" size={17} />
+            ) : null}
             <Text style={styles.outlineButtonText}>
               {failure.action === 'retry' ? 'Try again' : 'Update key'}
             </Text>
@@ -441,17 +489,30 @@ export default function RecipesScreen() {
       {/* The suggested recipes, each with the app's own red warning if it uses expired food. */}
       {request.status === 'done' ? (
         <View style={styles.results}>
-          <Text style={styles.sectionTitle}>SUGGESTIONS</Text>
+          <Text style={[styles.sectionTitle, styles.resultsTitle]}>SUGGESTIONS</Text>
 
-          {request.recipes.map((recipe, index) => (
-            <RecipeCard
-              key={`${index}-${recipe.title}`}
-              expiredNames={findExpiredIngredients(recipe, request.ingredients)}
-              recipe={recipe}
-            />
-          ))}
+          <View style={styles.cards}>
+            {request.recipes.map((recipe, index) => (
+              <RecipeCard
+                key={`${index}-${recipe.title}`}
+                expiredNames={findExpiredIngredients(recipe, request.ingredients)}
+                recipe={recipe}
+              />
+            ))}
+          </View>
 
-          <Text style={styles.footnote}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => suggestDifferentRecipes(request.ingredients)}
+            style={({ pressed }) => [styles.differentButton, pressed ? styles.pressed : null]}
+          >
+            <Ionicons color="#2f7d32" name="refresh-outline" size={19} />
+            <Text style={styles.differentButtonText}>Suggest different recipes</Text>
+          </Pressable>
+
+          <Text style={styles.hintText}>New ideas replace these ones.</Text>
+
+          <Text style={[styles.footnote, styles.resultsFootnote]}>
             AI-generated. Check ingredients for allergies before cooking.
           </Text>
         </View>
@@ -596,8 +657,10 @@ const styles = StyleSheet.create({
   },
   outlineButton: {
     minHeight: 46,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
     marginTop: 20,
     borderWidth: 1,
     borderColor: '#2f7d32',
@@ -609,6 +672,30 @@ const styles = StyleSheet.create({
     color: '#2f7d32',
     fontSize: 14,
     fontWeight: '700',
+  },
+  differentButton: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 18,
+    borderWidth: 1,
+    borderColor: '#2f7d32',
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+  },
+  differentButtonText: {
+    color: '#2f7d32',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  hintText: {
+    marginTop: 10,
+    color: '#59635b',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
   },
   infoCard: {
     alignItems: 'center',
@@ -646,14 +733,22 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   results: {
-    gap: 16,
     marginTop: 26,
+  },
+  resultsTitle: {
+    marginBottom: 10,
+  },
+  cards: {
+    gap: 16,
   },
   footnote: {
     color: '#687269',
     fontSize: 12,
     lineHeight: 17,
     textAlign: 'center',
+  },
+  resultsFootnote: {
+    marginTop: 14,
   },
   pressed: {
     opacity: 0.72,
