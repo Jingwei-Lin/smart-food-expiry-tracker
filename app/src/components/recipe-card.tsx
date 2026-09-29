@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { SavedStar } from '@/components/saved-star';
 import { describeExpiredInRecipe } from '@/utils/expired-warnings';
 import { Recipe } from '@/utils/recipe-prompt';
 
@@ -48,11 +49,7 @@ export function RecipeCard({ recipe, expiredNames, isSaved, onToggleSaved }: Rec
           ]}
         >
           {isSaved ? (
-            /* Plain yellow is too faint on white, so a darker outline sits over the filled star. */
-            <View>
-              <Ionicons color="#f6b90b" name="star" size={24} />
-              <Ionicons color="#9a6a00" name="star-outline" size={24} style={styles.starOutline} />
-            </View>
+            <SavedStar size={24} />
           ) : (
             <Ionicons color="#4f5a51" name="star-outline" size={24} />
           )}
@@ -138,11 +135,6 @@ const styles = StyleSheet.create({
   },
   savedStarButton: {
     backgroundColor: '#fff4d1',
-  },
-  starOutline: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
   },
   pressed: {
     opacity: 0.72,

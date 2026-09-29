@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RecipeCard } from '@/components/recipe-card';
 import { RecipeChecklist } from '@/components/recipe-checklist';
+import { SavedRecipesBox } from '@/components/saved-recipes-box';
 import { useInventory } from '@/context/inventory-context';
 import { fetchRecipeSuggestions, RecipeSuggestionResult } from '@/utils/recipe-client';
 import { getRecipeCredentials, RecipeCredentials } from '@/utils/recipe-credentials';
@@ -110,6 +111,13 @@ function describeFailure(outcome: FailedOutcome, company: string): ErrorCopy {
       };
   }
 }
+
+/* The set-up card's three promises (design 5). */
+const SETUP_FACTS: { icon: IconName; text: string }[] = [
+  { icon: 'lock-closed-outline', text: 'Your key stays on this phone.' },
+  { icon: 'list-outline', text: 'Only the names and dates of the food you tick are sent.' },
+  { icon: 'card-outline', text: 'Any charges go to your provider account.' },
+];
 
 /* The parser keeps at most two recipes, and Matilda often returns only one. */
 function describeResults(count: number): string {
@@ -211,6 +219,13 @@ export default function RecipesScreen() {
             setRequest((current) => (current.status === 'error' ? { status: 'idle' } : current));
           }
         });
+
+      /* Recipes removed on the Saved recipes screen lose their star here too. */
+      void loadSavedRecipes().then((entries) => {
+        if (isActive) {
+          setSavedRecipes(entries);
+        }
+      });
 
       return () => {
         isActive = false;
@@ -353,17 +368,21 @@ export default function RecipesScreen() {
 
   const isLoading = request.status === 'loading';
 
+  let subtitle = 'Tick the food you want to cook with.';
+
+  if (credentials === null) {
+    subtitle = 'Ideas for the food you already have.';
+  } else if (request.status === 'done' && !isChecklistOpen) {
+    subtitle = describeResults(request.recipes.length);
+  }
+
   const header = (
     <View style={styles.header}>
       <View style={styles.headerText}>
         <Text accessibilityRole="header" style={styles.title}>
           Recipes
         </Text>
-        <Text style={styles.subtitle}>
-          {request.status === 'done' && !isChecklistOpen
-            ? describeResults(request.recipes.length)
-            : 'Tick the food you want to cook with.'}
-        </Text>
+        <Text style={styles.subtitle}>{subtitle}</Text>
       </View>
 
       {/* Settings stay closed while a request runs, so the key cannot change under it. */}
@@ -385,6 +404,11 @@ export default function RecipesScreen() {
         </Pressable>
       ) : null}
     </View>
+  );
+
+  /* Under the header on every state: saved recipes need neither a key nor any food. */
+  const savedBox = (
+    <SavedRecipesBox count={savedRecipes.length} onPress={() => router.push('/saved-recipes')} />
   );
 
   /* ---- Screens that replace the whole tab ---- */
@@ -417,6 +441,7 @@ export default function RecipesScreen() {
     return (
       <ScrollView contentContainerStyle={contentStyle} style={styles.screen}>
         {header}
+        {savedBox}
 
         <View style={styles.infoCard}>
           <View style={styles.infoIcon}>
@@ -426,9 +451,17 @@ export default function RecipesScreen() {
           <Text style={styles.infoTitle}>Set up recipe suggestions</Text>
           <Text style={styles.infoText}>
             Recipes come from an AI model using your own API key. Choose Gemini Flash (free),
-            Matilda, GPT-5.4 mini or DeepSeek Flash, then paste a key from that provider. Your key
-            stays on this phone, and any charges go to your provider account.
+            Matilda, GPT-5.4 mini or DeepSeek Flash, then paste a key from that provider.
           </Text>
+
+          <View style={styles.setupFacts}>
+            {SETUP_FACTS.map((fact) => (
+              <View key={fact.text} style={styles.setupFact}>
+                <Ionicons color="#2f7d32" name={fact.icon} size={18} />
+                <Text style={styles.setupFactText}>{fact.text}</Text>
+              </View>
+            ))}
+          </View>
 
           <Pressable
             accessibilityRole="button"
@@ -447,6 +480,7 @@ export default function RecipesScreen() {
     return (
       <ScrollView contentContainerStyle={contentStyle} style={styles.screen}>
         {header}
+        {savedBox}
 
         <View style={styles.infoCard}>
           <View style={styles.infoIcon}>
@@ -491,6 +525,7 @@ export default function RecipesScreen() {
       style={styles.screen}
     >
       {header}
+      {savedBox}
 
       {/* After results or an error: the food asked for folds into "cooking with" chips. */}
       {askedFor && !isChecklistOpen ? (
@@ -834,6 +869,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
+  },
+  setupFacts: {
+    alignSelf: 'stretch',
+    gap: 10,
+    marginTop: 20,
+    borderRadius: 12,
+    backgroundColor: '#f6f8f3',
+    padding: 14,
+  },
+  setupFact: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  setupFactText: {
+    flex: 1,
+    color: '#263229',
+    fontSize: 13,
+    lineHeight: 18,
   },
   results: {
     marginTop: 26,

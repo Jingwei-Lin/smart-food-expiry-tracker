@@ -1,4 +1,8 @@
-import { describeExpiredInRecipe, describeExpiredTicked } from '@/utils/expired-warnings';
+import {
+  describeExpiredInRecipe,
+  describeExpiredInSaved,
+  describeExpiredTicked,
+} from '@/utils/expired-warnings';
 
 describe('describeExpiredTicked', () => {
   it('names one expired food', () => {
@@ -24,6 +28,20 @@ describe('describeExpiredInRecipe', () => {
   it('names two expired foods with "and"', () => {
     expect(describeExpiredInRecipe(['Cheddar', 'Milk'])).toBe(
       'Uses Cheddar and Milk, which are past their date. Check they look and smell fine before cooking with them.',
+    );
+  });
+});
+
+describe('describeExpiredInSaved', () => {
+  it('says which of a saved recipe’s foods has expired since', () => {
+    expect(describeExpiredInSaved(['Cheddar'])).toBe(
+      'Your Cheddar is now past its date. Check it looks and smells fine before cooking with it.',
+    );
+  });
+
+  it('names several foods in one sentence', () => {
+    expect(describeExpiredInSaved(['Cheddar', 'Milk'])).toBe(
+      'Your Cheddar and Milk are now past their date. Check they look and smell fine before cooking with them.',
     );
   });
 });

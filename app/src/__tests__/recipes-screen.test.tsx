@@ -8,7 +8,7 @@ import { FoodItem } from '@/types/food-item';
 import { fetchRecipeSuggestions } from '@/utils/recipe-client';
 import { saveRecipeCredentials } from '@/utils/recipe-credentials';
 import { RECIPE_PROVIDERS } from '@/utils/recipe-providers';
-import { loadSavedRecipes, saveRecipe } from '@/utils/recipe-storage';
+import { loadSavedRecipes, saveRecipe, unsaveRecipe } from '@/utils/recipe-storage';
 
 jest.mock('@/services/expiry-notifications', () => ({
   cancelExpiryReminders: jest.fn().mockResolvedValue(true),
@@ -637,5 +637,57 @@ describe('RecipesScreen saving recipes', () => {
     await showRecipes('Spinach omelette');
 
     expect(fetchSuggestionsMock.mock.calls[0][2]?.avoidTitles).toEqual(['Milk pudding']);
+  });
+});
+
+describe('RecipesScreen saved box', () => {
+  it('counts the saved recipes and opens them', async () => {
+    fetchSuggestionsMock.mockResolvedValue(recipesReply(['Spinach omelette']));
+    const view = await renderScreen(fridge);
+
+    expect(await view.findByLabelText('Saved recipes, Nothing saved yet')).toBeTruthy();
+
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await view.findByText('Spinach omelette');
+    await fireEvent.press(view.getByLabelText('Save Spinach omelette'));
+    await fireEvent.press(await view.findByLabelText('Saved recipes, 1 saved'));
+
+    expect(router.push).toHaveBeenCalledWith('/saved-recipes');
+  });
+
+  it('is there before a key is set up, above the set-up card and its three promises', async () => {
+    const view = await renderScreen(fridge, { withKey: false });
+    await view.findByText('Set up recipe suggestions');
+
+    expect(view.getByLabelText('Saved recipes, Nothing saved yet')).toBeTruthy();
+    expect(view.getByText('Ideas for the food you already have.')).toBeTruthy();
+    expect(view.getByText('Your key stays on this phone.')).toBeTruthy();
+    expect(view.getByText('Only the names and dates of the food you tick are sent.')).toBeTruthy();
+    expect(view.getByText('Any charges go to your provider account.')).toBeTruthy();
+  });
+
+  it('is there with an empty inventory', async () => {
+    const view = await renderScreen([]);
+    await view.findByText('Nothing to cook with yet');
+
+    expect(view.getByLabelText('Saved recipes, Nothing saved yet')).toBeTruthy();
+  });
+
+  it('empties a star once its recipe is removed on the Saved recipes screen', async () => {
+    fetchSuggestionsMock.mockResolvedValue(recipesReply(['Spinach omelette']));
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await view.findByText('Spinach omelette');
+    await fireEvent.press(view.getByLabelText('Save Spinach omelette'));
+    await view.findByLabelText('Remove Spinach omelette from saved recipes');
+
+    /* What the Saved recipes screen does, then the tab comes back into view. */
+    const [saved] = await loadSavedRecipes();
+    await unsaveRecipe(saved.id);
+    await returnFromSettings();
+
+    expect(await view.findByLabelText('Save Spinach omelette')).toBeTruthy();
+    expect(view.getByLabelText('Saved recipes, Nothing saved yet')).toBeTruthy();
   });
 });
