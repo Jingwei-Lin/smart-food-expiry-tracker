@@ -26,7 +26,12 @@ import { RECIPE_PROVIDERS, RecipeProvider, RecipeProviderId } from '@/utils/reci
 
 const PROVIDERS = Object.values(RECIPE_PROVIDERS);
 
+/* Free, so a student who has never set anything up can start without paying. */
+const DEFAULT_PROVIDER_ID: RecipeProviderId = 'gemini';
+
 type KeyHints = Record<RecipeProviderId, string | null>;
+
+const NO_KEY_HINTS = Object.fromEntries(PROVIDERS.map(({ id }) => [id, null])) as KeyHints;
 
 type Notice = { tone: 'error' | 'success'; text: string };
 
@@ -47,7 +52,7 @@ function describeCheckFailure(
 /**
  * Recipe settings screen.
  *
- * The student picks one of the two models and pastes a key for it. A key is
+ * The student picks one of the models and pastes a key for it. A key is
  * checked with the provider before it is stored, so the Recipes tab never
  * starts with a key that cannot work. Each provider keeps its own key, so
  * switching back to one saved earlier needs no pasting.
@@ -55,8 +60,8 @@ function describeCheckFailure(
 export default function RecipeSettingsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [activeId, setActiveId] = useState<RecipeProviderId | null>(null);
-  const [selectedId, setSelectedId] = useState<RecipeProviderId>('openai');
-  const [hints, setHints] = useState<KeyHints>({ openai: null, deepseek: null });
+  const [selectedId, setSelectedId] = useState<RecipeProviderId>(DEFAULT_PROVIDER_ID);
+  const [hints, setHints] = useState<KeyHints>(NO_KEY_HINTS);
   const [keyInput, setKeyInput] = useState('');
   const [isWorking, setIsWorking] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -66,10 +71,9 @@ export default function RecipeSettingsScreen() {
 
     async function loadSavedKeys() {
       try {
-        const [credentials, openaiHint, deepseekHint] = await Promise.all([
+        const [credentials, savedHints] = await Promise.all([
           getRecipeCredentials(),
-          getSavedKeyHint('openai'),
-          getSavedKeyHint('deepseek'),
+          Promise.all(PROVIDERS.map(({ id }) => getSavedKeyHint(id))),
         ]);
 
         if (!isMounted) {
@@ -77,8 +81,10 @@ export default function RecipeSettingsScreen() {
         }
 
         setActiveId(credentials?.provider.id ?? null);
-        setSelectedId(credentials?.provider.id ?? 'openai');
-        setHints({ openai: openaiHint, deepseek: deepseekHint });
+        setSelectedId(credentials?.provider.id ?? DEFAULT_PROVIDER_ID);
+        setHints(
+          Object.fromEntries(PROVIDERS.map(({ id }, index) => [id, savedHints[index]])) as KeyHints,
+        );
       } catch {
         if (isMounted) {
           setNotice({ tone: 'error', text: 'Your saved keys could not be read on this phone.' });
@@ -276,6 +282,7 @@ export default function RecipeSettingsScreen() {
           <Text style={styles.privacyText}>
             Your key is stored only on this phone and is sent only to {provider.company}. Only the
             names and dates of the food you tick are sent. Requests are billed to your own account.
+            {provider.privacyNote ? ` ${provider.privacyNote}` : ''}
           </Text>
         </View>
 

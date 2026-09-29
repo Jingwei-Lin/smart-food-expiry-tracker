@@ -32,6 +32,25 @@ describe('checkRecipeKey', () => {
     await expect(checkRecipeKey(RECIPE_PROVIDERS.openai, API_KEY)).resolves.toBe('valid');
   });
 
+  it('asks Gemini at its OpenAI-compatible address', async () => {
+    fetchMock.mockResolvedValue(modelList('gemini-3.8-flash'));
+
+    await checkRecipeKey(RECIPE_PROVIDERS.gemini, API_KEY);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/openai/models',
+    );
+  });
+
+  it.each(['gemini-3.8-flash', 'models/gemini-3.8-flash'])(
+    'accepts a Gemini key when the model is listed as %s',
+    async (id) => {
+      fetchMock.mockResolvedValue(modelList('models/gemini-2.5-flash', id));
+
+      await expect(checkRecipeKey(RECIPE_PROVIDERS.gemini, API_KEY)).resolves.toBe('valid');
+    },
+  );
+
   it('flags a working key whose account cannot use the model', async () => {
     fetchMock.mockResolvedValue(modelList('gpt-4o'));
 
@@ -44,6 +63,28 @@ describe('checkRecipeKey', () => {
     fetchMock.mockResolvedValue({ ok: false, status, json: async () => ({}) });
 
     await expect(checkRecipeKey(RECIPE_PROVIDERS.openai, API_KEY)).resolves.toBe('invalid-key');
+  });
+
+  it('rejects a Gemini key, which Google answers with 400 rather than 401', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: { code: 400, message: 'Please pass a valid API key', status: 'INVALID_ARGUMENT' },
+      }),
+    });
+
+    await expect(checkRecipeKey(RECIPE_PROVIDERS.gemini, API_KEY)).resolves.toBe('invalid-key');
+  });
+
+  it('does not blame the key for a 400 about something else', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: { code: 400, message: 'Invalid JSON payload received.' } }),
+    });
+
+    await expect(checkRecipeKey(RECIPE_PROVIDERS.gemini, API_KEY)).resolves.toBe('unavailable');
   });
 
   it('reports the provider as unavailable on a server error, without blaming the key', async () => {
@@ -75,6 +116,7 @@ describe('fetchRecipeSuggestions', () => {
   const fetchMock = jest.fn();
   const openai = { provider: RECIPE_PROVIDERS.openai, apiKey: API_KEY };
   const deepseek = { provider: RECIPE_PROVIDERS.deepseek, apiKey: API_KEY };
+  const gemini = { provider: RECIPE_PROVIDERS.gemini, apiKey: API_KEY };
   const ticked: RecipeIngredient[] = [
     { name: 'Spinach', daysLeft: 0 },
     { name: 'Milk', daysLeft: -2 },
@@ -155,6 +197,24 @@ describe('fetchRecipeSuggestions', () => {
     expect(sentBody()).not.toHaveProperty('max_completion_tokens');
   });
 
+  it('uses Gemini’s OpenAI-compatible address, JSON mode and a low reasoning effort', async () => {
+    fetchMock.mockResolvedValue(chatReply({ content: usableContent }));
+
+    await fetchRecipeSuggestions(gemini, ticked);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    );
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe(`Bearer ${API_KEY}`);
+    expect(sentBody()).toMatchObject({
+      model: 'gemini-3.8-flash',
+      response_format: { type: 'json_object' },
+      max_tokens: 3000,
+      reasoning_effort: 'low',
+    });
+    expect(sentBody()).not.toHaveProperty('max_completion_tokens');
+  });
+
   it('returns the recipes from a usable reply', async () => {
     fetchMock.mockResolvedValue(chatReply({ content: usableContent }));
 
@@ -178,6 +238,18 @@ describe('fetchRecipeSuggestions', () => {
     fetchMock.mockResolvedValue(errorReply(status));
 
     await expect(fetchRecipeSuggestions(openai, ticked)).resolves.toEqual({ outcome: 'rejected' });
+  });
+
+  it('reports a rejected key when Gemini answers 400 about the key, wrapped in an array', async () => {
+    fetchMock.mockResolvedValue(
+      errorReply(400, [
+        {
+          error: { code: 400, message: 'Please pass a valid API key', status: 'INVALID_ARGUMENT' },
+        },
+      ]),
+    );
+
+    await expect(fetchRecipeSuggestions(gemini, ticked)).resolves.toEqual({ outcome: 'rejected' });
   });
 
   it.each([

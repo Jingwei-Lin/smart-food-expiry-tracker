@@ -16,6 +16,9 @@ jest.mock('@/utils/recipe-client', () => ({ checkRecipeKey: jest.fn() }));
 const checkRecipeKeyMock = jest.mocked(checkRecipeKey);
 const OPENAI_KEY = 'sk-proj-openai-test-key-a1B2';
 const DEEPSEEK_KEY = 'sk-deepseek-test-key-9z8Y';
+const GEMINI_KEY = 'AIza-gemini-test-key-5x6W';
+const GEMINI_NOTE =
+  "Gemini's free tier costs nothing, but Google may use what you send to improve its products.";
 
 async function renderScreen() {
   const view = await render(<RecipeSettingsScreen />);
@@ -35,6 +38,7 @@ describe('RecipeSettingsScreen', () => {
     checkRecipeKeyMock.mockResolvedValue('valid');
     const view = await renderScreen();
 
+    await fireEvent.press(view.getByText('GPT-5.4 mini'));
     await fireEvent.changeText(view.getByLabelText('OpenAI API key'), ` ${OPENAI_KEY}\n`);
     await fireEvent.press(view.getByText('Save and check'));
 
@@ -50,6 +54,7 @@ describe('RecipeSettingsScreen', () => {
     checkRecipeKeyMock.mockResolvedValue('invalid-key');
     const view = await renderScreen();
 
+    await fireEvent.press(view.getByText('GPT-5.4 mini'));
     await fireEvent.changeText(view.getByLabelText('OpenAI API key'), OPENAI_KEY);
     await fireEvent.press(view.getByText('Save and check'));
 
@@ -102,6 +107,28 @@ describe('RecipeSettingsScreen', () => {
     expect(await view.findByText('OpenAI key removed from this phone.')).toBeTruthy();
     expect(view.getByText('No OpenAI key saved yet')).toBeTruthy();
     await expect(getRecipeCredentials()).resolves.toBeNull();
+  });
+
+  it('starts on the free Gemini model and saves a Google key for it', async () => {
+    checkRecipeKeyMock.mockResolvedValue('valid');
+    const view = await renderScreen();
+
+    await fireEvent.changeText(view.getByLabelText('Google API key'), GEMINI_KEY);
+    await fireEvent.press(view.getByText('Save and check'));
+
+    expect(checkRecipeKeyMock).toHaveBeenCalledWith(RECIPE_PROVIDERS.gemini, GEMINI_KEY);
+    const credentials = await getRecipeCredentials();
+    expect(credentials?.provider.id).toBe('gemini');
+  });
+
+  it('says that Google may use free-tier requests, only while Gemini is chosen', async () => {
+    const view = await renderScreen();
+
+    expect(view.getByText(GEMINI_NOTE, { exact: false })).toBeTruthy();
+
+    await fireEvent.press(view.getByText('GPT-5.4 mini'));
+
+    expect(view.queryByText(GEMINI_NOTE, { exact: false })).toBeNull();
   });
 
   it('leaves the main button disabled until there is something to save', async () => {

@@ -12,6 +12,7 @@ import { RECIPE_PROVIDERS } from '@/utils/recipe-providers';
 
 const OPENAI_KEY = 'sk-proj-openai-test-key-a1B2';
 const DEEPSEEK_KEY = 'sk-deepseek-test-key-9z8Y';
+const GEMINI_KEY = 'AIza-gemini-test-key-5x6W';
 
 describe('getRecipeCredentials', () => {
   it('returns null before anything has been saved', async () => {
@@ -51,6 +52,19 @@ describe('saveRecipeCredentials', () => {
 
     expect(credentials?.provider.id).toBe('deepseek');
     await expect(getSavedKeyHint('openai')).resolves.toBe('sk-…a1B2');
+  });
+
+  it('keeps a Gemini key alongside the others', async () => {
+    await saveRecipeCredentials('gemini', GEMINI_KEY);
+    await saveRecipeCredentials('openai', OPENAI_KEY);
+
+    await selectRecipeProvider('gemini');
+
+    await expect(getRecipeCredentials()).resolves.toEqual({
+      provider: RECIPE_PROVIDERS.gemini,
+      apiKey: GEMINI_KEY,
+    });
+    await expect(getSavedKeyHint('gemini')).resolves.toBe('…5x6W');
   });
 });
 

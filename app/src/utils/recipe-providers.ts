@@ -1,4 +1,4 @@
-export type RecipeProviderId = 'openai' | 'deepseek';
+export type RecipeProviderId = 'gemini' | 'openai' | 'deepseek';
 
 export type RecipeProvider = {
   id: RecipeProviderId;
@@ -6,21 +6,37 @@ export type RecipeProvider = {
   label: string;
   company: string;
   model: string;
-  /** Both providers speak the OpenAI Chat Completions API under this address. */
+  /** Every provider speaks the OpenAI Chat Completions API under this address. */
   baseUrl: string;
   /** Where a student creates a key; opened from the settings screen. */
   keysUrl: string;
   /** Sent with every chat request alongside the model and messages. */
   requestOptions: Record<string, string | number>;
+  /** What the provider does with the request, shown on the settings screen when it differs from the rest. */
+  privacyNote?: string;
 };
 
 /*
- * The only two models the app offers. Their request options differ because
- * gpt-5.4-mini is a reasoning model: OpenAI rejects `max_tokens` for it, its
- * reasoning counts against `max_completion_tokens` (hence the larger limit),
- * and a low reasoning effort keeps the wait short.
+ * The only models the app offers. Gemini comes first because its free tier
+ * needs no payment, so any student (or marker) can try recipes with it.
+ *
+ * gpt-5.4-mini and the Gemini 3 models reason before they answer: OpenAI
+ * rejects `max_tokens` for gpt-5.4-mini and counts its reasoning against
+ * `max_completion_tokens` (hence the larger limit), and Gemini 3 cannot turn
+ * reasoning off. A low reasoning effort keeps the wait short for both.
  */
 export const RECIPE_PROVIDERS: Record<RecipeProviderId, RecipeProvider> = {
+  gemini: {
+    id: 'gemini',
+    label: 'Gemini Flash',
+    company: 'Google',
+    model: 'gemini-3.8-flash',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    keysUrl: 'https://aistudio.google.com/app/apikey',
+    requestOptions: { max_tokens: 3000, reasoning_effort: 'low' },
+    privacyNote:
+      "Gemini's free tier costs nothing, but Google may use what you send to improve its products.",
+  },
   openai: {
     id: 'openai',
     label: 'GPT-5.4 mini',
@@ -42,5 +58,5 @@ export const RECIPE_PROVIDERS: Record<RecipeProviderId, RecipeProvider> = {
 };
 
 export function isRecipeProviderId(value: string): value is RecipeProviderId {
-  return value === 'openai' || value === 'deepseek';
+  return value === 'gemini' || value === 'openai' || value === 'deepseek';
 }

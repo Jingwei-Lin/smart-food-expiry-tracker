@@ -10,7 +10,11 @@ const SUGGESTION_TIMEOUT_MS = 30000;
 
 export type KeyCheckResult = 'valid' | 'invalid-key' | 'model-unavailable' | 'unavailable';
 
-/** Both providers answer GET /models with `{ data: [{ id }] }`. */
+/*
+ * Every provider answers GET /models with `{ data: [{ id }] }`, but Gemini
+ * lists its ids as `models/gemini-3.8-flash` while chat requests take the bare
+ * name, so both spellings count.
+ */
 function listsModel(body: unknown, model: string): boolean {
   if (typeof body !== 'object' || body === null) {
     return false;
@@ -20,11 +24,39 @@ function listsModel(body: unknown, model: string): boolean {
 
   return (
     Array.isArray(data) &&
-    data.some(
-      (entry) =>
-        typeof entry === 'object' && entry !== null && (entry as { id?: unknown }).id === model,
-    )
+    data.some((entry) => {
+      const id =
+        typeof entry === 'object' && entry !== null ? (entry as { id?: unknown }).id : null;
+
+      return id === model || id === `models/${model}`;
+    })
   );
+}
+
+/*
+ * OpenAI and DeepSeek answer a bad key with 401 or 403. Gemini answers 400
+ * INVALID_ARGUMENT, "Please pass a valid API key", and wraps chat errors in an
+ * array, so a 400 only counts when its message is about the key.
+ */
+async function isKeyRejected(response: Response): Promise<boolean> {
+  if (response.status === 401 || response.status === 403) {
+    return true;
+  }
+
+  if (response.status !== 400) {
+    return false;
+  }
+
+  try {
+    const body: unknown = await response.json();
+    const reply = (Array.isArray(body) ? body[0] : body) as
+      { error?: { message?: unknown } } | null | undefined;
+    const message = reply?.error?.message;
+
+    return typeof message === 'string' && /api key/i.test(message);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -48,7 +80,7 @@ export async function checkRecipeKey(
       signal: controller.signal,
     });
 
-    if (response.status === 401 || response.status === 403) {
+    if (await isKeyRejected(response)) {
       return 'invalid-key';
     }
 
@@ -66,7 +98,7 @@ export async function checkRecipeKey(
 
 export type RecipeSuggestionResult =
   | { outcome: 'ok'; recipes: Recipe[] }
-  /** 401 / 403: the saved key no longer works. */
+  /** The saved key no longer works (401 / 403, or Gemini's 400 about the key). */
   | { outcome: 'rejected' }
   /** The account has run out of credit. */
   | { outcome: 'out-of-credit' }
@@ -162,7 +194,7 @@ export async function fetchRecipeSuggestions(
       signal: controller.signal,
     });
 
-    if (response.status === 401 || response.status === 403) {
+    if (await isKeyRejected(response)) {
       return { outcome: 'rejected' };
     }
 
