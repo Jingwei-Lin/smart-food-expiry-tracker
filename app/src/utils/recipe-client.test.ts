@@ -186,6 +186,10 @@ describe('fetchRecipeSuggestions', () => {
       'OpenAI reports an exhausted quota (429)',
       errorReply(429, { error: { code: 'insufficient_quota' } }),
     ],
+    [
+      'OpenAI names the exhausted quota only in the error type (429)',
+      errorReply(429, { error: { type: 'insufficient_quota', code: null } }),
+    ],
   ])('reports an account out of credit when %s', async (_, reply) => {
     fetchMock.mockResolvedValue(reply);
 

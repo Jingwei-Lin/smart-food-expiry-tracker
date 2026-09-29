@@ -89,9 +89,9 @@ async function isOutOfCredit(response: Response): Promise<boolean> {
   }
 
   try {
-    const body = (await response.json()) as { error?: { code?: unknown } };
+    const body = (await response.json()) as { error?: { code?: unknown; type?: unknown } };
 
-    return body.error?.code === 'insufficient_quota';
+    return body.error?.code === 'insufficient_quota' || body.error?.type === 'insufficient_quota';
   } catch {
     return false;
   }
