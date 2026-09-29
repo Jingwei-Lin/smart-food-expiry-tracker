@@ -114,3 +114,22 @@ export function toRecipeIngredients(
 
   return ingredients;
 }
+
+/**
+ * The food a result was made for, with each date read again from the
+ * inventory as it is now, so a result shown again the next day warns about
+ * food that has expired overnight. The most urgent item of a name is used, as
+ * in `toRecipeIngredients`. Food no longer in the inventory keeps its name
+ * with no date, so it is never marked expired.
+ */
+export function findRecipeIngredients(
+  names: string[],
+  candidates: RecipeCandidate[],
+): RecipeIngredient[] {
+  return names.map((name) => {
+    const key = name.trim().toLowerCase();
+    const match = candidates.find((candidate) => candidate.name.trim().toLowerCase() === key);
+
+    return { name, daysLeft: match ? match.daysLeft : Number.POSITIVE_INFINITY };
+  });
+}

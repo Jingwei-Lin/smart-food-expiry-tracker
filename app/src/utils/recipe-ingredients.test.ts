@@ -1,6 +1,7 @@
 import { FoodItem } from '@/types/food-item';
 import {
   defaultRecipeSelection,
+  findRecipeIngredients,
   listRecipeCandidates,
   MAX_RECIPE_INGREDIENTS,
   RecipeCandidate,
@@ -204,5 +205,28 @@ describe('toRecipeIngredients', () => {
 
   it('returns nothing when nothing is ticked', () => {
     expect(toRecipeIngredients([buildCandidate('milk', 1)], [])).toEqual([]);
+  });
+});
+
+describe('findRecipeIngredients', () => {
+  it('reads each date again from the inventory, using the most urgent item of a name', () => {
+    const candidates = [
+      buildCandidate('old-milk', -1, 'Milk'),
+      buildCandidate('spinach', 0, 'Spinach'),
+      buildCandidate('new-milk', 5, 'Milk'),
+    ];
+
+    expect(findRecipeIngredients(['Spinach', 'milk'], candidates)).toEqual([
+      { name: 'Spinach', daysLeft: 0 },
+      { name: 'milk', daysLeft: -1 },
+    ]);
+  });
+
+  it('keeps food no longer in the inventory, with no date so it is never marked expired', () => {
+    const candidates = [buildCandidate('spinach', 0, 'Spinach')];
+
+    expect(findRecipeIngredients(['Cheddar'], candidates)).toEqual([
+      { name: 'Cheddar', daysLeft: Number.POSITIVE_INFINITY },
+    ]);
   });
 });

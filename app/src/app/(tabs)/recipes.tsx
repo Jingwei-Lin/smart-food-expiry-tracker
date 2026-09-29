@@ -19,22 +19,34 @@ import { fetchRecipeSuggestions, RecipeSuggestionResult } from '@/utils/recipe-c
 import { getRecipeCredentials, RecipeCredentials } from '@/utils/recipe-credentials';
 import {
   defaultRecipeSelection,
+  findRecipeIngredients,
   listRecipeCandidates,
   RecipeIngredient,
   toRecipeIngredients,
 } from '@/utils/recipe-ingredients';
-import { findExpiredIngredients, Recipe, rememberShownTitles } from '@/utils/recipe-prompt';
+import { findExpiredIngredients, rememberShownTitles } from '@/utils/recipe-prompt';
+import {
+  loadRecipeSnapshot,
+  RecipeScreenSnapshot,
+  saveRecipeSnapshot,
+  SuggestedRecipe,
+  toSuggestedRecipes,
+} from '@/utils/recipe-storage';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 type FailedOutcome = Exclude<RecipeSuggestionResult['outcome'], 'ok'>;
 
-/* A request goes idle → loading → done or error. */
+/*
+ * A request goes idle → loading → done or error. Results keep the names of the
+ * food they were for; the dates are read from the inventory each time they are
+ * shown, so a result restored the next day is still right about expired food.
+ */
 type RequestState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'done'; recipes: Recipe[]; ingredients: RecipeIngredient[] }
-  | { status: 'error'; outcome: FailedOutcome; ingredients: RecipeIngredient[] };
+  | { status: 'done'; recipes: SuggestedRecipe[]; forNames: string[] }
+  | { status: 'error'; outcome: FailedOutcome; forNames: string[] };
 
 type ErrorCopy = {
   icon: IconName;
@@ -126,11 +138,20 @@ export default function RecipesScreen() {
   /* The last key read on focus. A ref, because the focus callback is created only once. */
   const lastReadCredentials = useRef<RecipeCredentials | null | undefined>(undefined);
 
-  /* null until the student changes a tick, so the eat-soon defaults apply until then. */
+  /*
+   * null until the student changes a tick or saved ticks are restored, so the
+   * eat-soon defaults apply until then.
+   */
   const [chosenIds, setChosenIds] = useState<string[] | null>(null);
   const [request, setRequest] = useState<RequestState>({ status: 'idle' });
   const [isChecklistOpen, setIsChecklistOpen] = useState(true);
   const pendingRequest = useRef<AbortController | null>(null);
+
+  /* false until the saved suggestions and ticks have been read, so nothing can be tapped before. */
+  const [isSnapshotRead, setIsSnapshotRead] = useState(false);
+
+  /* The last successful result, saved with the ticks so it comes back after a restart. */
+  const lastResult = useRef<RecipeScreenSnapshot['lastResult']>(null);
 
   /* Every title shown this session: "Suggest different recipes" asks the model to avoid them. */
   const shownTitles = useRef<string[]>([]);
@@ -186,6 +207,39 @@ export default function RecipesScreen() {
     }, []),
   );
 
+  /* Bring back the last suggestions and ticks once, without asking the provider again. */
+  useEffect(() => {
+    let isActive = true;
+
+    void loadRecipeSnapshot().then((snapshot) => {
+      if (!isActive) {
+        return;
+      }
+
+      if (snapshot) {
+        setChosenIds(snapshot.selectedIds);
+
+        if (snapshot.lastResult) {
+          const { recipes } = snapshot.lastResult;
+
+          lastResult.current = snapshot.lastResult;
+          shownTitles.current = rememberShownTitles(
+            [],
+            recipes.map((recipe) => recipe.title),
+          );
+          setRequest({ status: 'done', ...snapshot.lastResult });
+          setIsChecklistOpen(false);
+        }
+      }
+
+      setIsSnapshotRead(true);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
   /* A request still running when the screen goes away is cancelled, not billed for nothing. */
   useEffect(() => () => pendingRequest.current?.abort(), []);
 
@@ -217,17 +271,30 @@ export default function RecipesScreen() {
 
     pendingRequest.current = null;
 
+    const forNames = ingredients.map((ingredient) => ingredient.name);
+
     if (result.outcome === 'ok') {
+      const recipes = toSuggestedRecipes(result.recipes);
+
       shownTitles.current = rememberShownTitles(
         shownTitles.current,
-        result.recipes.map((recipe) => recipe.title),
+        recipes.map((recipe) => recipe.title),
       );
-      setRequest({ status: 'done', recipes: result.recipes, ingredients });
+      lastResult.current = { recipes, forNames };
+      setRequest({ status: 'done', recipes, forNames });
       setIsChecklistOpen(false);
+      void saveRecipeSnapshot({ selectedIds, lastResult: lastResult.current });
     } else {
-      setRequest({ status: 'error', outcome: result.outcome, ingredients });
+      /* Errors are not saved: after a restart the last good result, or the checklist, shows. */
+      setRequest({ status: 'error', outcome: result.outcome, forNames });
       setIsChecklistOpen(false);
     }
+  }
+
+  /* Every change to the ticks is saved, so they come back after a restart. */
+  function changeTicks(ids: string[]) {
+    setChosenIds(ids);
+    void saveRecipeSnapshot({ selectedIds: ids, lastResult: lastResult.current });
   }
 
   function suggestForTickedFood() {
@@ -299,8 +366,8 @@ export default function RecipesScreen() {
     );
   }
 
-  /* Still reading the inventory or the key. */
-  if (isInventoryLoading || credentials === undefined) {
+  /* Still reading the inventory, the key or the saved suggestions. */
+  if (isInventoryLoading || credentials === undefined || !isSnapshotRead) {
     return (
       <View style={styles.centred}>
         <ActivityIndicator color="#2f7d32" size="large" />
@@ -377,7 +444,9 @@ export default function RecipesScreen() {
 
   /* The food a finished or failed request was for, shown as chips in place of the checklist. */
   const askedFor =
-    request.status === 'done' || request.status === 'error' ? request.ingredients : null;
+    request.status === 'done' || request.status === 'error'
+      ? findRecipeIngredients(request.forNames, candidates)
+      : null;
   const failure =
     request.status === 'error'
       ? describeFailure(request.outcome, credentials.provider.company)
@@ -430,7 +499,7 @@ export default function RecipesScreen() {
           <RecipeChecklist
             candidates={candidates}
             disabled={isLoading}
-            onChange={setChosenIds}
+            onChange={changeTicks}
             selectedIds={selectedIds}
           />
 
@@ -487,15 +556,15 @@ export default function RecipesScreen() {
       ) : null}
 
       {/* The suggested recipes, each with the app's own red warning if it uses expired food. */}
-      {request.status === 'done' ? (
+      {request.status === 'done' && askedFor ? (
         <View style={styles.results}>
           <Text style={[styles.sectionTitle, styles.resultsTitle]}>SUGGESTIONS</Text>
 
           <View style={styles.cards}>
-            {request.recipes.map((recipe, index) => (
+            {request.recipes.map((recipe) => (
               <RecipeCard
-                key={`${index}-${recipe.title}`}
-                expiredNames={findExpiredIngredients(recipe, request.ingredients)}
+                key={recipe.id}
+                expiredNames={findExpiredIngredients(recipe, askedFor)}
                 recipe={recipe}
               />
             ))}
@@ -503,7 +572,7 @@ export default function RecipesScreen() {
 
           <Pressable
             accessibilityRole="button"
-            onPress={() => suggestDifferentRecipes(request.ingredients)}
+            onPress={() => suggestDifferentRecipes(askedFor)}
             style={({ pressed }) => [styles.differentButton, pressed ? styles.pressed : null]}
           >
             <Ionicons color="#2f7d32" name="refresh-outline" size={19} />
