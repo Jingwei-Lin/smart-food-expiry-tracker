@@ -1,6 +1,7 @@
+import { readMatildaStream, toMatildaMessages } from '@/utils/matilda';
 import { RecipeCredentials } from '@/utils/recipe-credentials';
 import { RecipeIngredient } from '@/utils/recipe-ingredients';
-import { buildRecipeMessages, parseRecipeReply, Recipe } from '@/utils/recipe-prompt';
+import { buildRecipeMessages, ChatMessage, parseRecipeReply, Recipe } from '@/utils/recipe-prompt';
 import { RecipeProvider } from '@/utils/recipe-providers';
 
 const KEY_CHECK_TIMEOUT_MS = 10000;
@@ -59,10 +60,40 @@ async function isKeyRejected(response: Response): Promise<boolean> {
   }
 }
 
+/** One chat request, shaped for the provider's API. */
+function buildChatRequest(
+  provider: RecipeProvider,
+  apiKey: string,
+  messages: ChatMessage[],
+  signal: AbortSignal,
+): [string, RequestInit] {
+  const body =
+    provider.api === 'matilda'
+      ? { messages: toMatildaMessages(messages), ...provider.requestOptions }
+      : {
+          model: provider.model,
+          messages,
+          response_format: { type: 'json_object' },
+          ...provider.requestOptions,
+        };
+
+  return [
+    `${provider.baseUrl}${provider.api === 'matilda' ? '/chat' : '/chat/completions'}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    },
+  ];
+}
+
 /**
  * Checks a key before it is saved by asking the provider which models it can
  * use. Listing models spends no tokens, and it also catches a key that works
- * but belongs to an account without access to the model we need.
+ * but belongs to an account without access to the model we need. Matilda has
+ * no model list and a single model, so its key is checked with a one-line
+ * chat request instead.
  *
  * Never throws: with no signal or a failing API the settings screen gets
  * `unavailable` and says so, rather than treating the key as wrong.
@@ -75,10 +106,20 @@ export async function checkRecipeKey(
   const timeout = setTimeout(() => controller.abort(), KEY_CHECK_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${provider.baseUrl}/models`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: controller.signal,
-    });
+    const response =
+      provider.api === 'matilda'
+        ? await fetch(
+            ...buildChatRequest(
+              provider,
+              apiKey,
+              [{ role: 'user', content: 'Reply with OK.' }],
+              controller.signal,
+            ),
+          )
+        : await fetch(`${provider.baseUrl}/models`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: controller.signal,
+          });
 
     if (await isKeyRejected(response)) {
       return 'invalid-key';
@@ -86,6 +127,10 @@ export async function checkRecipeKey(
 
     if (!response.ok) {
       return 'unavailable';
+    }
+
+    if (provider.api === 'matilda') {
+      return 'valid';
     }
 
     return listsModel(await response.json(), provider.model) ? 'valid' : 'model-unavailable';
@@ -156,6 +201,17 @@ function readReplyContent(body: unknown): string | null {
   return typeof content === 'string' && content.trim() ? content : null;
 }
 
+/** The model's text from a successful reply, or null when none can be trusted. */
+async function readReply(provider: RecipeProvider, response: Response): Promise<string | null> {
+  try {
+    return provider.api === 'matilda'
+      ? readMatildaStream(await response.text())
+      : readReplyContent(await response.json());
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Asks the chosen provider for recipes that use the ticked foods.
  *
@@ -183,20 +239,14 @@ export async function fetchRecipeSuggestions(
   signal?.addEventListener('abort', stopWithCaller);
 
   try {
-    const response = await fetch(`${provider.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: provider.model,
-        messages: buildRecipeMessages(ingredients, avoidTitles),
-        response_format: { type: 'json_object' },
-        ...provider.requestOptions,
-      }),
-      signal: controller.signal,
-    });
+    const response = await fetch(
+      ...buildChatRequest(
+        provider,
+        apiKey,
+        buildRecipeMessages(ingredients, avoidTitles),
+        controller.signal,
+      ),
+    );
 
     if (await isKeyRejected(response)) {
       return { outcome: 'rejected' };
@@ -220,15 +270,7 @@ export async function fetchRecipeSuggestions(
       return { outcome: 'unavailable' };
     }
 
-    let body: unknown;
-
-    try {
-      body = await response.json();
-    } catch {
-      return { outcome: 'bad-response' };
-    }
-
-    const content = readReplyContent(body);
+    const content = await readReply(provider, response);
     const recipes = content === null ? null : parseRecipeReply(content, ingredients);
 
     return recipes ? { outcome: 'ok', recipes } : { outcome: 'bad-response' };

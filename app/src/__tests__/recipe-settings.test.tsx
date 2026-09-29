@@ -17,6 +17,7 @@ const checkRecipeKeyMock = jest.mocked(checkRecipeKey);
 const OPENAI_KEY = 'sk-proj-openai-test-key-a1B2';
 const DEEPSEEK_KEY = 'sk-deepseek-test-key-9z8Y';
 const GEMINI_KEY = 'AIza-gemini-test-key-5x6W';
+const MATILDA_KEY = 'mc_live_matilda-test-key-7q8R';
 const GEMINI_NOTE =
   "Gemini's free tier costs nothing, but Google may use what you send to improve its products.";
 
@@ -129,6 +130,24 @@ describe('RecipeSettingsScreen', () => {
     await fireEvent.press(view.getByText('GPT-5.4 mini'));
 
     expect(view.queryByText(GEMINI_NOTE, { exact: false })).toBeNull();
+  });
+
+  it('offers Matilda, says Maincode does not train on prompts, and saves its key', async () => {
+    checkRecipeKeyMock.mockResolvedValue('valid');
+    const view = await renderScreen();
+
+    await fireEvent.press(view.getByText('Matilda'));
+
+    expect(
+      view.getByText('Maincode says it never trains its models on your prompts', { exact: false }),
+    ).toBeTruthy();
+
+    await fireEvent.changeText(view.getByLabelText('Maincode API key'), MATILDA_KEY);
+    await fireEvent.press(view.getByText('Save and check'));
+
+    expect(checkRecipeKeyMock).toHaveBeenCalledWith(RECIPE_PROVIDERS.matilda, MATILDA_KEY);
+    const credentials = await getRecipeCredentials();
+    expect(credentials?.provider.id).toBe('matilda');
   });
 
   it('leaves the main button disabled until there is something to save', async () => {

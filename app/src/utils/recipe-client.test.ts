@@ -110,6 +110,28 @@ describe('checkRecipeKey', () => {
 
     await expect(checkRecipeKey(RECIPE_PROVIDERS.deepseek, API_KEY)).resolves.toBe('unavailable');
   });
+
+  it('checks a Matilda key with a one-line chat request, since it has no model list', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200 });
+
+    await expect(checkRecipeKey(RECIPE_PROVIDERS.matilda, API_KEY)).resolves.toBe('valid');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://matilda.maincode.com/api/chat');
+    expect(init.method).toBe('POST');
+    expect(init.headers.Authorization).toBe(`Bearer ${API_KEY}`);
+    expect(JSON.parse(init.body)).toEqual({
+      messages: [{ role: 'user', content: 'Reply with OK.' }],
+      responseMode: 'instant',
+      persist: false,
+    });
+  });
+
+  it('rejects a Matilda key the service does not recognise', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
+
+    await expect(checkRecipeKey(RECIPE_PROVIDERS.matilda, API_KEY)).resolves.toBe('invalid-key');
+  });
 });
 
 describe('fetchRecipeSuggestions', () => {
@@ -117,6 +139,7 @@ describe('fetchRecipeSuggestions', () => {
   const openai = { provider: RECIPE_PROVIDERS.openai, apiKey: API_KEY };
   const deepseek = { provider: RECIPE_PROVIDERS.deepseek, apiKey: API_KEY };
   const gemini = { provider: RECIPE_PROVIDERS.gemini, apiKey: API_KEY };
+  const matilda = { provider: RECIPE_PROVIDERS.matilda, apiKey: API_KEY };
   const ticked: RecipeIngredient[] = [
     { name: 'Spinach', daysLeft: 0 },
     { name: 'Milk', daysLeft: -2 },
@@ -213,6 +236,58 @@ describe('fetchRecipeSuggestions', () => {
       reasoning_effort: 'low',
     });
     expect(sentBody()).not.toHaveProperty('max_completion_tokens');
+  });
+
+  /** A finished Matilda event stream that spells out `content` a few characters at a time. */
+  function matildaReply(content: string, extraEvents = '') {
+    const tokens = (content.match(/[\s\S]{1,8}/g) ?? [])
+      .map((chunk) => `event: token\ndata: ${JSON.stringify({ content: chunk })}\n\n`)
+      .join('');
+
+    return {
+      ok: true,
+      status: 200,
+      text: async () =>
+        `event: stream_init\ndata: {"stream_id":"s-1"}\n\n${tokens}${extraEvents}event: done\ndata: {}\n\n`,
+    };
+  }
+
+  it('sends Matilda one user message with the instructions folded in, and no model', async () => {
+    fetchMock.mockResolvedValue(matildaReply(usableContent));
+
+    await fetchRecipeSuggestions(matilda, ticked);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://matilda.maincode.com/api/chat');
+    expect(init.headers.Authorization).toBe(`Bearer ${API_KEY}`);
+    expect(sentBody()).toMatchObject({ responseMode: 'instant', persist: false });
+    expect(sentBody()).not.toHaveProperty('model');
+    expect(sentBody()).not.toHaveProperty('response_format');
+    expect(sentBody().messages).toHaveLength(1);
+    expect(sentBody().messages[0].role).toBe('user');
+    expect(sentBody().messages[0].content).toContain('Reply with JSON only');
+    expect(sentBody().messages[0].content).toContain('- Spinach (expires today)');
+  });
+
+  it('returns the recipes from Matilda’s event stream', async () => {
+    fetchMock.mockResolvedValue(matildaReply(usableContent));
+
+    await expect(fetchRecipeSuggestions(matilda, ticked)).resolves.toEqual({
+      outcome: 'ok',
+      recipes: [
+        expect.objectContaining({ title: 'Spinach omelette', usesIngredients: ['Spinach'] }),
+      ],
+    });
+  });
+
+  it('treats a Matilda stream that reports an error as unreadable', async () => {
+    fetchMock.mockResolvedValue(
+      matildaReply(usableContent, 'event: error\ndata: {"code":"internal","message":"Oops"}\n\n'),
+    );
+
+    await expect(fetchRecipeSuggestions(matilda, ticked)).resolves.toEqual({
+      outcome: 'bad-response',
+    });
   });
 
   it('returns the recipes from a usable reply', async () => {

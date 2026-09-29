@@ -265,8 +265,8 @@ export default function RecipesScreen() {
           <Text style={styles.infoTitle}>Set up recipe suggestions</Text>
           <Text style={styles.infoText}>
             Recipes come from an AI model using your own API key. Choose Gemini Flash (free),
-            GPT-5.4 mini or DeepSeek Flash, then paste a key from that provider. Your key stays on
-            this phone, and any charges go to your provider account.
+            Matilda, GPT-5.4 mini or DeepSeek Flash, then paste a key from that provider. Your key
+            stays on this phone, and any charges go to your provider account.
           </Text>
 
           <Pressable
