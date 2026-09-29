@@ -96,9 +96,27 @@ describe('removeRecipeKey', () => {
   it('leaves the Recipes tab without credentials when the chosen provider’s key goes', async () => {
     await saveRecipeCredentials('openai', OPENAI_KEY);
 
-    await removeRecipeKey('openai');
-
+    await expect(removeRecipeKey('openai')).resolves.toBeNull();
     await expect(getRecipeCredentials()).resolves.toBeNull();
+  });
+
+  it('switches to another saved key when the one in use is removed', async () => {
+    await saveRecipeCredentials('deepseek', DEEPSEEK_KEY);
+    await saveRecipeCredentials('openai', OPENAI_KEY);
+
+    await expect(removeRecipeKey('openai')).resolves.toBe('deepseek');
+    await expect(getRecipeCredentials()).resolves.toEqual({
+      provider: RECIPE_PROVIDERS.deepseek,
+      apiKey: DEEPSEEK_KEY,
+    });
+  });
+
+  it('keeps the provider in use when another provider’s key is removed', async () => {
+    await saveRecipeCredentials('openai', OPENAI_KEY);
+    await saveRecipeCredentials('deepseek', DEEPSEEK_KEY);
+
+    await expect(removeRecipeKey('openai')).resolves.toBe('deepseek');
+    await expect(getSavedKeyHint('openai')).resolves.toBeNull();
   });
 });
 

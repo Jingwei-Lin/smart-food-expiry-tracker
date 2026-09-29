@@ -1,4 +1,5 @@
 import { fireEvent, render } from '@testing-library/react-native';
+import { Linking } from 'react-native';
 import { router } from 'expo-router';
 
 import RecipeSettingsScreen from '@/app/recipe-settings';
@@ -148,6 +149,33 @@ describe('RecipeSettingsScreen', () => {
     expect(checkRecipeKeyMock).toHaveBeenCalledWith(RECIPE_PROVIDERS.matilda, MATILDA_KEY);
     const credentials = await getRecipeCredentials();
     expect(credentials?.provider.id).toBe('matilda');
+  });
+
+  it('switches to another saved model when the key in use is removed, and says so', async () => {
+    await saveRecipeCredentials('deepseek', DEEPSEEK_KEY);
+    await saveRecipeCredentials('openai', OPENAI_KEY);
+    const view = await renderScreen();
+
+    await fireEvent.press(view.getByText('Remove key'));
+
+    expect(
+      await view.findByText('OpenAI key removed from this phone. Recipes now use DeepSeek Flash.'),
+    ).toBeTruthy();
+    const credentials = await getRecipeCredentials();
+    expect(credentials?.provider.id).toBe('deepseek');
+  });
+
+  it('gives the address when the key page cannot be opened', async () => {
+    jest.spyOn(Linking, 'openURL').mockRejectedValueOnce(new Error('No browser'));
+    const view = await renderScreen();
+
+    await fireEvent.press(view.getByText('Get a key'));
+
+    expect(
+      await view.findByText(
+        "Couldn't open the Google key page. Visit https://aistudio.google.com/app/apikey in a browser.",
+      ),
+    ).toBeTruthy();
   });
 
   it('leaves the main button disabled until there is something to save', async () => {

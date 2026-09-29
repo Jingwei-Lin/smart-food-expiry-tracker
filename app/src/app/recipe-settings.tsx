@@ -155,10 +155,18 @@ export default function RecipeSettingsScreen() {
     setNotice(null);
 
     try {
-      await removeRecipeKey(selectedId);
+      const nowActiveId = await removeRecipeKey(selectedId);
+      const removed = `${provider.company} key removed from this phone.`;
+
       setHints((current) => ({ ...current, [selectedId]: null }));
-      setActiveId((current) => (current === selectedId ? null : current));
-      setNotice({ tone: 'success', text: `${provider.company} key removed from this phone.` });
+      setActiveId(nowActiveId);
+      setNotice({
+        tone: 'success',
+        text:
+          nowActiveId && nowActiveId !== activeId
+            ? `${removed} Recipes now use ${RECIPE_PROVIDERS[nowActiveId].label}.`
+            : removed,
+      });
     } catch {
       setNotice({ tone: 'error', text: 'The key could not be removed. Try again.' });
     } finally {
@@ -242,7 +250,14 @@ export default function RecipeSettingsScreen() {
 
           <Pressable
             accessibilityRole="link"
-            onPress={() => void Linking.openURL(provider.keysUrl)}
+            onPress={() => {
+              Linking.openURL(provider.keysUrl).catch(() => {
+                setNotice({
+                  tone: 'error',
+                  text: `Couldn't open the ${provider.company} key page. Visit ${provider.keysUrl} in a browser.`,
+                });
+              });
+            }}
             style={({ pressed }) => [styles.getKey, pressed ? styles.pressed : null]}
           >
             <Text style={styles.getKeyText}>Get a key</Text>
