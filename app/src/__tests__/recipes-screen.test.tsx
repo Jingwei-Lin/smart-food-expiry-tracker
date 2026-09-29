@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { router } from 'expo-router';
 
 import RecipesScreen from '@/app/(tabs)/recipes';
@@ -14,15 +14,32 @@ jest.mock('@/services/expiry-notifications', () => ({
   scheduleExpiryReminders: jest.fn().mockResolvedValue({ status: 'not-needed' }),
 }));
 
-/* Only one screen is rendered, so mounting it is the same as it coming into focus. */
+/*
+ * Only one screen is rendered, so mounting it is the same as it coming into
+ * focus. The latest effect is kept so a test can focus the tab again, as
+ * coming back from recipe settings does.
+ */
+const mockFocus: { effect: (() => void | (() => void)) | null } = { effect: null };
+
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof import('react')>('react');
 
   return {
     router: { push: jest.fn() },
-    useFocusEffect: (effect: () => void | (() => void)) => useEffect(effect, [effect]),
+    useFocusEffect: (effect: () => void | (() => void)) =>
+      useEffect(() => {
+        mockFocus.effect = effect;
+
+        return effect();
+      }, [effect]),
   };
 });
+
+async function returnFromSettings() {
+  await act(async () => {
+    mockFocus.effect?.();
+  });
+}
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
@@ -253,5 +270,77 @@ describe('RecipesScreen asking for recipes', () => {
     await fireEvent.press(view.getByText('Update key'));
 
     expect(router.push).toHaveBeenCalledWith('/recipe-settings');
+  });
+});
+
+describe('RecipesScreen after the key changes in settings', () => {
+  const SECOND_KEY = 'sk-second-test-key-9z8Y';
+
+  it('drops an out-of-credit card instead of blaming the newly chosen provider', async () => {
+    fetchSuggestionsMock.mockResolvedValue({ outcome: 'out-of-credit' });
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    expect(await view.findByText('Your OpenAI account is out of credit')).toBeTruthy();
+
+    await saveRecipeCredentials('deepseek', SECOND_KEY);
+    await returnFromSettings();
+
+    expect(view.queryByText('Your DeepSeek account is out of credit')).toBeNull();
+    expect(view.queryByText('Your OpenAI account is out of credit')).toBeNull();
+    expect(view.getByText('Suggest recipes (2)')).toBeTruthy();
+  });
+
+  it('drops a rejected-key card once a new key for the same model is saved', async () => {
+    fetchSuggestionsMock.mockResolvedValue({ outcome: 'rejected' });
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    expect(await view.findByText('Your API key was rejected')).toBeTruthy();
+
+    await saveRecipeCredentials('openai', SECOND_KEY);
+    await returnFromSettings();
+
+    expect(view.queryByText('Your API key was rejected')).toBeNull();
+  });
+
+  it('keeps the recipes on screen when the model changes', async () => {
+    fetchSuggestionsMock.mockResolvedValue({
+      outcome: 'ok',
+      recipes: [
+        {
+          title: 'Spinach omelette',
+          minutes: 10,
+          usesIngredients: ['Spinach'],
+          extraIngredients: ['Eggs'],
+          steps: ['Wilt the spinach.', 'Add the beaten eggs.'],
+        },
+      ],
+    });
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    expect(await view.findByText('Spinach omelette')).toBeTruthy();
+
+    await saveRecipeCredentials('deepseek', SECOND_KEY);
+    await returnFromSettings();
+
+    expect(view.getByText('Spinach omelette')).toBeTruthy();
+  });
+
+  it('keeps an error when the student comes back without changing anything', async () => {
+    fetchSuggestionsMock.mockResolvedValue({ outcome: 'unavailable' });
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    expect(await view.findByText("Couldn't reach OpenAI")).toBeTruthy();
+
+    await returnFromSettings();
+
+    expect(view.getByText("Couldn't reach OpenAI")).toBeTruthy();
   });
 });

@@ -91,6 +91,14 @@ function describeFailure(outcome: FailedOutcome, company: string): ErrorCopy {
   }
 }
 
+/** Whether two reads of the saved key name the same model and the same key. */
+function isSameCredentials(
+  first: RecipeCredentials | null,
+  second: RecipeCredentials | null,
+): boolean {
+  return first?.provider.id === second?.provider.id && first?.apiKey === second?.apiKey;
+}
+
 /**
  * Recipes tab.
  *
@@ -109,6 +117,9 @@ export default function RecipesScreen() {
 
   /* undefined while the key is being read; null when there is none. */
   const [credentials, setCredentials] = useState<RecipeCredentials | null | undefined>(undefined);
+
+  /* The last key read on focus. A ref, because the focus callback is created only once. */
+  const lastReadCredentials = useRef<RecipeCredentials | null | undefined>(undefined);
 
   /* null until the student changes a tick, so the eat-soon defaults apply until then. */
   const [chosenIds, setChosenIds] = useState<string[] | null>(null);
@@ -138,14 +149,23 @@ export default function RecipesScreen() {
       let isActive = true;
 
       getRecipeCredentials()
+        .catch(() => null)
         .then((saved) => {
-          if (isActive) {
-            setCredentials(saved);
+          if (!isActive) {
+            return;
           }
-        })
-        .catch(() => {
-          if (isActive) {
-            setCredentials(null);
+
+          const previous = lastReadCredentials.current;
+          lastReadCredentials.current = saved;
+          setCredentials(saved);
+
+          /*
+           * The student changed the model or key in settings, so an error
+           * about the old one no longer applies (and would now name the wrong
+           * provider). Recipes already on screen are still good, so they stay.
+           */
+          if (previous !== undefined && !isSameCredentials(previous, saved)) {
+            setRequest((current) => (current.status === 'error' ? { status: 'idle' } : current));
           }
         });
 
