@@ -60,6 +60,20 @@ function describeFailure(outcome: FailedOutcome, company: string): ErrorCopy {
         text: `Add credit on ${company}'s website, or switch to another model in recipe settings.`,
         action: 'settings',
       };
+    case 'busy':
+      return {
+        icon: 'hourglass-outline',
+        title: `${company} is busy right now`,
+        text: 'Too many requests are reaching it at once. Wait a moment and try again. The food you ticked is kept.',
+        action: 'retry',
+      };
+    case 'request-refused':
+      return {
+        icon: 'alert-circle-outline',
+        title: `${company} couldn't process the request`,
+        text: 'It answered, but turned the request down. Try again, and if it keeps happening, check the model in recipe settings.',
+        action: 'retry',
+      };
     case 'unavailable':
       return {
         icon: 'cloud-offline-outline',

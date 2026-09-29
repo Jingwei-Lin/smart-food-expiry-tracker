@@ -272,9 +272,38 @@ describe('fetchRecipeSuggestions', () => {
 
   it.each([
     ['a plain rate limit (429)', errorReply(429, { error: { code: 'rate_limit_exceeded' } })],
-    ['a server error (500)', errorReply(500)],
-  ])('reports the provider as unavailable on %s', async (_, reply) => {
+    [
+      'Gemini is overloaded (503)',
+      errorReply(503, [
+        {
+          error: {
+            code: 503,
+            message: 'This model is currently experiencing high demand.',
+            status: 'UNAVAILABLE',
+          },
+        },
+      ]),
+    ],
+  ])('reports the provider as busy on %s', async (_, reply) => {
     fetchMock.mockResolvedValue(reply);
+
+    await expect(fetchRecipeSuggestions(openai, ticked)).resolves.toEqual({ outcome: 'busy' });
+  });
+
+  it.each([
+    ['an option it does not accept (400)', errorReply(400, { error: { message: 'Unknown name' } })],
+    ['a model it does not have (404)', errorReply(404)],
+    ['a request it cannot process (422)', errorReply(422)],
+  ])('reports a refused request, not a lost connection, on %s', async (_, reply) => {
+    fetchMock.mockResolvedValue(reply);
+
+    await expect(fetchRecipeSuggestions(openai, ticked)).resolves.toEqual({
+      outcome: 'request-refused',
+    });
+  });
+
+  it('still reports the provider as unavailable on a server error (500)', async () => {
+    fetchMock.mockResolvedValue(errorReply(500));
 
     await expect(fetchRecipeSuggestions(openai, ticked)).resolves.toEqual({
       outcome: 'unavailable',

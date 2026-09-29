@@ -102,7 +102,11 @@ export type RecipeSuggestionResult =
   | { outcome: 'rejected' }
   /** The account has run out of credit. */
   | { outcome: 'out-of-credit' }
-  /** Offline, timed out, cancelled, rate-limited or a server error. */
+  /** Rate-limited (429) or overloaded (503): the same request should work again shortly. */
+  | { outcome: 'busy' }
+  /** The provider answered but would not process the request (400, 404 or 422), e.g. a model or option it does not accept. */
+  | { outcome: 'request-refused' }
+  /** Offline, timed out, cancelled or another server error. */
   | { outcome: 'unavailable' }
   /** The provider answered, but not with recipes we can use. */
   | { outcome: 'bad-response' };
@@ -200,6 +204,16 @@ export async function fetchRecipeSuggestions(
 
     if (await isOutOfCredit(response)) {
       return { outcome: 'out-of-credit' };
+    }
+
+    /* Gemini's free model often answers 503 "high demand", then works seconds later. */
+    if (response.status === 429 || response.status === 503) {
+      return { outcome: 'busy' };
+    }
+
+    /* The provider did answer, so blaming the connection would send the student the wrong way. */
+    if (response.status === 400 || response.status === 404 || response.status === 422) {
+      return { outcome: 'request-refused' };
     }
 
     if (!response.ok) {

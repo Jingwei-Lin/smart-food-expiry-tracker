@@ -216,6 +216,32 @@ describe('RecipesScreen asking for recipes', () => {
     expect(fetchSuggestionsMock).toHaveBeenCalledTimes(2);
   });
 
+  it('says the provider is busy, not unreachable, and offers to try again', async () => {
+    fetchSuggestionsMock.mockResolvedValue({ outcome: 'busy' });
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    expect(await view.findByText('OpenAI is busy right now')).toBeTruthy();
+    expect(view.queryByText("Couldn't reach OpenAI")).toBeNull();
+
+    await fireEvent.press(view.getByText('Try again'));
+
+    expect(fetchSuggestionsMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('says the provider refused the request instead of blaming the connection', async () => {
+    fetchSuggestionsMock.mockResolvedValue({ outcome: 'request-refused' });
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+
+    expect(await view.findByText("OpenAI couldn't process the request")).toBeTruthy();
+    expect(view.queryByText("Couldn't reach OpenAI")).toBeNull();
+    expect(view.getByText('Try again')).toBeTruthy();
+  });
+
   it('sends the student to settings when the key is rejected', async () => {
     fetchSuggestionsMock.mockResolvedValue({ outcome: 'rejected' });
     const view = await renderScreen(fridge);
