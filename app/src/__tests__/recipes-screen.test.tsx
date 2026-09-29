@@ -22,11 +22,15 @@ jest.mock('@/services/expiry-notifications', () => ({
  */
 const mockFocus: { effect: (() => void | (() => void)) | null } = { effect: null };
 
+/* The tab's search params, as "Find recipes" on an item's screen sets them. */
+const mockSearchParams: { select?: string } = {};
+
 jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof import('react')>('react');
 
   return {
-    router: { push: jest.fn() },
+    router: { push: jest.fn(), setParams: jest.fn() },
+    useLocalSearchParams: () => mockSearchParams,
     useFocusEffect: (effect: () => void | (() => void)) =>
       useEffect(() => {
         mockFocus.effect = effect;
@@ -136,6 +140,8 @@ function recipesReply(titles: string[], uses = ['Spinach']) {
 beforeEach(async () => {
   fetchSuggestionsMock.mockReset();
   jest.mocked(router.push).mockReset();
+  jest.mocked(router.setParams).mockReset();
+  delete mockSearchParams.select;
   await AsyncStorage.clear();
 });
 
@@ -689,5 +695,35 @@ describe('RecipesScreen saved box', () => {
 
     expect(await view.findByLabelText('Save Spinach omelette')).toBeTruthy();
     expect(view.getByLabelText('Saved recipes, Nothing saved yet')).toBeTruthy();
+  });
+});
+
+describe('RecipesScreen opened by "Find recipes" on an item', () => {
+  it('ticks just that item, clears the param and asks nothing yet', async () => {
+    mockSearchParams.select = 'eggs';
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+
+    expect(isChecked(view, 'Eggs')).toBe(true);
+    expect(isChecked(view, 'Spinach')).toBe(false);
+    expect(view.getByText('Suggest recipes (1)')).toBeTruthy();
+    expect(router.setParams).toHaveBeenCalledWith({ select: undefined });
+    expect(fetchSuggestionsMock).not.toHaveBeenCalled();
+  });
+
+  it('wins over the restored ticks and opens the checklist above earlier results', async () => {
+    fetchSuggestionsMock.mockResolvedValue(recipesReply(['Spinach omelette']));
+    const view = await renderScreen(fridge);
+    await view.findByText('YOUR FOOD');
+    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await view.findByText('Spinach omelette');
+
+    mockSearchParams.select = 'eggs';
+    const reopened = await restart(view);
+
+    expect(await reopened.findByText('YOUR FOOD')).toBeTruthy();
+    expect(isChecked(reopened, 'Eggs')).toBe(true);
+    expect(isChecked(reopened, 'Spinach')).toBe(false);
+    expect(reopened.getByText('Spinach omelette')).toBeTruthy();
   });
 });

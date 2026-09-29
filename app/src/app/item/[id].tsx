@@ -238,6 +238,21 @@ export default function ItemDetailScreen() {
           <View style={styles.actionsCard}>
             {item.status === 'active' ? (
               <>
+                {/*
+                 * Goes back to the tabs already underneath rather than pushing
+                 * a second copy of them, and opens Recipes with this item ticked.
+                 */}
+                <ActionButton
+                  icon="book-outline"
+                  isDisabled={areActionsDisabled}
+                  label="Find recipes"
+                  onPress={() =>
+                    router.dismissTo({ pathname: '/recipes', params: { select: item.id } })
+                  }
+                />
+
+                <View style={styles.divider} />
+
                 <ActionButton
                   icon="create-outline"
                   isDisabled={areActionsDisabled}

@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -145,6 +145,9 @@ export default function RecipesScreen() {
 
   const { activeItems, isLoading: isInventoryLoading } = useInventory();
 
+  /* Set by "Find recipes" on an item's screen: the one item to tick. */
+  const { select } = useLocalSearchParams<{ select?: string }>();
+
   /* This screen has no header of its own and sits above the floating tab bar. */
   const insets = useSafeAreaInsets();
 
@@ -267,6 +270,35 @@ export default function RecipesScreen() {
       isActive = false;
     };
   }, []);
+
+  /*
+   * "Find recipes" on an item's screen opens this tab with just that item
+   * ticked. It is applied while rendering, React's pattern for state that
+   * follows a changing param, and only once any saved ticks have been
+   * restored, so they cannot overwrite it.
+   */
+  const [appliedSelect, setAppliedSelect] = useState<string | null>(null);
+
+  if (isSnapshotRead && (select ?? null) !== appliedSelect) {
+    setAppliedSelect(select ?? null);
+
+    if (select) {
+      setChosenIds([select]);
+      setIsChecklistOpen(true);
+
+      if (request.status === 'error') {
+        setRequest({ status: 'idle' });
+      }
+    }
+  }
+
+  /* Save that tick, and clear the param so later visits keep the student's own ticks. */
+  useEffect(() => {
+    if (appliedSelect) {
+      void saveRecipeSnapshot({ selectedIds: [appliedSelect], lastResult: lastResult.current });
+      router.setParams({ select: undefined });
+    }
+  }, [appliedSelect]);
 
   /* A request still running when the screen goes away is cancelled, not billed for nothing. */
   useEffect(() => () => pendingRequest.current?.abort(), []);
@@ -648,7 +680,7 @@ export default function RecipesScreen() {
             <Text style={styles.differentButtonText}>Suggest different recipes</Text>
           </Pressable>
 
-          <Text style={styles.hintText}>New ideas replace the ones you haven't saved.</Text>
+          <Text style={styles.hintText}>New ideas replace the ones you haven&apos;t saved.</Text>
 
           <Text style={[styles.footnote, styles.resultsFootnote]}>
             AI-generated. Check ingredients for allergies before cooking.
