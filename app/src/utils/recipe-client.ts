@@ -1,6 +1,7 @@
+import { readMatildaStream, toMatildaMessages } from '@/utils/matilda';
 import { RecipeCredentials } from '@/utils/recipe-credentials';
 import { RecipeIngredient } from '@/utils/recipe-ingredients';
-import { buildRecipeMessages, parseRecipeReply, Recipe } from '@/utils/recipe-prompt';
+import { buildRecipeMessages, ChatMessage, parseRecipeReply, Recipe } from '@/utils/recipe-prompt';
 import { RecipeProvider } from '@/utils/recipe-providers';
 
 const KEY_CHECK_TIMEOUT_MS = 10000;
@@ -10,7 +11,11 @@ const SUGGESTION_TIMEOUT_MS = 30000;
 
 export type KeyCheckResult = 'valid' | 'invalid-key' | 'model-unavailable' | 'unavailable';
 
-/** Both providers answer GET /models with `{ data: [{ id }] }`. */
+/*
+ * Every provider answers GET /models with `{ data: [{ id }] }`, but Gemini
+ * lists its ids as `models/gemini-3.8-flash` while chat requests take the bare
+ * name, so both spellings count.
+ */
 function listsModel(body: unknown, model: string): boolean {
   if (typeof body !== 'object' || body === null) {
     return false;
@@ -20,17 +25,75 @@ function listsModel(body: unknown, model: string): boolean {
 
   return (
     Array.isArray(data) &&
-    data.some(
-      (entry) =>
-        typeof entry === 'object' && entry !== null && (entry as { id?: unknown }).id === model,
-    )
+    data.some((entry) => {
+      const id =
+        typeof entry === 'object' && entry !== null ? (entry as { id?: unknown }).id : null;
+
+      return id === model || id === `models/${model}`;
+    })
   );
+}
+
+/*
+ * OpenAI and DeepSeek answer a bad key with 401 or 403. Gemini answers 400
+ * INVALID_ARGUMENT, "Please pass a valid API key", and wraps chat errors in an
+ * array, so a 400 only counts when its message is about the key.
+ */
+async function isKeyRejected(response: Response): Promise<boolean> {
+  if (response.status === 401 || response.status === 403) {
+    return true;
+  }
+
+  if (response.status !== 400) {
+    return false;
+  }
+
+  try {
+    const body: unknown = await response.json();
+    const reply = (Array.isArray(body) ? body[0] : body) as
+      { error?: { message?: unknown } } | null | undefined;
+    const message = reply?.error?.message;
+
+    return typeof message === 'string' && /api key/i.test(message);
+  } catch {
+    return false;
+  }
+}
+
+/** One chat request, shaped for the provider's API. */
+function buildChatRequest(
+  provider: RecipeProvider,
+  apiKey: string,
+  messages: ChatMessage[],
+  signal: AbortSignal,
+): [string, RequestInit] {
+  const body =
+    provider.api === 'matilda'
+      ? { messages: toMatildaMessages(messages), ...provider.requestOptions }
+      : {
+          model: provider.model,
+          messages,
+          response_format: { type: 'json_object' },
+          ...provider.requestOptions,
+        };
+
+  return [
+    `${provider.baseUrl}${provider.api === 'matilda' ? '/chat' : '/chat/completions'}`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal,
+    },
+  ];
 }
 
 /**
  * Checks a key before it is saved by asking the provider which models it can
  * use. Listing models spends no tokens, and it also catches a key that works
- * but belongs to an account without access to the model we need.
+ * but belongs to an account without access to the model we need. Matilda has
+ * no model list and a single model, so its key is checked with a one-line
+ * chat request instead.
  *
  * Never throws: with no signal or a failing API the settings screen gets
  * `unavailable` and says so, rather than treating the key as wrong.
@@ -43,17 +106,31 @@ export async function checkRecipeKey(
   const timeout = setTimeout(() => controller.abort(), KEY_CHECK_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${provider.baseUrl}/models`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: controller.signal,
-    });
+    const response =
+      provider.api === 'matilda'
+        ? await fetch(
+            ...buildChatRequest(
+              provider,
+              apiKey,
+              [{ role: 'user', content: 'Reply with OK.' }],
+              controller.signal,
+            ),
+          )
+        : await fetch(`${provider.baseUrl}/models`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: controller.signal,
+          });
 
-    if (response.status === 401 || response.status === 403) {
+    if (await isKeyRejected(response)) {
       return 'invalid-key';
     }
 
     if (!response.ok) {
       return 'unavailable';
+    }
+
+    if (provider.api === 'matilda') {
+      return 'valid';
     }
 
     return listsModel(await response.json(), provider.model) ? 'valid' : 'model-unavailable';
@@ -66,11 +143,15 @@ export async function checkRecipeKey(
 
 export type RecipeSuggestionResult =
   | { outcome: 'ok'; recipes: Recipe[] }
-  /** 401 / 403: the saved key no longer works. */
+  /** The saved key no longer works (401 / 403, or Gemini's 400 about the key). */
   | { outcome: 'rejected' }
   /** The account has run out of credit. */
   | { outcome: 'out-of-credit' }
-  /** Offline, timed out, cancelled, rate-limited or a server error. */
+  /** Rate-limited (429) or overloaded (503): the same request should work again shortly. */
+  | { outcome: 'busy' }
+  /** The provider answered but would not process the request (400, 404 or 422), e.g. a model or option it does not accept. */
+  | { outcome: 'request-refused' }
+  /** Offline, timed out, cancelled or another server error. */
   | { outcome: 'unavailable' }
   /** The provider answered, but not with recipes we can use. */
   | { outcome: 'bad-response' };
@@ -120,6 +201,17 @@ function readReplyContent(body: unknown): string | null {
   return typeof content === 'string' && content.trim() ? content : null;
 }
 
+/** The model's text from a successful reply, or null when none can be trusted. */
+async function readReply(provider: RecipeProvider, response: Response): Promise<string | null> {
+  try {
+    return provider.api === 'matilda'
+      ? readMatildaStream(await response.text())
+      : readReplyContent(await response.json());
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Asks the chosen provider for recipes that use the ticked foods.
  *
@@ -147,22 +239,16 @@ export async function fetchRecipeSuggestions(
   signal?.addEventListener('abort', stopWithCaller);
 
   try {
-    const response = await fetch(`${provider.baseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: provider.model,
-        messages: buildRecipeMessages(ingredients, avoidTitles),
-        response_format: { type: 'json_object' },
-        ...provider.requestOptions,
-      }),
-      signal: controller.signal,
-    });
+    const response = await fetch(
+      ...buildChatRequest(
+        provider,
+        apiKey,
+        buildRecipeMessages(ingredients, avoidTitles),
+        controller.signal,
+      ),
+    );
 
-    if (response.status === 401 || response.status === 403) {
+    if (await isKeyRejected(response)) {
       return { outcome: 'rejected' };
     }
 
@@ -170,19 +256,21 @@ export async function fetchRecipeSuggestions(
       return { outcome: 'out-of-credit' };
     }
 
+    /* Gemini's free model often answers 503 "high demand", then works seconds later. */
+    if (response.status === 429 || response.status === 503) {
+      return { outcome: 'busy' };
+    }
+
+    /* The provider did answer, so blaming the connection would send the student the wrong way. */
+    if (response.status === 400 || response.status === 404 || response.status === 422) {
+      return { outcome: 'request-refused' };
+    }
+
     if (!response.ok) {
       return { outcome: 'unavailable' };
     }
 
-    let body: unknown;
-
-    try {
-      body = await response.json();
-    } catch {
-      return { outcome: 'bad-response' };
-    }
-
-    const content = readReplyContent(body);
+    const content = await readReply(provider, response);
     const recipes = content === null ? null : parseRecipeReply(content, ingredients);
 
     return recipes ? { outcome: 'ok', recipes } : { outcome: 'bad-response' };

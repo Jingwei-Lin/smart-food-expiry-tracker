@@ -98,6 +98,11 @@ export default function RootLayout() {
               name="recipe-settings"
               options={{ title: 'Recipe settings' }}
             />
+
+            <Stack.Screen
+              name="saved-recipes"
+              options={{ title: 'Saved recipes' }}
+            />
           </Stack>
 
           <StatusBar style="auto" />

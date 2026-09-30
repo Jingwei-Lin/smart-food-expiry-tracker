@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { SavedStar } from '@/components/saved-star';
 import { describeExpiredInRecipe } from '@/utils/expired-warnings';
 import { Recipe } from '@/utils/recipe-prompt';
 
@@ -8,26 +9,51 @@ type RecipeCardProps = {
   recipe: Recipe;
   /** Ticked foods this recipe uses that are past their date, spelled as in the inventory. */
   expiredNames: string[];
+  /** Whether the student has starred this recipe into their saved recipes. */
+  isSaved: boolean;
+  onToggleSaved: () => void;
 };
 
 /**
  * One suggested recipe, shown exactly as the model wrote it, plus the red
- * warning the app adds when it uses expired food.
+ * warning the app adds when it uses expired food, and a star to save it.
  */
-export function RecipeCard({ recipe, expiredNames }: RecipeCardProps) {
+export function RecipeCard({ recipe, expiredNames, isSaved, onToggleSaved }: RecipeCardProps) {
   const expiredKeys = new Set(expiredNames.map((name) => name.trim().toLowerCase()));
 
   return (
-    <View style={styles.card}>
-      <View style={styles.heading}>
-        <Text accessibilityRole="header" style={styles.title}>
-          {recipe.title}
-        </Text>
+    <View style={[styles.card, isSaved ? styles.savedCard : null]}>
+      <View style={styles.headingRow}>
+        <View style={styles.heading}>
+          <Text accessibilityRole="header" style={styles.title}>
+            {recipe.title}
+          </Text>
 
-        <View style={styles.timeRow}>
-          <Ionicons color="#59635b" name="time-outline" size={16} />
-          <Text style={styles.timeText}>{recipe.minutes} min</Text>
+          <View style={styles.timeRow}>
+            <Ionicons color="#59635b" name="time-outline" size={16} />
+            <Text style={styles.timeText}>{recipe.minutes} min</Text>
+          </View>
         </View>
+
+        <Pressable
+          accessibilityLabel={
+            isSaved ? `Remove ${recipe.title} from saved recipes` : `Save ${recipe.title}`
+          }
+          accessibilityRole="button"
+          accessibilityState={{ selected: isSaved }}
+          onPress={onToggleSaved}
+          style={({ pressed }) => [
+            styles.starButton,
+            isSaved ? styles.savedStarButton : null,
+            pressed ? styles.pressed : null,
+          ]}
+        >
+          {isSaved ? (
+            <SavedStar size={24} />
+          ) : (
+            <Ionicons color="#4f5a51" name="star-outline" size={24} />
+          )}
+        </Pressable>
       </View>
 
       {expiredNames.length > 0 ? (
@@ -86,8 +112,32 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     padding: 18,
   },
+  savedCard: {
+    borderColor: '#ecd48f',
+  },
+  headingRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
   heading: {
+    flex: 1,
     gap: 6,
+  },
+  starButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -8,
+    marginRight: -8,
+    borderRadius: 22,
+  },
+  savedStarButton: {
+    backgroundColor: '#fff4d1',
+  },
+  pressed: {
+    opacity: 0.72,
   },
   title: {
     color: '#172019',

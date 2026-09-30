@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ComponentProps, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,27 +14,48 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RecipeCard } from '@/components/recipe-card';
 import { RecipeChecklist } from '@/components/recipe-checklist';
+import { SavedRecipesBox } from '@/components/saved-recipes-box';
 import { useInventory } from '@/context/inventory-context';
 import { fetchRecipeSuggestions, RecipeSuggestionResult } from '@/utils/recipe-client';
 import { getRecipeCredentials, RecipeCredentials } from '@/utils/recipe-credentials';
 import {
   defaultRecipeSelection,
+  findRecipeIngredients,
   listRecipeCandidates,
   RecipeIngredient,
   toRecipeIngredients,
 } from '@/utils/recipe-ingredients';
-import { findExpiredIngredients, Recipe } from '@/utils/recipe-prompt';
+import {
+  buildAvoidTitles,
+  findExpiredIngredients,
+  rememberShownTitles,
+} from '@/utils/recipe-prompt';
+import {
+  loadRecipeSnapshot,
+  loadSavedRecipes,
+  RecipeScreenSnapshot,
+  SavedRecipe,
+  saveRecipe,
+  saveRecipeSnapshot,
+  SuggestedRecipe,
+  toSuggestedRecipes,
+  unsaveRecipe,
+} from '@/utils/recipe-storage';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 type FailedOutcome = Exclude<RecipeSuggestionResult['outcome'], 'ok'>;
 
-/* A request goes idle → loading → done or error. */
+/*
+ * A request goes idle → loading → done or error. Results keep the names of the
+ * food they were for; the dates are read from the inventory each time they are
+ * shown, so a result restored the next day is still right about expired food.
+ */
 type RequestState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'done'; recipes: Recipe[]; ingredients: RecipeIngredient[] }
-  | { status: 'error'; outcome: FailedOutcome };
+  | { status: 'done'; recipes: SuggestedRecipe[]; forNames: string[] }
+  | { status: 'error'; outcome: FailedOutcome; forNames: string[] };
 
 type ErrorCopy = {
   icon: IconName;
@@ -57,8 +78,22 @@ function describeFailure(outcome: FailedOutcome, company: string): ErrorCopy {
       return {
         icon: 'card-outline',
         title: `Your ${company} account is out of credit`,
-        text: `Add credit on ${company}'s website, or switch to the other model in recipe settings.`,
+        text: `Add credit on ${company}'s website, or switch to another model in recipe settings.`,
         action: 'settings',
+      };
+    case 'busy':
+      return {
+        icon: 'hourglass-outline',
+        title: `${company} is busy right now`,
+        text: 'Too many requests are reaching it at once. Wait a moment and try again. The food you ticked is kept.',
+        action: 'retry',
+      };
+    case 'request-refused':
+      return {
+        icon: 'alert-circle-outline',
+        title: `${company} couldn't process the request`,
+        text: 'It answered, but turned the request down. Try again, and if it keeps happening, check the model in recipe settings.',
+        action: 'retry',
       };
     case 'unavailable':
       return {
@@ -77,6 +112,26 @@ function describeFailure(outcome: FailedOutcome, company: string): ErrorCopy {
   }
 }
 
+/* The set-up card's three promises (design 5). */
+const SETUP_FACTS: { icon: IconName; text: string }[] = [
+  { icon: 'lock-closed-outline', text: 'Your key stays on this phone.' },
+  { icon: 'list-outline', text: 'Only the names and dates of the food you tick are sent.' },
+  { icon: 'card-outline', text: 'Any charges go to your provider account.' },
+];
+
+/* The parser keeps at most two recipes, and Matilda often returns only one. */
+function describeResults(count: number): string {
+  return count === 1 ? 'One idea for the food you ticked.' : 'Two ideas for the food you ticked.';
+}
+
+/** Whether two reads of the saved key name the same model and the same key. */
+function isSameCredentials(
+  first: RecipeCredentials | null,
+  second: RecipeCredentials | null,
+): boolean {
+  return first?.provider.id === second?.provider.id && first?.apiKey === second?.apiKey;
+}
+
 /**
  * Recipes tab.
  *
@@ -90,17 +145,41 @@ export default function RecipesScreen() {
 
   const { activeItems, isLoading: isInventoryLoading } = useInventory();
 
+  /* Set by "Find recipes" on an item's screen: the one item to tick. */
+  const { select } = useLocalSearchParams<{ select?: string }>();
+
   /* This screen has no header of its own and sits above the floating tab bar. */
   const insets = useSafeAreaInsets();
 
   /* undefined while the key is being read; null when there is none. */
   const [credentials, setCredentials] = useState<RecipeCredentials | null | undefined>(undefined);
 
-  /* null until the student changes a tick, so the eat-soon defaults apply until then. */
+  /* The last key read on focus. A ref, because the focus callback is created only once. */
+  const lastReadCredentials = useRef<RecipeCredentials | null | undefined>(undefined);
+
+  /*
+   * null until the student changes a tick or saved ticks are restored, so the
+   * eat-soon defaults apply until then.
+   */
   const [chosenIds, setChosenIds] = useState<string[] | null>(null);
   const [request, setRequest] = useState<RequestState>({ status: 'idle' });
   const [isChecklistOpen, setIsChecklistOpen] = useState(true);
   const pendingRequest = useRef<AbortController | null>(null);
+
+  /* false until the saved suggestions and ticks have been read, so nothing can be tapped before. */
+  const [isSnapshotRead, setIsSnapshotRead] = useState(false);
+
+  /* The last successful result, saved with the ticks so it comes back after a restart. */
+  const lastResult = useRef<RecipeScreenSnapshot['lastResult']>(null);
+
+  /* The starred recipes, newest first. */
+  const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
+
+  /* Every title shown this session: "Suggest different recipes" asks the model to avoid them. */
+  const shownTitles = useRef<string[]>([]);
+
+  /* What the last request asked for, so Try again repeats it exactly. */
+  const lastAsk = useRef<{ ingredients: RecipeIngredient[]; avoidTitles: string[] } | null>(null);
 
   /* ---- Checklist rows and ticks ---- */
 
@@ -124,16 +203,32 @@ export default function RecipesScreen() {
       let isActive = true;
 
       getRecipeCredentials()
+        .catch(() => null)
         .then((saved) => {
-          if (isActive) {
-            setCredentials(saved);
+          if (!isActive) {
+            return;
           }
-        })
-        .catch(() => {
-          if (isActive) {
-            setCredentials(null);
+
+          const previous = lastReadCredentials.current;
+          lastReadCredentials.current = saved;
+          setCredentials(saved);
+
+          /*
+           * The student changed the model or key in settings, so an error
+           * about the old one no longer applies (and would now name the wrong
+           * provider). Recipes already on screen are still good, so they stay.
+           */
+          if (previous !== undefined && !isSameCredentials(previous, saved)) {
+            setRequest((current) => (current.status === 'error' ? { status: 'idle' } : current));
           }
         });
+
+      /* Recipes removed on the Saved recipes screen lose their star here too. */
+      void loadSavedRecipes().then((entries) => {
+        if (isActive) {
+          setSavedRecipes(entries);
+        }
+      });
 
       return () => {
         isActive = false;
@@ -141,18 +236,82 @@ export default function RecipesScreen() {
     }, []),
   );
 
+  /* Bring back the saved recipes, and the last suggestions and ticks, without asking the provider again. */
+  useEffect(() => {
+    let isActive = true;
+
+    void Promise.all([loadRecipeSnapshot(), loadSavedRecipes()]).then(([snapshot, saved]) => {
+      if (!isActive) {
+        return;
+      }
+
+      setSavedRecipes(saved);
+
+      if (snapshot) {
+        setChosenIds(snapshot.selectedIds);
+
+        if (snapshot.lastResult) {
+          const { recipes } = snapshot.lastResult;
+
+          lastResult.current = snapshot.lastResult;
+          shownTitles.current = rememberShownTitles(
+            [],
+            recipes.map((recipe) => recipe.title),
+          );
+          setRequest({ status: 'done', ...snapshot.lastResult });
+          setIsChecklistOpen(false);
+        }
+      }
+
+      setIsSnapshotRead(true);
+    });
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  /*
+   * "Find recipes" on an item's screen opens this tab with just that item
+   * ticked. It is applied while rendering, React's pattern for state that
+   * follows a changing param, and only once any saved ticks have been
+   * restored, so they cannot overwrite it.
+   */
+  const [appliedSelect, setAppliedSelect] = useState<string | null>(null);
+
+  if (isSnapshotRead && (select ?? null) !== appliedSelect) {
+    setAppliedSelect(select ?? null);
+
+    if (select) {
+      setChosenIds([select]);
+      setIsChecklistOpen(true);
+
+      if (request.status === 'error') {
+        setRequest({ status: 'idle' });
+      }
+    }
+  }
+
+  /* Save that tick, and clear the param so later visits keep the student's own ticks. */
+  useEffect(() => {
+    if (appliedSelect) {
+      void saveRecipeSnapshot({ selectedIds: [appliedSelect], lastResult: lastResult.current });
+      router.setParams({ select: undefined });
+    }
+  }, [appliedSelect]);
+
   /* A request still running when the screen goes away is cancelled, not billed for nothing. */
   useEffect(() => () => pendingRequest.current?.abort(), []);
 
   /* ---- Actions ---- */
 
-  /* Sends the ticked food to the provider and shows whatever comes back. */
-  async function suggestRecipes() {
-    const ingredients = toRecipeIngredients(candidates, selectedIds);
-
+  /* Sends food to the provider and shows whatever comes back. */
+  async function requestRecipes(ingredients: RecipeIngredient[], avoidTitles: string[]) {
     if (!credentials || ingredients.length === 0) {
       return;
     }
+
+    lastAsk.current = { ingredients, avoidTitles };
 
     /* Only one request at a time: a new tap cancels the one still running. */
     pendingRequest.current?.abort();
@@ -161,6 +320,7 @@ export default function RecipesScreen() {
     setRequest({ status: 'loading' });
 
     const result = await fetchRecipeSuggestions(credentials, ingredients, {
+      avoidTitles,
       signal: controller.signal,
     });
 
@@ -171,11 +331,64 @@ export default function RecipesScreen() {
 
     pendingRequest.current = null;
 
+    const forNames = ingredients.map((ingredient) => ingredient.name);
+
     if (result.outcome === 'ok') {
-      setRequest({ status: 'done', recipes: result.recipes, ingredients });
+      const recipes = toSuggestedRecipes(result.recipes);
+
+      shownTitles.current = rememberShownTitles(
+        shownTitles.current,
+        recipes.map((recipe) => recipe.title),
+      );
+      lastResult.current = { recipes, forNames };
+      setRequest({ status: 'done', recipes, forNames });
       setIsChecklistOpen(false);
+      void saveRecipeSnapshot({ selectedIds, lastResult: lastResult.current });
     } else {
-      setRequest({ status: 'error', outcome: result.outcome });
+      /* Errors are not saved: after a restart the last good result, or the checklist, shows. */
+      setRequest({ status: 'error', outcome: result.outcome, forNames });
+      setIsChecklistOpen(false);
+    }
+  }
+
+  /* Every change to the ticks is saved, so they come back after a restart. */
+  function changeTicks(ids: string[]) {
+    setChosenIds(ids);
+    void saveRecipeSnapshot({ selectedIds: ids, lastResult: lastResult.current });
+  }
+
+  /* Every request avoids what was shown this session and what is already saved. */
+  function currentAvoidTitles(): string[] {
+    return buildAvoidTitles(
+      shownTitles.current,
+      savedRecipes.map((entry) => entry.recipe.title),
+    );
+  }
+
+  function suggestForTickedFood() {
+    void requestRecipes(toRecipeIngredients(candidates, selectedIds), currentAvoidTitles());
+  }
+
+  /* New ideas for the same food as the recipes on screen. */
+  function suggestDifferentRecipes(ingredients: RecipeIngredient[]) {
+    void requestRecipes(ingredients, currentAvoidTitles());
+  }
+
+  /* The star fills or empties only once the change is saved. */
+  async function toggleSaved(recipe: SuggestedRecipe) {
+    const isSaved = savedRecipes.some((entry) => entry.id === recipe.id);
+
+    try {
+      setSavedRecipes(isSaved ? await unsaveRecipe(recipe.id) : await saveRecipe(recipe));
+    } catch {
+      // Storage failed, so the star keeps showing what is really saved.
+    }
+  }
+
+  /* A retry repeats what failed, so a failed "different" request stays different. */
+  function tryAgain() {
+    if (lastAsk.current) {
+      void requestRecipes(lastAsk.current.ingredients, lastAsk.current.avoidTitles);
     }
   }
 
@@ -185,31 +398,49 @@ export default function RecipesScreen() {
 
   /* ---- Header: title, subtitle, and the model pill that opens settings ---- */
 
+  const isLoading = request.status === 'loading';
+
+  let subtitle = 'Tick the food you want to cook with.';
+
+  if (credentials === null) {
+    subtitle = 'Ideas for the food you already have.';
+  } else if (request.status === 'done' && !isChecklistOpen) {
+    subtitle = describeResults(request.recipes.length);
+  }
+
   const header = (
     <View style={styles.header}>
       <View style={styles.headerText}>
         <Text accessibilityRole="header" style={styles.title}>
           Recipes
         </Text>
-        <Text style={styles.subtitle}>
-          {request.status === 'done' && !isChecklistOpen
-            ? 'Ideas for the food you ticked.'
-            : 'Tick the food you want to cook with.'}
-        </Text>
+        <Text style={styles.subtitle}>{subtitle}</Text>
       </View>
 
+      {/* Settings stay closed while a request runs, so the key cannot change under it. */}
       {credentials ? (
         <Pressable
           accessibilityLabel={`Recipe settings, using ${credentials.provider.label}`}
           accessibilityRole="button"
+          accessibilityState={{ disabled: isLoading }}
+          disabled={isLoading}
           onPress={openSettings}
-          style={({ pressed }) => [styles.modelPill, pressed ? styles.pressed : null]}
+          style={({ pressed }) => [
+            styles.modelPill,
+            isLoading ? styles.disabledButton : null,
+            pressed ? styles.pressed : null,
+          ]}
         >
           <Text style={styles.modelPillText}>{credentials.provider.label}</Text>
           <Ionicons color="#263229" name="options-outline" size={18} />
         </Pressable>
       ) : null}
     </View>
+  );
+
+  /* Under the header on every state: saved recipes need neither a key nor any food. */
+  const savedBox = (
+    <SavedRecipesBox count={savedRecipes.length} onPress={() => router.push('/saved-recipes')} />
   );
 
   /* ---- Screens that replace the whole tab ---- */
@@ -223,8 +454,8 @@ export default function RecipesScreen() {
     );
   }
 
-  /* Still reading the inventory or the key. */
-  if (isInventoryLoading || credentials === undefined) {
+  /* Still reading the inventory, the key or the saved suggestions. */
+  if (isInventoryLoading || credentials === undefined || !isSnapshotRead) {
     return (
       <View style={styles.centred}>
         <ActivityIndicator color="#2f7d32" size="large" />
@@ -242,6 +473,7 @@ export default function RecipesScreen() {
     return (
       <ScrollView contentContainerStyle={contentStyle} style={styles.screen}>
         {header}
+        {savedBox}
 
         <View style={styles.infoCard}>
           <View style={styles.infoIcon}>
@@ -250,10 +482,18 @@ export default function RecipesScreen() {
 
           <Text style={styles.infoTitle}>Set up recipe suggestions</Text>
           <Text style={styles.infoText}>
-            Recipes come from an AI model using your own API key. Choose GPT-5.4 mini or DeepSeek
-            Flash, then paste a key from that provider. Your key stays on this phone, and requests
-            are billed to your provider account.
+            Recipes come from an AI model using your own API key. Choose Gemini Flash (free),
+            Matilda, GPT-5.4 mini or DeepSeek Flash, then paste a key from that provider.
           </Text>
+
+          <View style={styles.setupFacts}>
+            {SETUP_FACTS.map((fact) => (
+              <View key={fact.text} style={styles.setupFact}>
+                <Ionicons color="#2f7d32" name={fact.icon} size={18} />
+                <Text style={styles.setupFactText}>{fact.text}</Text>
+              </View>
+            ))}
+          </View>
 
           <Pressable
             accessibilityRole="button"
@@ -272,6 +512,7 @@ export default function RecipesScreen() {
     return (
       <ScrollView contentContainerStyle={contentStyle} style={styles.screen}>
         {header}
+        {savedBox}
 
         <View style={styles.infoCard}>
           <View style={styles.infoIcon}>
@@ -297,8 +538,13 @@ export default function RecipesScreen() {
 
   /* ---- Main screen ---- */
 
-  const isLoading = request.status === 'loading';
   const tickedCount = selectedIds.length;
+
+  /* The food a finished or failed request was for, shown as chips in place of the checklist. */
+  const askedFor =
+    request.status === 'done' || request.status === 'error'
+      ? findRecipeIngredients(request.forNames, candidates)
+      : null;
   const failure =
     request.status === 'error'
       ? describeFailure(request.outcome, credentials.provider.company)
@@ -311,9 +557,10 @@ export default function RecipesScreen() {
       style={styles.screen}
     >
       {header}
+      {savedBox}
 
-      {/* After results: the ticked food folds into "cooking with" chips. */}
-      {request.status === 'done' && !isChecklistOpen ? (
+      {/* After results or an error: the food asked for folds into "cooking with" chips. */}
+      {askedFor && !isChecklistOpen ? (
         <View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>COOKING WITH</Text>
@@ -328,7 +575,7 @@ export default function RecipesScreen() {
           </View>
 
           <View style={styles.chipCard}>
-            {request.ingredients.map((ingredient) => {
+            {askedFor.map((ingredient) => {
               const isExpired = ingredient.daysLeft < 0;
 
               return (
@@ -351,7 +598,7 @@ export default function RecipesScreen() {
           <RecipeChecklist
             candidates={candidates}
             disabled={isLoading}
-            onChange={setChosenIds}
+            onChange={changeTicks}
             selectedIds={selectedIds}
           />
 
@@ -359,7 +606,7 @@ export default function RecipesScreen() {
             accessibilityRole="button"
             accessibilityState={{ disabled: isLoading || tickedCount === 0, busy: isLoading }}
             disabled={isLoading || tickedCount === 0}
-            onPress={() => void suggestRecipes()}
+            onPress={suggestForTickedFood}
             style={({ pressed }) => [
               styles.primaryButton,
               isLoading || tickedCount === 0 ? styles.disabledButton : null,
@@ -394,9 +641,12 @@ export default function RecipesScreen() {
 
           <Pressable
             accessibilityRole="button"
-            onPress={failure.action === 'retry' ? () => void suggestRecipes() : openSettings}
+            onPress={failure.action === 'retry' ? tryAgain : openSettings}
             style={({ pressed }) => [styles.outlineButton, pressed ? styles.pressed : null]}
           >
+            {failure.action === 'retry' ? (
+              <Ionicons color="#2f7d32" name="refresh-outline" size={17} />
+            ) : null}
             <Text style={styles.outlineButtonText}>
               {failure.action === 'retry' ? 'Try again' : 'Update key'}
             </Text>
@@ -405,19 +655,34 @@ export default function RecipesScreen() {
       ) : null}
 
       {/* The suggested recipes, each with the app's own red warning if it uses expired food. */}
-      {request.status === 'done' ? (
+      {request.status === 'done' && askedFor ? (
         <View style={styles.results}>
-          <Text style={styles.sectionTitle}>SUGGESTIONS</Text>
+          <Text style={[styles.sectionTitle, styles.resultsTitle]}>SUGGESTIONS</Text>
 
-          {request.recipes.map((recipe, index) => (
-            <RecipeCard
-              key={`${index}-${recipe.title}`}
-              expiredNames={findExpiredIngredients(recipe, request.ingredients)}
-              recipe={recipe}
-            />
-          ))}
+          <View style={styles.cards}>
+            {request.recipes.map((recipe) => (
+              <RecipeCard
+                key={recipe.id}
+                expiredNames={findExpiredIngredients(recipe, askedFor)}
+                isSaved={savedRecipes.some((entry) => entry.id === recipe.id)}
+                onToggleSaved={() => void toggleSaved(recipe)}
+                recipe={recipe}
+              />
+            ))}
+          </View>
 
-          <Text style={styles.footnote}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => suggestDifferentRecipes(askedFor)}
+            style={({ pressed }) => [styles.differentButton, pressed ? styles.pressed : null]}
+          >
+            <Ionicons color="#2f7d32" name="refresh-outline" size={19} />
+            <Text style={styles.differentButtonText}>Suggest different recipes</Text>
+          </Pressable>
+
+          <Text style={styles.hintText}>New ideas replace the ones you haven&apos;t saved.</Text>
+
+          <Text style={[styles.footnote, styles.resultsFootnote]}>
             AI-generated. Check ingredients for allergies before cooking.
           </Text>
         </View>
@@ -562,8 +827,10 @@ const styles = StyleSheet.create({
   },
   outlineButton: {
     minHeight: 46,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
     marginTop: 20,
     borderWidth: 1,
     borderColor: '#2f7d32',
@@ -575,6 +842,30 @@ const styles = StyleSheet.create({
     color: '#2f7d32',
     fontSize: 14,
     fontWeight: '700',
+  },
+  differentButton: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 18,
+    borderWidth: 1,
+    borderColor: '#2f7d32',
+    borderRadius: 14,
+    backgroundColor: '#ffffff',
+  },
+  differentButtonText: {
+    color: '#2f7d32',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  hintText: {
+    marginTop: 10,
+    color: '#59635b',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
   },
   infoCard: {
     alignItems: 'center',
@@ -611,15 +902,42 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
+  setupFacts: {
+    alignSelf: 'stretch',
+    gap: 10,
+    marginTop: 20,
+    borderRadius: 12,
+    backgroundColor: '#f6f8f3',
+    padding: 14,
+  },
+  setupFact: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  setupFactText: {
+    flex: 1,
+    color: '#263229',
+    fontSize: 13,
+    lineHeight: 18,
+  },
   results: {
-    gap: 16,
     marginTop: 26,
+  },
+  resultsTitle: {
+    marginBottom: 10,
+  },
+  cards: {
+    gap: 16,
   },
   footnote: {
     color: '#687269',
     fontSize: 12,
     lineHeight: 17,
     textAlign: 'center',
+  },
+  resultsFootnote: {
+    marginTop: 14,
   },
   pressed: {
     opacity: 0.72,

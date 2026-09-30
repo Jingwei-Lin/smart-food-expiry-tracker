@@ -76,7 +76,7 @@ export function RecipeChecklist({
 
   return (
     <View>
-      <View style={styles.toolbar}>
+      <View style={[styles.toolbar, disabled ? styles.busy : null]}>
         <Text style={styles.sectionTitle}>YOUR FOOD</Text>
 
         <Pressable
@@ -102,7 +102,7 @@ export function RecipeChecklist({
         </Text>
       </View>
 
-      <View style={[styles.card, disabled ? styles.dimmed : null]}>
+      <View style={[styles.card, disabled ? styles.busy : null]}>
         {candidates.map((candidate, index) => {
           const isChecked = selectedIds.includes(candidate.id);
           const isRowDisabled = disabled || (!isChecked && isAtLimit);
@@ -126,11 +126,9 @@ export function RecipeChecklist({
               >
                 <View style={[styles.rail, { backgroundColor: railColor }]} />
 
-                <Ionicons
-                  color={isChecked ? '#2f7d32' : '#aab6a9'}
-                  name={isChecked ? 'checkbox' : 'square-outline'}
-                  size={26}
-                />
+                <View style={[styles.tickBox, isChecked ? styles.tickBoxChecked : null]}>
+                  {isChecked ? <Ionicons color="#ffffff" name="checkmark" size={17} /> : null}
+                </View>
 
                 <Text style={styles.name}>{candidate.name}</Text>
 
@@ -236,8 +234,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
+  /* Drawn rather than an icon, to match the design's rounded 24 px boxes. */
+  tickBox: {
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#aab6a9',
+    borderRadius: 7,
+    backgroundColor: '#ffffff',
+  },
+  tickBoxChecked: {
+    borderColor: '#2f7d32',
+    backgroundColor: '#2f7d32',
+  },
+  /* A row that cannot be ticked because ten already are. */
   dimmed: {
     opacity: 0.45,
+  },
+  /* The whole list while a request runs, as in the design's loading state. */
+  busy: {
+    opacity: 0.55,
   },
   pressed: {
     opacity: 0.72,

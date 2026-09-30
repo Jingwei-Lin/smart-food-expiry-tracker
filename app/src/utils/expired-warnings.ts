@@ -19,6 +19,13 @@ export function describeExpiredTicked(names: string[]): string {
     : `${names[0]} is past its date. Check it looks and smells fine before cooking with it.`;
 }
 
+/** The warning on an opened saved recipe whose food has expired since it was saved. */
+export function describeExpiredInSaved(names: string[]): string {
+  return names.length > 1
+    ? `Your ${joinNames(names)} are now past their date. Check they look and smell fine before cooking with them.`
+    : `Your ${names[0]} is now past its date. Check it looks and smells fine before cooking with it.`;
+}
+
 /** The warning on a recipe card that uses expired food. */
 export function describeExpiredInRecipe(names: string[]): string {
   return names.length > 1

@@ -77,7 +77,27 @@ export async function selectRecipeProvider(id: RecipeProviderId): Promise<void> 
   await SecureStore.setItemAsync(SELECTED_PROVIDER_KEY, id);
 }
 
-/** Forgets one provider's key. The other provider's key is left alone. */
-export async function removeRecipeKey(id: RecipeProviderId): Promise<void> {
+/**
+ * Forgets one provider's key and returns the provider the Recipes tab uses
+ * afterwards, or null when no key is left. Removing the key in use moves the
+ * tab to the first other provider (in settings order) that still has a key,
+ * rather than back to the set-up card.
+ */
+export async function removeRecipeKey(id: RecipeProviderId): Promise<RecipeProviderId | null> {
   await SecureStore.deleteItemAsync(apiKeyStorageKey(id));
+
+  const credentials = await getRecipeCredentials();
+
+  if (credentials) {
+    return credentials.provider.id;
+  }
+
+  for (const provider of Object.values(RECIPE_PROVIDERS)) {
+    if (await SecureStore.getItemAsync(apiKeyStorageKey(provider.id))) {
+      await selectRecipeProvider(provider.id);
+      return provider.id;
+    }
+  }
+
+  return null;
 }

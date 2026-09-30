@@ -3,6 +3,9 @@ import { RecipeIngredient } from '@/utils/recipe-ingredients';
 /* Two cards fit on a phone screen and keep the wait short. */
 export const RECIPES_PER_REQUEST = 2;
 
+/* Enough to steer the model away from repeats without crowding the prompt. */
+export const MAX_AVOID_TITLES = 10;
+
 export type Recipe = {
   title: string;
   minutes: number;
@@ -197,4 +200,30 @@ export function findExpiredIngredients(recipe: Recipe, ingredients: RecipeIngred
       (ingredient) => ingredient.daysLeft < 0 && usedNames.has(normalizeName(ingredient.name)),
     )
     .map((ingredient) => ingredient.name);
+}
+
+/**
+ * Adds the titles just shown to the list "Suggest different recipes" asks the
+ * model to avoid. A title shown again moves to the end rather than appearing
+ * twice, and only the newest ones are kept, so the prompt stays short.
+ */
+export function rememberShownTitles(shownTitles: string[], newTitles: string[]): string[] {
+  const newNames = new Set(newTitles.map(normalizeName));
+
+  return [
+    ...shownTitles.filter((title) => !newNames.has(normalizeName(title))),
+    ...newTitles,
+  ].slice(-MAX_AVOID_TITLES);
+}
+
+/**
+ * The titles a request asks the model to avoid: every title shown this
+ * session, so new ideas never repeat what is on screen, then the newest saved
+ * titles, so a starred recipe is not suggested again. At most ten in total.
+ */
+export function buildAvoidTitles(shownTitles: string[], savedTitles: string[]): string[] {
+  const shownNames = new Set(shownTitles.map(normalizeName));
+  const newSaved = savedTitles.filter((title) => !shownNames.has(normalizeName(title)));
+
+  return [...shownTitles, ...newSaved].slice(0, MAX_AVOID_TITLES);
 }

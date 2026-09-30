@@ -32,6 +32,25 @@ describe('checkRecipeKey', () => {
     await expect(checkRecipeKey(RECIPE_PROVIDERS.openai, API_KEY)).resolves.toBe('valid');
   });
 
+  it('asks Gemini at its OpenAI-compatible address', async () => {
+    fetchMock.mockResolvedValue(modelList('gemini-3.8-flash'));
+
+    await checkRecipeKey(RECIPE_PROVIDERS.gemini, API_KEY);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/openai/models',
+    );
+  });
+
+  it.each(['gemini-3.8-flash', 'models/gemini-3.8-flash'])(
+    'accepts a Gemini key when the model is listed as %s',
+    async (id) => {
+      fetchMock.mockResolvedValue(modelList('models/gemini-2.5-flash', id));
+
+      await expect(checkRecipeKey(RECIPE_PROVIDERS.gemini, API_KEY)).resolves.toBe('valid');
+    },
+  );
+
   it('flags a working key whose account cannot use the model', async () => {
     fetchMock.mockResolvedValue(modelList('gpt-4o'));
 
@@ -44,6 +63,28 @@ describe('checkRecipeKey', () => {
     fetchMock.mockResolvedValue({ ok: false, status, json: async () => ({}) });
 
     await expect(checkRecipeKey(RECIPE_PROVIDERS.openai, API_KEY)).resolves.toBe('invalid-key');
+  });
+
+  it('rejects a Gemini key, which Google answers with 400 rather than 401', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({
+        error: { code: 400, message: 'Please pass a valid API key', status: 'INVALID_ARGUMENT' },
+      }),
+    });
+
+    await expect(checkRecipeKey(RECIPE_PROVIDERS.gemini, API_KEY)).resolves.toBe('invalid-key');
+  });
+
+  it('does not blame the key for a 400 about something else', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      json: async () => ({ error: { code: 400, message: 'Invalid JSON payload received.' } }),
+    });
+
+    await expect(checkRecipeKey(RECIPE_PROVIDERS.gemini, API_KEY)).resolves.toBe('unavailable');
   });
 
   it('reports the provider as unavailable on a server error, without blaming the key', async () => {
@@ -69,12 +110,36 @@ describe('checkRecipeKey', () => {
 
     await expect(checkRecipeKey(RECIPE_PROVIDERS.deepseek, API_KEY)).resolves.toBe('unavailable');
   });
+
+  it('checks a Matilda key with a one-line chat request, since it has no model list', async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200 });
+
+    await expect(checkRecipeKey(RECIPE_PROVIDERS.matilda, API_KEY)).resolves.toBe('valid');
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://matilda.maincode.com/api/chat');
+    expect(init.method).toBe('POST');
+    expect(init.headers.Authorization).toBe(`Bearer ${API_KEY}`);
+    expect(JSON.parse(init.body)).toEqual({
+      messages: [{ role: 'user', content: 'Reply with OK.' }],
+      responseMode: 'instant',
+      persist: false,
+    });
+  });
+
+  it('rejects a Matilda key the service does not recognise', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 401, json: async () => ({}) });
+
+    await expect(checkRecipeKey(RECIPE_PROVIDERS.matilda, API_KEY)).resolves.toBe('invalid-key');
+  });
 });
 
 describe('fetchRecipeSuggestions', () => {
   const fetchMock = jest.fn();
   const openai = { provider: RECIPE_PROVIDERS.openai, apiKey: API_KEY };
   const deepseek = { provider: RECIPE_PROVIDERS.deepseek, apiKey: API_KEY };
+  const gemini = { provider: RECIPE_PROVIDERS.gemini, apiKey: API_KEY };
+  const matilda = { provider: RECIPE_PROVIDERS.matilda, apiKey: API_KEY };
   const ticked: RecipeIngredient[] = [
     { name: 'Spinach', daysLeft: 0 },
     { name: 'Milk', daysLeft: -2 },
@@ -155,6 +220,76 @@ describe('fetchRecipeSuggestions', () => {
     expect(sentBody()).not.toHaveProperty('max_completion_tokens');
   });
 
+  it('uses Gemini’s OpenAI-compatible address, JSON mode and a low reasoning effort', async () => {
+    fetchMock.mockResolvedValue(chatReply({ content: usableContent }));
+
+    await fetchRecipeSuggestions(gemini, ticked);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+    );
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe(`Bearer ${API_KEY}`);
+    expect(sentBody()).toMatchObject({
+      model: 'gemini-3.8-flash',
+      response_format: { type: 'json_object' },
+      max_tokens: 3000,
+      reasoning_effort: 'low',
+    });
+    expect(sentBody()).not.toHaveProperty('max_completion_tokens');
+  });
+
+  /** A finished Matilda event stream that spells out `content` a few characters at a time. */
+  function matildaReply(content: string, extraEvents = '') {
+    const tokens = (content.match(/[\s\S]{1,8}/g) ?? [])
+      .map((chunk) => `event: token\ndata: ${JSON.stringify({ content: chunk })}\n\n`)
+      .join('');
+
+    return {
+      ok: true,
+      status: 200,
+      text: async () =>
+        `event: stream_init\ndata: {"stream_id":"s-1"}\n\n${tokens}${extraEvents}event: done\ndata: {}\n\n`,
+    };
+  }
+
+  it('sends Matilda one user message with the instructions folded in, and no model', async () => {
+    fetchMock.mockResolvedValue(matildaReply(usableContent));
+
+    await fetchRecipeSuggestions(matilda, ticked);
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://matilda.maincode.com/api/chat');
+    expect(init.headers.Authorization).toBe(`Bearer ${API_KEY}`);
+    expect(sentBody()).toMatchObject({ responseMode: 'instant', persist: false });
+    expect(sentBody()).not.toHaveProperty('model');
+    expect(sentBody()).not.toHaveProperty('response_format');
+    expect(sentBody().messages).toHaveLength(1);
+    expect(sentBody().messages[0].role).toBe('user');
+    expect(sentBody().messages[0].content).toContain('Reply with JSON only');
+    expect(sentBody().messages[0].content).toContain('- Spinach (expires today)');
+  });
+
+  it('returns the recipes from Matilda’s event stream', async () => {
+    fetchMock.mockResolvedValue(matildaReply(usableContent));
+
+    await expect(fetchRecipeSuggestions(matilda, ticked)).resolves.toEqual({
+      outcome: 'ok',
+      recipes: [
+        expect.objectContaining({ title: 'Spinach omelette', usesIngredients: ['Spinach'] }),
+      ],
+    });
+  });
+
+  it('treats a Matilda stream that reports an error as unreadable', async () => {
+    fetchMock.mockResolvedValue(
+      matildaReply(usableContent, 'event: error\ndata: {"code":"internal","message":"Oops"}\n\n'),
+    );
+
+    await expect(fetchRecipeSuggestions(matilda, ticked)).resolves.toEqual({
+      outcome: 'bad-response',
+    });
+  });
+
   it('returns the recipes from a usable reply', async () => {
     fetchMock.mockResolvedValue(chatReply({ content: usableContent }));
 
@@ -180,6 +315,18 @@ describe('fetchRecipeSuggestions', () => {
     await expect(fetchRecipeSuggestions(openai, ticked)).resolves.toEqual({ outcome: 'rejected' });
   });
 
+  it('reports a rejected key when Gemini answers 400 about the key, wrapped in an array', async () => {
+    fetchMock.mockResolvedValue(
+      errorReply(400, [
+        {
+          error: { code: 400, message: 'Please pass a valid API key', status: 'INVALID_ARGUMENT' },
+        },
+      ]),
+    );
+
+    await expect(fetchRecipeSuggestions(gemini, ticked)).resolves.toEqual({ outcome: 'rejected' });
+  });
+
   it.each([
     ['DeepSeek has no balance left (402)', errorReply(402)],
     [
@@ -200,9 +347,38 @@ describe('fetchRecipeSuggestions', () => {
 
   it.each([
     ['a plain rate limit (429)', errorReply(429, { error: { code: 'rate_limit_exceeded' } })],
-    ['a server error (500)', errorReply(500)],
-  ])('reports the provider as unavailable on %s', async (_, reply) => {
+    [
+      'Gemini is overloaded (503)',
+      errorReply(503, [
+        {
+          error: {
+            code: 503,
+            message: 'This model is currently experiencing high demand.',
+            status: 'UNAVAILABLE',
+          },
+        },
+      ]),
+    ],
+  ])('reports the provider as busy on %s', async (_, reply) => {
     fetchMock.mockResolvedValue(reply);
+
+    await expect(fetchRecipeSuggestions(openai, ticked)).resolves.toEqual({ outcome: 'busy' });
+  });
+
+  it.each([
+    ['an option it does not accept (400)', errorReply(400, { error: { message: 'Unknown name' } })],
+    ['a model it does not have (404)', errorReply(404)],
+    ['a request it cannot process (422)', errorReply(422)],
+  ])('reports a refused request, not a lost connection, on %s', async (_, reply) => {
+    fetchMock.mockResolvedValue(reply);
+
+    await expect(fetchRecipeSuggestions(openai, ticked)).resolves.toEqual({
+      outcome: 'request-refused',
+    });
+  });
+
+  it('still reports the provider as unavailable on a server error (500)', async () => {
+    fetchMock.mockResolvedValue(errorReply(500));
 
     await expect(fetchRecipeSuggestions(openai, ticked)).resolves.toEqual({
       outcome: 'unavailable',
