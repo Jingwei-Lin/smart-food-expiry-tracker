@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { ComponentProps, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-
 import { ExpiryBadge } from '@/components/expiry-badge';
 import { useInventory } from '@/context/inventory-context';
 import { returnToInventory } from '@/utils/navigation';
@@ -39,8 +38,15 @@ function formatResolvedDate(value: string | undefined): string | null {
 
 export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, isLoading, isStorageReady, storageError, deleteItem, resolveItem } =
-    useInventory();
+
+  const {
+    items,
+    isLoading,
+    isStorageReady,
+    storageError,
+    deleteItem,
+    resolveItem,
+  } = useInventory();
 
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
@@ -54,13 +60,15 @@ export default function ItemDetailScreen() {
    */
   const areActionsDisabled = isWorking || !isStorageReady;
 
-  async function runAction(action: () => Promise<void>, failureMessage: string) {
+  async function runAction(
+    action: () => Promise<void>,
+    failureMessage: string,
+  ) {
     setActionError(null);
     setIsWorking(true);
 
     try {
       await action();
-
       returnToInventory();
     } catch {
       setActionError(failureMessage);
@@ -77,7 +85,10 @@ export default function ItemDetailScreen() {
   }
 
   function handleDelete() {
-    void runAction(() => deleteItem(id), 'This item could not be deleted. Please try again.');
+    void runAction(
+      () => deleteItem(id),
+      'This item could not be deleted. Please try again.',
+    );
   }
 
   if (isLoading) {
@@ -99,7 +110,11 @@ export default function ItemDetailScreen() {
         />
 
         <View style={styles.notFoundContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color="#687269" />
+          <Ionicons
+            name="alert-circle-outline"
+            size={48}
+            color="#687269"
+          />
 
           <Text style={styles.notFoundTitle}>Item not found</Text>
 
@@ -110,9 +125,14 @@ export default function ItemDetailScreen() {
           <Pressable
             accessibilityRole="button"
             onPress={returnToInventory}
-            style={({ pressed }) => [styles.returnButton, pressed ? styles.pressedButton : null]}
+            style={({ pressed }) => [
+              styles.returnButton,
+              pressed ? styles.pressedButton : null,
+            ]}
           >
-            <Text style={styles.returnButtonText}>Return to inventory</Text>
+            <Text style={styles.returnButtonText}>
+              Back to inventory
+            </Text>
           </Pressable>
         </View>
       </>
@@ -129,10 +149,17 @@ export default function ItemDetailScreen() {
         }}
       />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.summaryCard}>
           <View style={styles.itemIcon}>
-            <Ionicons name="nutrition-outline" size={32} color="#2f7d32" />
+            <Ionicons
+              name="nutrition-outline"
+              size={32}
+              color="#2f7d32"
+            />
           </View>
 
           <Text style={styles.itemName}>{item.name}</Text>
@@ -161,18 +188,28 @@ export default function ItemDetailScreen() {
           <DetailRow
             icon="notifications-outline"
             label="Reminders"
-            value={`${item.reminderDaysBefore} ${item.reminderDaysBefore === 1 ? 'day' : 'days'} before and on expiry day`}
+            value={`${item.reminderDaysBefore} ${
+              item.reminderDaysBefore === 1 ? 'day' : 'days'
+            } before and on expiry day`}
           />
 
           <View style={styles.divider} />
 
-          <DetailRow icon="cube-outline" label="Quantity" value={item.quantity} />
+          <DetailRow
+            icon="cube-outline"
+            label="Quantity"
+            value={item.quantity}
+          />
 
           {item.notes ? (
             <>
               <View style={styles.divider} />
 
-              <DetailRow icon="document-text-outline" label="Notes" value={item.notes} />
+              <DetailRow
+                icon="document-text-outline"
+                label="Notes"
+                value={item.notes}
+              />
             </>
           ) : null}
         </View>
@@ -181,7 +218,11 @@ export default function ItemDetailScreen() {
 
         {actionError ? (
           <View style={styles.banner}>
-            <Ionicons name="warning-outline" size={19} color="#8b2c25" />
+            <Ionicons
+              name="warning-outline"
+              size={19}
+              color="#8b2c25"
+            />
 
             <Text style={styles.bannerText}>{actionError}</Text>
           </View>
@@ -189,7 +230,11 @@ export default function ItemDetailScreen() {
 
         {!isStorageReady ? (
           <View style={styles.notice}>
-            <Ionicons name="hourglass-outline" size={19} color="#8b6b1f" />
+            <Ionicons
+              name="hourglass-outline"
+              size={19}
+              color="#8b6b1f"
+            />
 
             <Text style={styles.noticeText}>
               {storageError ??
@@ -200,11 +245,13 @@ export default function ItemDetailScreen() {
 
         {isConfirmingDelete ? (
           <View style={styles.confirmCard}>
-            <Text style={styles.confirmTitle}>Delete {item.name}?</Text>
+            <Text style={styles.confirmTitle}>
+              Delete {item.name}?
+            </Text>
 
             <Text style={styles.confirmText}>
-              This removes the item from your inventory and from the waste summary. It cannot be
-              undone.
+              This removes the item from your inventory and from the waste
+              summary. It cannot be undone.
             </Text>
 
             <View style={styles.confirmButtons}>
@@ -217,7 +264,9 @@ export default function ItemDetailScreen() {
                   pressed ? styles.pressedButton : null,
                 ]}
               >
-                <Text style={styles.confirmCancelText}>Keep item</Text>
+                <Text style={styles.confirmCancelText}>
+                  Keep item
+                </Text>
               </Pressable>
 
               <Pressable
@@ -227,10 +276,14 @@ export default function ItemDetailScreen() {
                 style={({ pressed }) => [
                   styles.confirmDeleteButton,
                   pressed ? styles.pressedButton : null,
-                  areActionsDisabled ? styles.disabledButton : null,
+                  areActionsDisabled
+                    ? styles.disabledButton
+                    : null,
                 ]}
               >
-                <Text style={styles.confirmDeleteText}>{isWorking ? 'Deleting...' : 'Delete'}</Text>
+                <Text style={styles.confirmDeleteText}>
+                  {isWorking ? 'Deleting...' : 'Delete'}
+                </Text>
               </Pressable>
             </View>
           </View>
@@ -238,52 +291,97 @@ export default function ItemDetailScreen() {
           <View style={styles.actionsCard}>
             {item.status === 'active' ? (
               <>
-                {/*
-                 * Goes back to the tabs already underneath rather than pushing
-                 * a second copy of them, and opens Recipes with this item ticked.
-                 */}
+                {/* Find recipes */}
                 <ActionButton
                   icon="book-outline"
                   isDisabled={areActionsDisabled}
                   label="Find recipes"
                   onPress={() =>
-                    router.dismissTo({ pathname: '/recipes', params: { select: item.id } })
+                    router.dismissTo({
+                      pathname: '/recipes',
+                      params: { select: item.id },
+                    })
                   }
                 />
 
                 <View style={styles.divider} />
 
+                {/* Edit item */}
                 <ActionButton
                   icon="create-outline"
                   isDisabled={areActionsDisabled}
                   label="Edit item"
                   onPress={() =>
-                    router.push({ pathname: '/item/edit/[id]', params: { id: item.id } })
+                    router.push({
+                      pathname: '/item/edit/[id]',
+                      params: { id: item.id },
+                    })
                   }
                 />
 
                 <View style={styles.divider} />
 
-                <ActionButton
-                  icon="restaurant-outline"
-                  isDisabled={areActionsDisabled}
-                  label="Mark as eaten"
+                {/* Mark as eaten */}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    disabled: areActionsDisabled,
+                  }}
+                  disabled={areActionsDisabled}
                   onPress={() => handleResolve('eaten')}
-                />
+                  style={({ pressed }) => [
+                    styles.outcomeRow,
+                    pressed ? styles.pressedButton : null,
+                    areActionsDisabled
+                      ? styles.disabledButton
+                      : null,
+                  ]}
+                >
+                  <Ionicons
+                    name="checkbox-outline"
+                    size={24}
+                    color="#2f7d32"
+                  />
+
+                  <Text style={styles.outcomeLabel}>
+                    Mark as eaten
+                  </Text>
+                </Pressable>
 
                 <View style={styles.divider} />
 
-                <ActionButton
-                  icon="trash-bin-outline"
-                  isDisabled={areActionsDisabled}
-                  label="Mark as thrown out"
+                {/* Mark as thrown out */}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{
+                    disabled: areActionsDisabled,
+                  }}
+                  disabled={areActionsDisabled}
                   onPress={() => handleResolve('discarded')}
-                />
+                  style={({ pressed }) => [
+                    styles.outcomeRow,
+                    pressed ? styles.pressedButton : null,
+                    areActionsDisabled
+                      ? styles.disabledButton
+                      : null,
+                  ]}
+                >
+                  <Ionicons
+                    name="checkbox-outline"
+                    size={24}
+                    color="#2f7d32"
+                  />
+
+                  <Text style={styles.outcomeLabel}>
+                    Mark as thrown out
+                  </Text>
+                </Pressable>
 
                 <View style={styles.divider} />
               </>
             ) : null}
 
+            {/* Delete item */}
             <ActionButton
               icon="close-circle-outline"
               isDanger
@@ -298,10 +396,22 @@ export default function ItemDetailScreen() {
   );
 }
 
-function DetailRow({ icon, label, value }: { icon: IconName; label: string; value: string }) {
+function DetailRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: IconName;
+  label: string;
+  value: string;
+}) {
   return (
     <View style={styles.detailRow}>
-      <Ionicons name={icon} size={22} color="#537059" />
+      <Ionicons
+        name={icon}
+        size={22}
+        color="#537059"
+      />
 
       <View style={styles.detailText}>
         <Text style={styles.detailLabel}>{label}</Text>
@@ -337,11 +447,21 @@ function ActionButton({
         isDisabled ? styles.disabledButton : null,
       ]}
     >
-      <Ionicons name={icon} size={22} color={tint} />
+      <Ionicons
+        name={icon}
+        size={22}
+        color={tint}
+      />
 
-      <Text style={[styles.actionLabel, { color: tint }]}>{label}</Text>
+      <Text style={[styles.actionLabel, { color: tint }]}>
+        {label}
+      </Text>
 
-      <Ionicons name="chevron-forward" size={18} color="#a2aea5" />
+      <Ionicons
+        name="chevron-forward"
+        size={18}
+        color="#a2aea5"
+      />
     </Pressable>
   );
 }
@@ -354,10 +474,12 @@ const styles = StyleSheet.create({
     gap: 12,
     backgroundColor: '#f6f8f3',
   },
+
   loadingText: {
     color: '#59635b',
     fontSize: 15,
   },
+
   notFoundContainer: {
     flex: 1,
     alignItems: 'center',
@@ -365,12 +487,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#f6f8f3',
     padding: 24,
   },
+
   notFoundTitle: {
     marginTop: 14,
     color: '#172019',
     fontSize: 22,
     fontWeight: '700',
   },
+
   notFoundText: {
     marginTop: 7,
     color: '#687269',
@@ -378,6 +502,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     textAlign: 'center',
   },
+
   returnButton: {
     minHeight: 50,
     alignItems: 'center',
@@ -387,17 +512,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#2f7d32',
     paddingHorizontal: 20,
   },
+
   returnButtonText: {
     color: '#ffffff',
     fontSize: 15,
     fontWeight: '700',
   },
+
   content: {
     flexGrow: 1,
     backgroundColor: '#f6f8f3',
     padding: 20,
     paddingBottom: 40,
   },
+
   summaryCard: {
     alignItems: 'center',
     borderWidth: 1,
@@ -406,6 +534,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     padding: 24,
   },
+
   itemIcon: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -414,6 +543,7 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     backgroundColor: '#e7f4e8',
   },
+
   itemName: {
     marginTop: 14,
     marginBottom: 10,
@@ -422,11 +552,13 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center',
   },
+
   resolvedLabel: {
     color: '#5e6260',
     fontSize: 14,
     fontWeight: '700',
   },
+
   sectionTitle: {
     marginTop: 26,
     marginBottom: 9,
@@ -435,6 +567,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.9,
   },
+
   detailsCard: {
     borderWidth: 1,
     borderColor: '#dce4da',
@@ -442,31 +575,37 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     padding: 16,
   },
+
   detailRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 12,
   },
+
   detailText: {
     flex: 1,
   },
+
   detailLabel: {
     color: '#718075',
     fontSize: 12,
     fontWeight: '600',
     textTransform: 'uppercase',
   },
+
   detailValue: {
     marginTop: 3,
     color: '#253028',
     fontSize: 16,
     lineHeight: 22,
   },
+
   divider: {
     height: 1,
     marginVertical: 14,
     backgroundColor: '#e4e9e3',
   },
+
   banner: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -476,12 +615,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#fde7e5',
     padding: 12,
   },
+
   bannerText: {
     flex: 1,
     color: '#8b2c25',
     fontSize: 13,
     lineHeight: 18,
   },
+
   notice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -491,12 +632,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff0d5',
     padding: 12,
   },
+
   noticeText: {
     flex: 1,
     color: '#8b6b1f',
     fontSize: 13,
     lineHeight: 18,
   },
+
   actionsCard: {
     borderWidth: 1,
     borderColor: '#dce4da',
@@ -505,17 +648,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
   },
+
   actionButton: {
     minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
   },
+
   actionLabel: {
     flex: 1,
     fontSize: 16,
     fontWeight: '600',
   },
+
   confirmCard: {
     borderWidth: 1,
     borderColor: '#f0c9c4',
@@ -523,22 +669,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     padding: 16,
   },
+
   confirmTitle: {
     color: '#172019',
     fontSize: 17,
     fontWeight: '700',
   },
+
   confirmText: {
     marginTop: 7,
     color: '#687269',
     fontSize: 13,
     lineHeight: 19,
   },
+
   confirmButtons: {
     flexDirection: 'row',
     gap: 10,
     marginTop: 16,
   },
+
   confirmCancelButton: {
     flex: 1,
     minHeight: 48,
@@ -548,11 +698,13 @@ const styles = StyleSheet.create({
     borderColor: '#cad4c9',
     borderRadius: 12,
   },
+
   confirmCancelText: {
     color: '#3c463e',
     fontSize: 15,
     fontWeight: '700',
   },
+
   confirmDeleteButton: {
     flex: 1,
     minHeight: 48,
@@ -561,15 +713,32 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#9f2420',
   },
+
   confirmDeleteText: {
     color: '#ffffff',
     fontSize: 15,
     fontWeight: '700',
   },
+
   pressedButton: {
     opacity: 0.72,
   },
+
   disabledButton: {
     opacity: 0.55,
+  },
+
+  outcomeRow: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+
+  outcomeLabel: {
+    flex: 1,
+    color: '#2f6b34',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
