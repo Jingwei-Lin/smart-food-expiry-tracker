@@ -17,7 +17,7 @@ Our Phase 2 mid-progress submission is tagged `v1.0`, and not everything we prop
 | --- | --- | --- |
 | **Barcode scanning** | Working | Scan a product barcode, the app looks it up in Open Food Facts and fills in the name and a guessed expiry date, which you can correct |
 | **Manual entry** | Working | Add, edit and delete items by hand, for loose produce or anything without a barcode |
-| **Waste summary** | Partly working | The screen works, but the totals on it are example numbers, not counted from your real inventory |
+| **Waste summary** | Working | Real-time food waste weekly summary |
 | **Donation point finder** | Partly working | The list and the search box work, but the places are invented and sit at fixed distances. No GPS yet |
 | **Expiry reminders** | Working | Choose 1 to 7 days' notice (1 by default) and get a second reminder on the expiry day. Reminders are rescheduled or cancelled when you edit, resolve or delete an item, and tapping one opens that item. Added after `v1.0` |
 | **Recipe suggestions** | Working, needs a full device test on iOS | Tick the food you want to cook with (food expiring within 3 days is ticked for you) and get simple recipes from an AI model you choose, using your own API key. Star a recipe to keep it in Saved recipes, ask for different ideas, and your last suggestions come back after a restart. "Find recipes" on an item opens the tab with that item ticked. Added after `v1.0` |
