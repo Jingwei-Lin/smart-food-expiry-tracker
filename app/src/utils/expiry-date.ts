@@ -17,9 +17,7 @@ export function parseExpiryDate(value: string): Date | null {
   const date = new Date(year, month - 1, day);
 
   const isSameDate =
-    date.getFullYear() === year &&
-    date.getMonth() === month - 1 &&
-    date.getDate() === day;
+    date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 
   return isSameDate ? date : null;
 }
@@ -80,11 +78,7 @@ export function daysUntilExpiry(value: string, today = new Date()): number {
    */
   const todayUtc = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
 
-  const expiryUtc = Date.UTC(
-    expiryDate.getFullYear(),
-    expiryDate.getMonth(),
-    expiryDate.getDate(),
-  );
+  const expiryUtc = Date.UTC(expiryDate.getFullYear(), expiryDate.getMonth(), expiryDate.getDate());
 
   return Math.round((expiryUtc - todayUtc) / MILLISECONDS_PER_DAY);
 }
