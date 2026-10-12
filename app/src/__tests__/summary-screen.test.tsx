@@ -83,6 +83,17 @@ describe('WeeklySummaryScreen', () => {
     expect(view.getByText(/Donation tracking is not available yet/)).toBeTruthy();
   });
 
+  it('scrolls, with room under the tab bar, so small screens can reach the last week', async () => {
+    const view = await renderScreen([]);
+    const scroll = view.getByTestId('summary-scroll');
+
+    expect(scroll.type).toBe('RCTScrollView');
+
+    expect(scroll.props.contentContainerStyle).toEqual(
+      expect.arrayContaining([expect.objectContaining({ paddingBottom: 124 })]),
+    );
+  });
+
   it('keeps showing the counts after a save fails', async () => {
     const view = await renderScreen([buildItem('milk')]);
     jest.spyOn(AsyncStorage, 'setItem').mockRejectedValueOnce(new Error('disk full'));
