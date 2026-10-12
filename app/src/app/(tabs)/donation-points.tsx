@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
+import { useEffect, useState } from 'react';
+import {ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View,} from 'react-native';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
-type PointType = 'Food bank' | 'Grocery store' | 'Restaurant' | 'Shelter';
+type PointType = 'Food bank' | 'Soup kitchen' | 'Shelter';
 
 type DonationPoint = {
   id: string;
@@ -13,76 +14,15 @@ type DonationPoint = {
   type: PointType;
   distanceKm: number;
   hours: string;
-  accepts: string;
-  closingSoon: boolean;
+  address: string;
+  latitude: number;
+  longitude: number;
 };
-
-/*
- * Sample data until there is a real source for donation points. Every place
- * here is made up: edit, add or remove entries freely.
- */
-const DONATION_POINTS: DonationPoint[] = [
-  {
-    id: 'riverside-food-bank',
-    name: 'Riverside Food Bank',
-    type: 'Food bank',
-    distanceKm: 0.8,
-    hours: 'Open today 9:00 AM - 5:00 PM',
-    accepts: 'Canned goods, dry goods, produce',
-    closingSoon: false,
-  },
-  {
-    id: 'corner-market-fresh',
-    name: 'Corner Market Fresh',
-    type: 'Grocery store',
-    distanceKm: 1.2,
-    hours: 'Open today 8:00 AM - 8:00 PM',
-    accepts: 'Fresh produce, bread',
-    closingSoon: false,
-  },
-  {
-    id: 'hope-house-shelter',
-    name: 'Hope House Shelter',
-    type: 'Shelter',
-    distanceKm: 1.9,
-    hours: 'Open today 10:00 AM - 6:00 PM',
-    accepts: 'Cooked meals, packaged food',
-    closingSoon: true,
-  },
-  {
-    id: 'harbour-street-kitchen',
-    name: 'Harbour Street Kitchen',
-    type: 'Restaurant',
-    distanceKm: 2.4,
-    hours: 'Open today 11:00 AM - 3:00 PM',
-    accepts: 'Fresh produce, dairy',
-    closingSoon: true,
-  },
-  {
-    id: 'fair-go-community-pantry',
-    name: 'Fair Go Community Pantry',
-    type: 'Food bank',
-    distanceKm: 3.1,
-    hours: 'Open today 9:00 AM - 1:00 PM',
-    accepts: 'Canned goods, pasta, rice',
-    closingSoon: true,
-  },
-  {
-    id: 'green-basket-grocer',
-    name: 'Green Basket Grocer',
-    type: 'Grocery store',
-    distanceKm: 3.6,
-    hours: 'Open today 7:00 AM - 9:00 PM',
-    accepts: 'Produce, dairy, pantry staples',
-    closingSoon: false,
-  },
-];
 
 /* Each kind of place gets its own tint and icon, in place of a photo. */
 const TYPE_LOOK: Record<PointType, { icon: IconName; tint: string; accent: string }> = {
   'Food bank': { icon: 'basket-outline', tint: '#e7f4e8', accent: '#2f7d32' },
-  'Grocery store': { icon: 'cart-outline', tint: '#fbf0dc', accent: '#9a5b12' },
-  Restaurant: { icon: 'restaurant-outline', tint: '#eaeedb', accent: '#5b6f1f' },
+  'Soup kitchen': { icon: 'restaurant-outline', tint: '#fbf0dc', accent: '#9a5b12' },
   Shelter: { icon: 'people-outline', tint: '#e2eee9', accent: '#2c6b57' },
 };
 
@@ -96,6 +36,16 @@ function initials(name: string): string {
     .slice(0, 2)
     .map((word) => word[0].toUpperCase())
     .join('');
+}
+
+/** Straight-line distance between two points in km. */
+function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const r = (degrees: number) => (degrees * Math.PI) / 180;
+  const h =
+    Math.sin(r(lat2 - lat1) / 2) ** 2 +
+    Math.cos(r(lat1)) * Math.cos(r(lat2)) * Math.sin(r(lon2 - lon1) / 2) ** 2;
+
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
 }
 
 type DonationPointCardProps = {
@@ -147,29 +97,14 @@ function DonationPointCard({ point, saved, onToggleSaved }: DonationPointCardPro
 
       <View style={styles.cardBody}>
         <Text numberOfLines={2} style={styles.accepts}>
-          <Text style={styles.acceptsLabel}>Accepts: </Text>
-          {point.accepts}
-        </Text>
+          <Text style={styles.acceptsLabel}>Address: </Text>
+          {point.address}
+          </Text>
 
         <Text style={styles.hours}>{point.hours}</Text>
-
         <View style={styles.footer}>
-          <View
-            style={[styles.statusPill, point.closingSoon ? styles.closingPill : styles.openPill]}
-          >
-            <View
-              style={[styles.statusDot, point.closingSoon ? styles.closingDot : styles.openDot]}
-            />
-
-            <Text
-              style={[styles.statusText, point.closingSoon ? styles.closingText : styles.openText]}
-            >
-              {point.closingSoon ? 'Closing soon' : 'Open now'}
-            </Text>
-          </View>
-
           <Text style={styles.distance}>{point.distanceKm.toFixed(1)} km</Text>
-        </View>
+          </View>
       </View>
     </View>
   );
@@ -182,17 +117,174 @@ function DonationPointCard({ point, saved, onToggleSaved }: DonationPointCardPro
  * list by name, kind of place or what they accept, and the heart keeps a place
  * saved until the app is closed.
  */
+
+/** The address OpenStreetMap has for a place, or '' if it has none. */
+function osmAddress(tags: Record<string, string>): string {
+  if (tags['addr:full']) {
+    return tags['addr:full'];
+  }
+
+  const street = [tags['addr:housenumber'], tags['addr:street']].filter(Boolean).join(' ');
+  const suburb = tags['addr:suburb'] ?? tags['addr:city'];
+
+  return [street, suburb].filter(Boolean).join(', ');
+}
+
+/** Asks the phone's geocoder for the address at these coordinates. */
+async function lookUpAddress(latitude: number, longitude: number): Promise<string> {
+  try {
+    const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
+
+    if (place) {
+      const street = [place.streetNumber, place.street].filter(Boolean).join(' ');
+      const line = [street, place.city].filter(Boolean).join(', ');
+
+      if (line) {
+        return line;
+      }
+    }
+  } catch {}
+
+  return 'Address not listed';
+}
+
+/** Asks OpenStreetMap for donation points within 10 km of a place. */
+async function fetchPointsAround(latitude: number, longitude: number): Promise<DonationPoint[]> {
+  const query = `[out:json];nwr["social_facility"~"food_bank|soup_kitchen|shelter"](around:10000,${latitude},${longitude});out center tags;`;
+  const response = await fetch(
+    `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`,
+  );
+  const text = await response.text();
+  console.log('Overpass status:', response.status, text.slice(0, 300));
+  const data = JSON.parse(text);
+
+  const points: DonationPoint[] = data.elements
+    .filter((e: any) => e.tags?.name)
+    .map((e: any): DonationPoint => {
+      const lat = e.lat ?? e.center.lat;
+      const lon = e.lon ?? e.center.lon;
+
+      return {
+        id: `${e.type}/${e.id}`,
+        name: e.tags.name,
+        type:
+          e.tags.social_facility === 'shelter'
+            ? 'Shelter'
+            : e.tags.social_facility === 'soup_kitchen'
+              ? 'Soup kitchen'
+              : 'Food bank',
+        distanceKm: distanceKm(latitude, longitude, lat, lon),
+        hours: e.tags.opening_hours ?? 'Hours not listed',
+        address: osmAddress(e.tags),
+        latitude: lat,
+        longitude: lon,
+      };
+    });
+
+  // Closest first, so address lookups go to the places people see first.
+  points.sort((a, b) => a.distanceKm - b.distanceKm);
+
+  // Fill in missing addresses for the 10 closest. One at a time, so the geocoder doesn't refuse.
+  for (const point of points.slice(0, 10)) {
+    if (!point.address) {
+      point.address = await lookUpAddress(point.latitude, point.longitude);
+    }
+  }
+
+  // Anything further away without an address gets the fallback.
+  for (const point of points) {
+    if (!point.address) {
+      point.address = 'Address not listed';
+    }
+  }
+
+  return points;
+}
+
 export default function DonationPointsScreen() {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [points, setPoints] = useState<DonationPoint[]>([]);
+  const [placeName, setPlaceName] = useState('Your location');
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [suburbQuery, setSuburbQuery] = useState('');
+  const [isEditingSuburb, setIsEditingSuburb] = useState(false);
+
+  /** Finds where the typed suburb is, then loads donation points around it. */
+  async function searchSuburb() {
+    const suburb = suburbQuery.trim();
+
+    if (!suburb) {
+      return;
+    }
+
+    setIsEditingSuburb(false);
+    setIsLoading(true);
+    setError(null);
+    setPoints([]);
+
+    try {
+      const [result] = await Location.geocodeAsync(`${suburb}, NSW, Australia`);
+
+      if (!result) {
+        setError(`Couldn't find "${suburb}". Check the spelling and try again.`);
+        return;
+      }
+
+      setPlaceName(suburb);
+      setPoints(await fetchPointsAround(result.latitude, result.longitude));
+    } catch (err) {
+      console.log('Suburb search failed:', err);
+      setError(`Couldn't load donation points near "${suburb}".`);
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // 1. Ask for permission, as in class.
+        const { status } = await Location.requestForegroundPermissionsAsync();
+
+        if (status !== 'granted') {
+          setError('Allow location access in Settings to see donation points near you.');
+          return;
+        }
+
+        // 2. Where is the phone?
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        const { latitude, longitude } = current.coords;
+
+        // 3. Suburb name for the header. This can throw, so it has its own try.
+        try {
+          const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
+          if (place) {
+            setPlaceName([place.city, place.region].filter(Boolean).join(', '));
+          }
+        } catch {}
+
+        // 4. Donation points near the phone.
+        setPoints(await fetchPointsAround(latitude, longitude));
+      } catch (err) {
+        console.log('Donation points failed:', err);
+        setError("Couldn't load donation points. Check your connection and reopen this tab.");
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
 
   const search = query.trim().toLowerCase();
-  const matches = DONATION_POINTS.filter((point) =>
-    `${point.name} ${point.type} ${point.accepts}`.toLowerCase().includes(search),
+  const matches = points.filter((point) =>
+    `${point.name} ${point.type} ${point.address}`.toLowerCase().includes(search),
   );
   const closest = [...matches].sort((a, b) => a.distanceKm - b.distanceKm);
-  const closingSoon = matches.filter((point) => point.closingSoon);
 
   function toggleSaved(id: string) {
     setSavedIds((current) =>
@@ -241,15 +333,39 @@ export default function DonationPointsScreen() {
       style={styles.screen}
     >
       <View style={styles.header}>
-        <View style={styles.locationLine}>
-          <Ionicons name="navigate" size={16} color="#2f7d32" />
+        <Pressable
+        accessibilityLabel="Change suburb"
+        accessibilityRole="button"
+        onPress={() => setIsEditingSuburb(!isEditingSuburb)}
+        style={styles.locationLine}
+      >
+        <Ionicons name="navigate" size={16} color="#2f7d32" />
 
-          <Text style={styles.locationName}>Camperdown, Sydney</Text>
+        <Text style={styles.locationName}>
+          {isLoading ? 'Finding your location…' : placeName}
+        </Text>
 
-          <Ionicons name="chevron-down" size={16} color="#2f7d32" />
-        </View>
+        <Ionicons name={isEditingSuburb ? 'chevron-up' : 'chevron-down'} size={16} color="#2f7d32" />
+      </Pressable>
 
         <Text style={styles.locationRadius}>within 10 km</Text>
+        {isEditingSuburb ? (
+        <View style={styles.searchBox}>
+          <Ionicons name="location-outline" size={20} color="#687269" />
+
+          <TextInput
+            accessibilityLabel="Suburb"
+            autoFocus
+            onChangeText={setSuburbQuery}
+            onSubmitEditing={searchSuburb}
+            placeholder="Enter a suburb, e.g. Newtown"
+            placeholderTextColor="#7b857d"
+            returnKeyType="search"
+            style={styles.searchInput}
+            value={suburbQuery}
+          />
+        </View>
+      ) : null}
 
         <View style={styles.searchBox}>
           <Ionicons name="search-outline" size={20} color="#687269" />
@@ -280,9 +396,11 @@ export default function DonationPointsScreen() {
 
       {renderSection('Closest to you', closest)}
 
-      {renderSection('Closing soon', closingSoon, true)}
+      {isLoading ? <ActivityIndicator color="#2f7d32" size="large" style={styles.spinner} /> : null}
 
-      {matches.length === 0 ? (
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+      {!isLoading && !error && matches.length === 0 ? (
         <View style={styles.emptyCard}>
           <View style={styles.emptyIcon}>
             <Ionicons name="search-outline" size={32} color="#2f7d32" />
@@ -522,6 +640,17 @@ const styles = StyleSheet.create({
   emptyText: {
     marginTop: 8,
     color: '#687269',
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
+  },
+  spinner: {
+  marginTop: 40,
+  },
+  errorText: {
+    marginTop: 24,
+    marginHorizontal: 20,
+    color: '#9f2420',
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
