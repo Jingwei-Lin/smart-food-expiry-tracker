@@ -46,6 +46,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "format": "prettier --write .",
+    "format:check": "prettier --check --end-of-line auto .",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch"
@@ -58,6 +59,7 @@
     },
     "setupFilesAfterEnv": [
       "<rootDir>/jest-setup.ts"
-    ]
+    ],
+    "testTimeout": 15000
   }
 }

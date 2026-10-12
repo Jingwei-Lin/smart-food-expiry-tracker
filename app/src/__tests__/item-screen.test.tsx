@@ -55,6 +55,7 @@ async function renderScreen(item: FoodItem) {
 
 beforeEach(async () => {
   jest.mocked(router.dismissTo).mockReset();
+  jest.mocked(router.back).mockReset();
   await AsyncStorage.clear();
 });
 
@@ -68,6 +69,22 @@ describe('ItemDetailScreen', () => {
       pathname: '/recipes',
       params: { select: 'milk' },
     });
+  });
+
+  it.each([
+    ['Mark as eaten', 'eaten'],
+    ['Mark as thrown out', 'discarded'],
+  ])('records "%s" with the time, which the weekly summary counts by', async (label, status) => {
+    const view = await renderScreen(buildMilk());
+    const before = Date.now();
+
+    await fireEvent.press(view.getByText(label));
+
+    const [saved] = JSON.parse((await AsyncStorage.getItem(STORAGE_KEY)) ?? '[]') as FoodItem[];
+
+    expect(saved.status).toBe(status);
+    expect(Date.parse(saved.statusUpdatedAt ?? '')).toBeGreaterThanOrEqual(before);
+    expect(router.back).toHaveBeenCalledTimes(1);
   });
 
   it('does not offer recipes for food that has already been eaten', async () => {

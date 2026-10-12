@@ -11,13 +11,13 @@ The idea is that you scan a product's barcode when you unpack your shopping, and
 
 ## Key Features
 
-Our Phase 2 mid-progress submission is tagged `v1.0`, and not everything we proposed is finished yet. The table below is what `main` does now. "Partly working" means you can open the screen and use it, but it is not reading real data yet.
+Our Phase 2 mid-progress submission is tagged `v1.0`, and not everything we proposed is finished yet. The table below is what `main` does now. "Partly working" means you can open the screen and use it, but part of it is not finished or is not reading real data yet.
 
 | Feature | Status | What that means right now |
 | --- | --- | --- |
 | **Barcode scanning** | Working | Scan a product barcode, the app looks it up in Open Food Facts and fills in the name and a guessed expiry date, which you can correct |
 | **Manual entry** | Working | Add, edit and delete items by hand, for loose produce or anything without a barcode |
-| **Waste summary** | Working | Real-time food waste weekly summary |
+| **Waste summary** | Partly working | Counts the food you marked eaten or thrown out in the last three weeks (Monday to Sunday). Donations are not tracked yet, so that column always shows 0 |
 | **Donation point finder** | Partly working | The list and the search box work, but the places are invented and sit at fixed distances. No GPS yet |
 | **Expiry reminders** | Working | Choose 1 to 7 days' notice (1 by default) and get a second reminder on the expiry day. Reminders are rescheduled or cancelled when you edit, resolve or delete an item, and tapping one opens that item. Added after `v1.0` |
 | **Recipe suggestions** | Working, needs a full device test on iOS | Tick the food you want to cook with (food expiring within 3 days is ticked for you) and get simple recipes from an AI model you choose, using your own API key. Star a recipe to keep it in Saved recipes, ask for different ideas, and your last suggestions come back after a restart. "Find recipes" on an item opens the tab with that item ticked. Added after `v1.0` |
@@ -25,13 +25,13 @@ Our Phase 2 mid-progress submission is tagged `v1.0`, and not everything we prop
 
 - **The inventory saves properly.** Items are written to storage on the device before the screen updates, then read back and checked when the app starts. They are still there after you close the app.
 - **The expiry date field is built for a phone.** It uses a number keypad and puts the dashes in as you type, because the phone keypad has no dash key.
-- **You can mark an item eaten or thrown out.** This saves the date as well, which the waste summary will need once it counts real data.
+- **You can mark an item eaten or thrown out.** This saves the date as well, which the waste summary counts by.
 - **Nothing crashes when something goes wrong.** If the camera is blocked, the barcode isn't in the database, or there is no internet, you get the manual form with a message saying why.
 
 ## TODO for Phase 3
 
 - Test expiry notifications on real Android and iOS devices
-- Count the waste summary totals from real item outcomes, and add a `donated` outcome to the data model (at the moment you can only mark an item eaten or thrown out, but the summary counts donations)
+- Add a `donated` outcome to the data model and a "Donated" action on the item screen (at the moment you can only mark an item eaten or thrown out, so the summary's Donated column is always 0)
 - Replace the invented donation points with `expo-location` and a real data source
 - Test recipe suggestions with each AI model on real Android and iOS devices
 - Empty, loading and error states on every screen, plus an accessibility pass
@@ -89,7 +89,7 @@ Then scan the QR code with Expo Go. You need a real phone to test the barcode sc
 All three pass on `main`. Run them from the `app/` folder.
 
 ```bash
-npm test          # 295 unit tests
+npm test          # 312 unit tests
 npm run typecheck # TypeScript, strict mode
 npm run lint
 ```
@@ -101,7 +101,8 @@ The tests cover:
 - the Open Food Facts response parsing;
 - the recipe prompt and the checks on every AI reply;
 - each AI provider's replies and errors, and key storage;
-- the Recipes, recipe settings, saved recipes and item screens.
+- the Recipes, recipe settings, saved recipes, item and weekly summary screens;
+- the weekly summary's week boundaries, including the week the clocks change.
 
 None of the tests need an API key or an internet connection.
 

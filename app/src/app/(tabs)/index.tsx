@@ -88,19 +88,6 @@ export default function InventoryScreen() {
 
             <Text style={styles.subtitle}>{describeInventory(activeItems)}</Text>
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.push('/summary')}
-              style={({ pressed }) => [
-                styles.summaryButton,
-                pressed ? styles.pressedButton : null,
-              ]}
-            >
-              <Ionicons name="stats-chart-outline" size={20} color="#2f7d32" />
-
-              <Text style={styles.summaryButtonText}>Weekly Summary</Text>
-            </Pressable>
-
             {storageError ? (
               <View style={styles.errorBanner}>
                 <Ionicons name="warning-outline" size={19} color="#8b2c25" />
@@ -298,22 +285,5 @@ const styles = StyleSheet.create({
   },
   pressedButton: {
     opacity: 0.72,
-  },
-  summaryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#2f7d32',
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    paddingVertical: 12,
-  },
-  summaryButtonText: {
-    color: '#2f7d32',
-    fontSize: 14,
-    fontWeight: '700',
   },
 });

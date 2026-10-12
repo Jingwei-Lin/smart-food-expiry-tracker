@@ -18,10 +18,7 @@ const THIS_WEEK_DAYS = 7;
  * Items with an unreadable date fall into Later rather than being dropped, so a
  * bad record is still visible and can be fixed.
  */
-export function buildInventorySections(
-  items: FoodItem[],
-  today = new Date(),
-): InventorySection[] {
+export function buildInventorySections(items: FoodItem[], today = new Date()): InventorySection[] {
   const expired: FoodItem[] = [];
   const eatSoon: FoodItem[] = [];
   const thisWeek: FoodItem[] = [];

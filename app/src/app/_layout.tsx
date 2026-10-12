@@ -67,20 +67,11 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <InventoryProvider>
           <Stack>
-            <Stack.Screen
-              name="(tabs)"
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-            <Stack.Screen
-              name="scan"
-              options={{ title: 'Scan barcode' }}
-            />
+            <Stack.Screen name="scan" options={{ title: 'Scan barcode' }} />
 
-            <Stack.Screen
-              name="add"
-              options={{ title: 'Add item' }}
-            />
+            <Stack.Screen name="add" options={{ title: 'Add item' }} />
 
             <Stack.Screen
               name="item/[id]"
@@ -89,20 +80,11 @@ export default function RootLayout() {
               }}
             />
 
-            <Stack.Screen
-              name="item/edit/[id]"
-              options={{ title: 'Edit item' }}
-            />
+            <Stack.Screen name="item/edit/[id]" options={{ title: 'Edit item' }} />
 
-            <Stack.Screen
-              name="recipe-settings"
-              options={{ title: 'Recipe settings' }}
-            />
+            <Stack.Screen name="recipe-settings" options={{ title: 'Recipe settings' }} />
 
-            <Stack.Screen
-              name="saved-recipes"
-              options={{ title: 'Saved recipes' }}
-            />
+            <Stack.Screen name="saved-recipes" options={{ title: 'Saved recipes' }} />
           </Stack>
 
           <StatusBar style="auto" />
