@@ -71,6 +71,14 @@ describe('ItemDetailScreen', () => {
     });
   });
 
+  it('opens the Donation Points tab for food that cannot be finished', async () => {
+    const view = await renderScreen(buildMilk());
+
+    await fireEvent.press(view.getByText('Find donation point'));
+
+    expect(router.dismissTo).toHaveBeenCalledWith('/donation-points');
+  });
+
   it.each([
     ['Mark as eaten', 'eaten'],
     ['Mark as thrown out', 'discarded'],
@@ -88,11 +96,12 @@ describe('ItemDetailScreen', () => {
     expect(router.back).toHaveBeenCalledTimes(1);
   });
 
-  it('does not offer recipes for food that has already been eaten', async () => {
+  it('does not offer recipes or a donation point for food that has already been eaten', async () => {
     const view = await renderScreen(
       buildMilk({ status: 'eaten', statusUpdatedAt: '2026-09-28T00:00:00.000Z' }),
     );
 
     expect(view.queryByText('Find recipes')).toBeNull();
+    expect(view.queryByText('Find donation point')).toBeNull();
   });
 });

@@ -254,6 +254,16 @@ export default function ItemDetailScreen() {
 
                 <View style={styles.divider} />
 
+                {/* The same way back to the tabs, for food the student can't finish. */}
+                <ActionButton
+                  icon="location-outline"
+                  isDisabled={areActionsDisabled}
+                  label="Find donation point"
+                  onPress={() => router.dismissTo('/donation-points')}
+                />
+
+                <View style={styles.divider} />
+
                 <ActionButton
                   icon="create-outline"
                   isDisabled={areActionsDisabled}
