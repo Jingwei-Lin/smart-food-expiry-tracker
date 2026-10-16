@@ -127,6 +127,14 @@ describe('DonationPointsScreen', () => {
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
+  it('is titled like the other tabs', async () => {
+    const view = await render(<DonationPointsScreen />);
+    await view.findByText('Close Pantry');
+
+    expect(view.getByRole('header', { name: 'Donation Points' })).toBeTruthy();
+    expect(view.getByText('Places near you that take spare food.')).toBeTruthy();
+  });
+
   it('shows every place in one list, each with its kind', async () => {
     const view = await render(<DonationPointsScreen />);
     await view.findByText('Close Pantry');

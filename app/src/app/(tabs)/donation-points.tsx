@@ -337,13 +337,19 @@ export default function DonationPointsScreen() {
 
   return (
     <ScrollView
-      contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 124 }}
+      contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + 124 }}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
       style={styles.screen}
     >
       <View style={styles.header}>
+        <Text accessibilityRole="header" style={styles.title}>
+          Donation Points
+        </Text>
+
+        <Text style={styles.subtitle}>Places near you that take spare food.</Text>
+
         <Pressable
           accessibilityLabel="Change suburb"
           accessibilityRole="button"
@@ -492,10 +498,23 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
   },
+  title: {
+    color: '#172019',
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    marginTop: 5,
+    color: '#59635b',
+    fontSize: 15,
+    lineHeight: 22,
+  },
   locationLine: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginTop: 18,
   },
   locationName: {
     color: '#2f7d32',
