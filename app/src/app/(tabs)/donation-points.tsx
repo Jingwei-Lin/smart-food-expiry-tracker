@@ -668,8 +668,8 @@ const styles = StyleSheet.create({
   attribution: {
     marginTop: 10,
     paddingHorizontal: 20,
-    color: '#7b857d',
-    fontSize: 11,
+    color: '#687269',
+    fontSize: 12,
   },
   pressed: {
     opacity: 0.72,
@@ -726,6 +726,8 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   primaryButton: {
+    justifyContent: 'center',
+    minHeight: 44,
     borderRadius: 999,
     backgroundColor: '#2f7d32',
     paddingHorizontal: 18,
@@ -737,6 +739,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   secondaryButton: {
+    justifyContent: 'center',
+    minHeight: 44,
     borderWidth: 1,
     borderColor: '#2f7d32',
     borderRadius: 999,
