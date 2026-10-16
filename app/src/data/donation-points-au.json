@@ -1,5 +1,5 @@
 {
-  "fetchedAt": "2026-10-16T12:04:31.816Z",
+  "fetchedAt": "2026-10-16T13:12:44.696Z",
   "elements": [
     {
       "type": "node",
@@ -8,6 +8,7 @@
       "lon": 151.6691067,
       "tags": {
         "name": "Food 4 Life",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     },
@@ -18,6 +19,7 @@
       "lon": 150.6472729,
       "tags": {
         "name": "Harvest Food Bank",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     },
@@ -28,6 +30,7 @@
       "lon": 152.9749432,
       "tags": {
         "name": "Citipointe Church Marketplace West",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "addr:housenumber": "152",
         "addr:street": "Freeman Road",
@@ -42,6 +45,7 @@
       "lon": 152.710038,
       "tags": {
         "name": "Victory Care",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "addr:housenumber": "5",
         "addr:street": "Fazio Road"
@@ -54,6 +58,7 @@
       "lon": 149.8548453,
       "tags": {
         "name": "Lifechurch Care",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "addr:housenumber": "183",
         "addr:street": "Oberon Street",
@@ -67,6 +72,7 @@
       "lon": 153.4705489,
       "tags": {
         "name": "Vibe Care Pantry",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "addr:street": "Eighth Avenue"
       }
@@ -78,6 +84,7 @@
       "lon": 151.1777852,
       "tags": {
         "name": "Addi Road Food Pantry",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "opening_hours": "Mo-Sa 12:00-16:00; Su off"
       }
@@ -89,6 +96,7 @@
       "lon": 151.1650328,
       "tags": {
         "name": "Sydney City Lifestyle & Mission Centre",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "opening_hours": "Tu 12:00-15:30; Fr 08:30-13:30",
         "addr:housenumber": "181",
@@ -103,7 +111,22 @@
       "lon": 145.9443675,
       "tags": {
         "name": "Baw Baw Combined Churches Food Relief",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 10012567334,
+      "lat": -33.8936708,
+      "lon": 151.2639134,
+      "tags": {
+        "name": "Order of Malta Community Care Kitchen",
+        "amenity": "social_facility",
+        "social_facility": "food_sharing",
+        "opening_hours": "We 18:30-19:30",
+        "addr:housenumber": "2",
+        "addr:street": "Wellington Street"
       }
     },
     {
@@ -113,6 +136,7 @@
       "lon": 133.6732123,
       "tags": {
         "name": "Food Bank Food Hub",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     },
@@ -123,6 +147,7 @@
       "lon": 151.2473596,
       "tags": {
         "name": "Mobile Community Pantry",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     },
@@ -133,6 +158,7 @@
       "lon": 144.9632326,
       "tags": {
         "name": "Union Mart by UMSU",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     },
@@ -143,6 +169,7 @@
       "lon": 151.1214643,
       "tags": {
         "name": "Community Food Pantry",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     },
@@ -153,6 +180,7 @@
       "lon": 144.9632546,
       "tags": {
         "name": "University Food Relief Program",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     },
@@ -163,6 +191,7 @@
       "lon": 151.2261414,
       "tags": {
         "name": "St Canice’s Kitchen",
+        "amenity": "social_facility",
         "social_facility": "soup_kitchen"
       }
     },
@@ -173,6 +202,7 @@
       "lon": 153.0112048,
       "tags": {
         "name": "Brisbane Food Not Bombs",
+        "amenity": "social_facility",
         "social_facility": "soup_kitchen",
         "opening_hours": "Fr 18:30-20:00",
         "addr:housenumber": "68",
@@ -187,6 +217,7 @@
       "lon": 138.7403949,
       "tags": {
         "name": "ADRA Community Pantry Gawler",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "addr:housenumber": "22",
         "addr:street": "Twentysecond Street"
@@ -199,6 +230,7 @@
       "lon": 144.9478585,
       "tags": {
         "name": "Little Pantry & FREE Library",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "opening_hours": "24/7"
       }
@@ -210,6 +242,7 @@
       "lon": 144.2652054,
       "tags": {
         "name": "Bendigo Foodshare",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "addr:housenumber": "227",
         "addr:street": "Breen Street",
@@ -223,6 +256,7 @@
       "lon": 144.4532182,
       "tags": {
         "name": "Kyneton Food Bank Op Shop",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     },
@@ -233,6 +267,7 @@
       "lon": 148.0255203,
       "tags": {
         "name": "Cootamundra Community Kitchen",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     },
@@ -243,6 +278,7 @@
       "lon": 150.3117222,
       "tags": {
         "name": "Junction 142",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     },
@@ -253,6 +289,7 @@
       "lon": 144.9384009,
       "tags": {
         "name": "OzHarvest",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "addr:housenumber": "49",
         "addr:street": "Bertie Street",
@@ -266,6 +303,7 @@
       "lon": 147.5345404,
       "tags": {
         "name": "Food Care",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     },
@@ -276,6 +314,7 @@
       "lon": 147.6236325,
       "tags": {
         "name": "Food Coop",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     },
@@ -286,7 +325,42 @@
       "lon": 146.4154945,
       "tags": {
         "name": "Re.store Pantry",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 14267077622,
+      "lat": -35.2705927,
+      "lon": 149.1364063,
+      "tags": {
+        "name": "Braddon Street Pantry",
+        "amenity": "food_sharing"
+      }
+    },
+    {
+      "type": "node",
+      "id": 14267077623,
+      "lat": -35.2507624,
+      "lon": 149.1539497,
+      "tags": {
+        "name": "Ainslie Community Pantry",
+        "amenity": "food_sharing"
+      }
+    },
+    {
+      "type": "way",
+      "id": 266739712,
+      "lat": -38.1410168,
+      "lon": 144.3488129,
+      "tags": {
+        "name": "Onecare",
+        "amenity": "social_facility",
+        "social_facility": "food_bank;outreach",
+        "addr:housenumber": "61-67",
+        "addr:street": "Candover Street",
+        "addr:suburb": "Geelong West"
       }
     },
     {
@@ -296,6 +370,7 @@
       "lon": 152.9963207,
       "tags": {
         "name": "Caring Cuisine",
+        "amenity": "social_facility",
         "social_facility": "soup_kitchen",
         "addr:housenumber": "23",
         "addr:street": "Guilfoyle Street",
@@ -310,6 +385,7 @@
       "lon": 152.958029,
       "tags": {
         "name": "The Shack",
+        "amenity": "social_facility",
         "social_facility": "soup_kitchen"
       }
     },
@@ -320,6 +396,7 @@
       "lon": 151.1610741,
       "tags": {
         "name": "Addi Road Food Pantry",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "opening_hours": "Mo-Fr 12:00-16:00",
         "addr:housenumber": "142",
@@ -334,6 +411,7 @@
       "lon": 144.2873867,
       "tags": {
         "name": "Gravel Hill Market",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "addr:housenumber": "65-71",
         "addr:street": "Mundy Street",
@@ -347,6 +425,7 @@
       "lon": 114.6315001,
       "tags": {
         "name": "Foodbank Geraldton",
+        "amenity": "social_facility",
         "social_facility": "food_bank",
         "opening_hours": "Mo-Fr 07:30-14:00; PH off",
         "addr:housenumber": "31",
@@ -361,6 +440,7 @@
       "lon": 151.1271067,
       "tags": {
         "name": "Loaves And Fishes Restaurant",
+        "amenity": "social_facility",
         "social_facility": "soup_kitchen"
       }
     },
@@ -371,6 +451,7 @@
       "lon": 139.2470564,
       "tags": {
         "name": "Foodbank Food Hub Murraylands",
+        "amenity": "social_facility",
         "social_facility": "food_bank"
       }
     }

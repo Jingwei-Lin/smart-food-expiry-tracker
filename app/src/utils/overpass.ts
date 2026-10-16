@@ -6,10 +6,12 @@
  */
 
 /*
- * Shelters are left out: they don't take food from the public, and a refuge's
- * address shouldn't be promoted in a public app.
+ * A community pantry or fridge is where anyone can leave spare food for others
+ * to take, the closest fit for a student who can't finish something. Shelters
+ * are left out: they don't take food from the public, and a refuge's address
+ * shouldn't be promoted in a public app.
  */
-export type PointType = 'Food bank' | 'Soup kitchen';
+export type PointType = 'Food bank' | 'Soup kitchen' | 'Community pantry';
 
 export type DonationPoint = {
   id: string;
@@ -49,6 +51,7 @@ export type DonationSnapshot = {
 /* The only tags toDonationPoint and osmAddress read; the rest would just make the file bigger. */
 const SNAPSHOT_TAGS = [
   'name',
+  'amenity',
   'social_facility',
   'opening_hours',
   'addr:full',
@@ -111,8 +114,15 @@ export function osmAddress(tags: Record<string, string>): string {
   return [street, suburb].filter(Boolean).join(', ');
 }
 
-function pointType(socialFacility: string | undefined): PointType {
-  return socialFacility === 'soup_kitchen' ? 'Soup kitchen' : 'Food bank';
+function pointType(tags: Record<string, string>): PointType {
+  // A tag can hold several values separated by semicolons, e.g. "food_bank;outreach".
+  const facilities = (tags.social_facility ?? '').split(';').map((value) => value.trim());
+
+  if (tags.amenity === 'food_sharing' || facilities.includes('food_sharing')) {
+    return 'Community pantry';
+  }
+
+  return facilities.includes('soup_kitchen') ? 'Soup kitchen' : 'Food bank';
 }
 
 /**
@@ -136,7 +146,7 @@ export function toDonationPoint(
   return {
     id: `${element.type}/${element.id}`,
     name: tags.name,
-    type: pointType(tags.social_facility),
+    type: pointType(tags),
     distanceKm: distanceKm(fromLatitude, fromLongitude, latitude, longitude),
     hours: tags.opening_hours ?? 'Hours not listed',
     address: osmAddress(tags),
@@ -198,11 +208,13 @@ export function toSnapshot(elements: OverpassElement[], fetchedAt: Date): Donati
 
 /*
  * Every donation point in Australia. OpenStreetMap lists only a few dozen, so
- * the whole country stays a small file and works wherever the phone is. The
- * pattern is anchored so it matches whole values only.
+ * the whole country stays a small file and works wherever the phone is.
+ * Community pantries are tagged either way round, so both are asked for. The
+ * pattern matches one whole value in a semicolon list, so "food_bank;outreach"
+ * counts but "food_bank_volunteers" would not.
  */
 export function buildSnapshotQuery(): string {
-  return `[out:json][timeout:${SNAPSHOT_QUERY_TIMEOUT_S}];area["ISO3166-1"="AU"][admin_level=2]->.au;nwr["social_facility"~"^(food_bank|soup_kitchen)$"](area.au);out center tags;`;
+  return `[out:json][timeout:${SNAPSHOT_QUERY_TIMEOUT_S}];area["ISO3166-1"="AU"][admin_level=2]->.au;(nwr["social_facility"~"(^|;) *(food_bank|soup_kitchen|food_sharing) *(;|$)"](area.au);nwr["amenity"="food_sharing"](area.au););out center tags;`;
 }
 
 type ServerAnswer =

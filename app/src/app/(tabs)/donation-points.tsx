@@ -22,6 +22,7 @@ type IconName = keyof typeof Ionicons.glyphMap;
 const TYPE_LOOK: Record<PointType, { icon: IconName; tint: string; accent: string }> = {
   'Food bank': { icon: 'basket-outline', tint: '#e7f4e8', accent: '#2f7d32' },
   'Soup kitchen': { icon: 'restaurant-outline', tint: '#fbf0dc', accent: '#9a5b12' },
+  'Community pantry': { icon: 'file-tray-stacked-outline', tint: '#e3edf7', accent: '#2b5f8a' },
 };
 
 /* The phone's geocoder rate-limits, so only the closest places get an address looked up. */

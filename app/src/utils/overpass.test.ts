@@ -119,6 +119,33 @@ describe('toDonationPoint', () => {
     });
   });
 
+  it.each([
+    ['a community fridge tagged as an amenity', { amenity: 'food_sharing' }, 'Community pantry'],
+    [
+      'a pantry tagged as a social facility',
+      { social_facility: 'food_sharing' },
+      'Community pantry',
+    ],
+    [
+      'a food bank listed with other services',
+      { social_facility: 'food_bank;outreach' },
+      'Food bank',
+    ],
+    [
+      'a soup kitchen listed with other services',
+      { social_facility: 'outreach; soup_kitchen' },
+      'Soup kitchen',
+    ],
+  ])('maps %s', (_label, kind, type) => {
+    const point = toDonationPoint(
+      { type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'Place', ...kind } },
+      0,
+      0,
+    );
+
+    expect(point?.type).toBe(type);
+  });
+
   it('skips places without a name', () => {
     expect(toDonationPoint({ type: 'node', id: 1, lat: 0, lon: 0, tags: {} }, 0, 0)).toBeNull();
     expect(toDonationPoint({ type: 'node', id: 2, lat: 0, lon: 0 }, 0, 0)).toBeNull();
@@ -169,6 +196,7 @@ describe('toSnapshot', () => {
             opening_hours: 'Mo-Fr 09:00-17:00',
             'addr:street': 'George Street',
             amenity: 'social_facility',
+            operator: 'Pantry Inc',
             website: 'https://example.org',
           },
         },
@@ -178,6 +206,7 @@ describe('toSnapshot', () => {
 
     expect(elements[0].tags).toEqual({
       name: 'Pantry',
+      amenity: 'social_facility',
       social_facility: 'food_bank',
       opening_hours: 'Mo-Fr 09:00-17:00',
       'addr:street': 'George Street',
@@ -232,14 +261,29 @@ describe('toSnapshot', () => {
 });
 
 describe('buildSnapshotQuery', () => {
-  it('asks for whole-value matches anywhere in Australia, with a long time limit', () => {
+  it('asks for every kind of place anywhere in Australia, with a long time limit', () => {
     const query = buildSnapshotQuery();
 
     expect(query).toContain('[timeout:120]');
     expect(query).toContain('area["ISO3166-1"="AU"][admin_level=2]->.au');
-    expect(query).toContain('["social_facility"~"^(food_bank|soup_kitchen)$"](area.au)');
+    expect(query).toContain('(food_bank|soup_kitchen|food_sharing)');
+    expect(query).toContain('nwr["amenity"="food_sharing"](area.au)');
     expect(query).not.toContain('shelter');
     expect(query).not.toContain('around:');
+  });
+
+  it('matches one whole value in a semicolon list', () => {
+    const [, pattern] = /"social_facility"~"([^"]+)"/.exec(buildSnapshotQuery()) ?? [];
+    const matches = (value: string) => new RegExp(pattern).test(value);
+
+    expect(
+      ['food_bank', 'food_bank;outreach', 'outreach; soup_kitchen', 'food_sharing'].map(matches),
+    ).toEqual([true, true, true, true]);
+    expect(['food_bank_volunteers', 'shelter', 'assisted_living'].map(matches)).toEqual([
+      false,
+      false,
+      false,
+    ]);
   });
 });
 
