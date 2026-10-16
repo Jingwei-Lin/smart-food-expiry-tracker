@@ -1,0 +1,378 @@
+{
+  "fetchedAt": "2026-10-16T12:04:31.816Z",
+  "elements": [
+    {
+      "type": "node",
+      "id": 441159092,
+      "lat": -32.9009205,
+      "lon": 151.6691067,
+      "tags": {
+        "name": "Food 4 Life",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 2166361121,
+      "lat": -31.3503768,
+      "lon": 150.6472729,
+      "tags": {
+        "name": "Harvest Food Bank",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 6215231363,
+      "lat": -27.5783648,
+      "lon": 152.9749432,
+      "tags": {
+        "name": "Citipointe Church Marketplace West",
+        "social_facility": "food_bank",
+        "addr:housenumber": "152",
+        "addr:street": "Freeman Road",
+        "addr:suburb": "Durack",
+        "addr:city": "Brisbane"
+      }
+    },
+    {
+      "type": "node",
+      "id": 8285981136,
+      "lat": -25.4962468,
+      "lon": 152.710038,
+      "tags": {
+        "name": "Victory Care",
+        "social_facility": "food_bank",
+        "addr:housenumber": "5",
+        "addr:street": "Fazio Road"
+      }
+    },
+    {
+      "type": "node",
+      "id": 8850125903,
+      "lat": -33.703664,
+      "lon": 149.8548453,
+      "tags": {
+        "name": "Lifechurch Care",
+        "social_facility": "food_bank",
+        "addr:housenumber": "183",
+        "addr:street": "Oberon Street",
+        "addr:suburb": "Oberon"
+      }
+    },
+    {
+      "type": "node",
+      "id": 8973712438,
+      "lat": -28.1188601,
+      "lon": 153.4705489,
+      "tags": {
+        "name": "Vibe Care Pantry",
+        "social_facility": "food_bank",
+        "addr:street": "Eighth Avenue"
+      }
+    },
+    {
+      "type": "node",
+      "id": 9201565676,
+      "lat": -33.8849494,
+      "lon": 151.1777852,
+      "tags": {
+        "name": "Addi Road Food Pantry",
+        "social_facility": "food_bank",
+        "opening_hours": "Mo-Sa 12:00-16:00; Su off"
+      }
+    },
+    {
+      "type": "node",
+      "id": 9201565677,
+      "lat": -33.8879717,
+      "lon": 151.1650328,
+      "tags": {
+        "name": "Sydney City Lifestyle & Mission Centre",
+        "social_facility": "food_bank",
+        "opening_hours": "Tu 12:00-15:30; Fr 08:30-13:30",
+        "addr:housenumber": "181",
+        "addr:street": "Parramatta Road",
+        "addr:suburb": "Annandale"
+      }
+    },
+    {
+      "type": "node",
+      "id": 9303701544,
+      "lat": -38.1645796,
+      "lon": 145.9443675,
+      "tags": {
+        "name": "Baw Baw Combined Churches Food Relief",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 10684673396,
+      "lat": -32.1258841,
+      "lon": 133.6732123,
+      "tags": {
+        "name": "Food Bank Food Hub",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 10913609113,
+      "lat": -33.9624619,
+      "lon": 151.2473596,
+      "tags": {
+        "name": "Mobile Community Pantry",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 10980347050,
+      "lat": -37.7997278,
+      "lon": 144.9632326,
+      "tags": {
+        "name": "Union Mart by UMSU",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 11019698355,
+      "lat": -33.8912149,
+      "lon": 151.1214643,
+      "tags": {
+        "name": "Community Food Pantry",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 11578173967,
+      "lat": -37.7995957,
+      "lon": 144.9632546,
+      "tags": {
+        "name": "University Food Relief Program",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 11712134846,
+      "lat": -33.8753961,
+      "lon": 151.2261414,
+      "tags": {
+        "name": "St Canice’s Kitchen",
+        "social_facility": "soup_kitchen"
+      }
+    },
+    {
+      "type": "node",
+      "id": 12041540098,
+      "lat": -27.4807388,
+      "lon": 153.0112048,
+      "tags": {
+        "name": "Brisbane Food Not Bombs",
+        "social_facility": "soup_kitchen",
+        "opening_hours": "Fr 18:30-20:00",
+        "addr:housenumber": "68",
+        "addr:street": "Vulture Street",
+        "addr:suburb": "West End"
+      }
+    },
+    {
+      "type": "node",
+      "id": 12075414239,
+      "lat": -34.6108578,
+      "lon": 138.7403949,
+      "tags": {
+        "name": "ADRA Community Pantry Gawler",
+        "social_facility": "food_bank",
+        "addr:housenumber": "22",
+        "addr:street": "Twentysecond Street"
+      }
+    },
+    {
+      "type": "node",
+      "id": 12254806029,
+      "lat": -37.8058066,
+      "lon": 144.9478585,
+      "tags": {
+        "name": "Little Pantry & FREE Library",
+        "social_facility": "food_bank",
+        "opening_hours": "24/7"
+      }
+    },
+    {
+      "type": "node",
+      "id": 12588847801,
+      "lat": -36.7729119,
+      "lon": 144.2652054,
+      "tags": {
+        "name": "Bendigo Foodshare",
+        "social_facility": "food_bank",
+        "addr:housenumber": "227",
+        "addr:street": "Breen Street",
+        "addr:suburb": "Golden Square"
+      }
+    },
+    {
+      "type": "node",
+      "id": 13398502718,
+      "lat": -37.2503358,
+      "lon": 144.4532182,
+      "tags": {
+        "name": "Kyneton Food Bank Op Shop",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 13431725577,
+      "lat": -34.6416564,
+      "lon": 148.0255203,
+      "tags": {
+        "name": "Cootamundra Community Kitchen",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 13447478609,
+      "lat": -33.7152134,
+      "lon": 150.3117222,
+      "tags": {
+        "name": "Junction 142",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 13515946634,
+      "lat": -37.8300428,
+      "lon": 144.9384009,
+      "tags": {
+        "name": "OzHarvest",
+        "social_facility": "food_bank",
+        "addr:housenumber": "49",
+        "addr:street": "Bertie Street",
+        "addr:suburb": "Port Melbourne"
+      }
+    },
+    {
+      "type": "node",
+      "id": 13690040137,
+      "lat": -34.4482384,
+      "lon": 147.5345404,
+      "tags": {
+        "name": "Food Care",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 14018932319,
+      "lat": -42.8496864,
+      "lon": 147.6236325,
+      "tags": {
+        "name": "Food Coop",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "node",
+      "id": 14144048017,
+      "lat": -38.2237724,
+      "lon": 146.4154945,
+      "tags": {
+        "name": "Re.store Pantry",
+        "social_facility": "food_bank"
+      }
+    },
+    {
+      "type": "way",
+      "id": 523195956,
+      "lat": -27.4977201,
+      "lon": 152.9963207,
+      "tags": {
+        "name": "Caring Cuisine",
+        "social_facility": "soup_kitchen",
+        "addr:housenumber": "23",
+        "addr:street": "Guilfoyle Street",
+        "addr:suburb": "St Lucia",
+        "addr:city": "Brisbane"
+      }
+    },
+    {
+      "type": "way",
+      "id": 550192664,
+      "lat": -26.6245721,
+      "lon": 152.958029,
+      "tags": {
+        "name": "The Shack",
+        "social_facility": "soup_kitchen"
+      }
+    },
+    {
+      "type": "way",
+      "id": 608947506,
+      "lat": -33.9029283,
+      "lon": 151.1610741,
+      "tags": {
+        "name": "Addi Road Food Pantry",
+        "social_facility": "food_bank",
+        "opening_hours": "Mo-Fr 12:00-16:00",
+        "addr:housenumber": "142",
+        "addr:street": "Addison Road",
+        "addr:suburb": "Marrickville"
+      }
+    },
+    {
+      "type": "way",
+      "id": 823803841,
+      "lat": -36.760497,
+      "lon": 144.2873867,
+      "tags": {
+        "name": "Gravel Hill Market",
+        "social_facility": "food_bank",
+        "addr:housenumber": "65-71",
+        "addr:street": "Mundy Street",
+        "addr:suburb": "Bendigo"
+      }
+    },
+    {
+      "type": "way",
+      "id": 1171158488,
+      "lat": -28.7460724,
+      "lon": 114.6315001,
+      "tags": {
+        "name": "Foodbank Geraldton",
+        "social_facility": "food_bank",
+        "opening_hours": "Mo-Fr 07:30-14:00; PH off",
+        "addr:housenumber": "31",
+        "addr:street": "Webberton Road",
+        "addr:suburb": "Webberton"
+      }
+    },
+    {
+      "type": "way",
+      "id": 1186458629,
+      "lat": -33.8901552,
+      "lon": 151.1271067,
+      "tags": {
+        "name": "Loaves And Fishes Restaurant",
+        "social_facility": "soup_kitchen"
+      }
+    },
+    {
+      "type": "way",
+      "id": 1499294809,
+      "lat": -35.1303699,
+      "lon": 139.2470564,
+      "tags": {
+        "name": "Foodbank Food Hub Murraylands",
+        "social_facility": "food_bank"
+      }
+    }
+  ]
+}

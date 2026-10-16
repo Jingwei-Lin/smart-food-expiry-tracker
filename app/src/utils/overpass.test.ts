@@ -209,6 +209,28 @@ describe('toSnapshot', () => {
 
     expect(elements.map((element) => element.id)).toEqual([3]);
   });
+
+  it('drops Meals on Wheels, which delivers meals rather than taking food in', () => {
+    const place = (id: number, name: string) => ({
+      type: 'node' as const,
+      id,
+      lat: HERE.lat,
+      lon: HERE.lon,
+      tags: { name, social_facility: 'food_bank' },
+    });
+
+    const { elements } = toSnapshot(
+      [
+        place(1, 'Meals on Wheels'),
+        place(2, 'Stafford Meals On Wheels'),
+        place(3, 'Meals on Wheels Kedron'),
+        place(4, 'Addi Road Food Pantry'),
+      ],
+      fetchedAt,
+    );
+
+    expect(elements.map((element) => element.id)).toEqual([4]);
+  });
 });
 
 describe('buildQuery', () => {
@@ -401,12 +423,12 @@ describe('fetchDonationPoints', () => {
 });
 
 describe('buildSnapshotQuery', () => {
-  it('asks for whole-value matches anywhere in NSW, with a long time limit', () => {
+  it('asks for whole-value matches anywhere in Australia, with a long time limit', () => {
     const query = buildSnapshotQuery();
 
     expect(query).toContain('[timeout:120]');
-    expect(query).toContain('area["ISO3166-2"="AU-NSW"]->.nsw');
-    expect(query).toContain('["social_facility"~"^(food_bank|soup_kitchen)$"](area.nsw)');
+    expect(query).toContain('area["ISO3166-1"="AU"][admin_level=2]->.au');
+    expect(query).toContain('["social_facility"~"^(food_bank|soup_kitchen)$"](area.au)');
     expect(query).not.toContain('shelter');
     expect(query).not.toContain('around:');
   });
@@ -448,7 +470,7 @@ describe('fetchSnapshot', () => {
     });
   });
 
-  it('posts the NSW query', async () => {
+  it('posts the Australia query', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ elements: [] }));
 
     await fetchSnapshot(NOW);

@@ -168,10 +168,18 @@ export function toDonationPoints(
     .sort((a, b) => a.distanceKm - b.distanceKm);
 }
 
+/*
+ * OpenStreetMap tags many Meals on Wheels services as food banks, but they
+ * deliver meals to people at home rather than take food in from the public,
+ * so a student sent to one would find nowhere to drop food off.
+ */
+const NOT_A_DROP_OFF = /meals on wheels/i;
+
 /**
  * Cuts a response down to a snapshot. Elements a card can't show (no name or
- * no coordinates) are dropped, and a way's or relation's centre becomes its
- * coordinates, so every saved element reads like a node.
+ * no coordinates) are dropped, as are places that don't take donations, and a
+ * way's or relation's centre becomes its coordinates, so every saved element
+ * reads like a node.
  */
 export function toSnapshot(elements: OverpassElement[], fetchedAt: Date): DonationSnapshot {
   const kept: OverpassElement[] = [];
@@ -181,7 +189,7 @@ export function toSnapshot(elements: OverpassElement[], fetchedAt: Date): Donati
     const lat = element.lat ?? element.center?.lat;
     const lon = element.lon ?? element.center?.lon;
 
-    if (!tags.name || lat === undefined || lon === undefined) {
+    if (!tags.name || lat === undefined || lon === undefined || NOT_A_DROP_OFF.test(tags.name)) {
       continue;
     }
 
@@ -206,12 +214,12 @@ export function buildQuery(latitude: number, longitude: number): string {
 }
 
 /*
- * Every donation point in NSW. The suburb search only looks in NSW, so the
- * snapshot covers the same area. The pattern is anchored so it matches whole
- * values only.
+ * Every donation point in Australia. OpenStreetMap lists only a few dozen, so
+ * the whole country stays a small file and works wherever the phone is. The
+ * pattern is anchored so it matches whole values only.
  */
 export function buildSnapshotQuery(): string {
-  return `[out:json][timeout:${SNAPSHOT_QUERY_TIMEOUT_S}];area["ISO3166-2"="AU-NSW"]->.nsw;nwr["social_facility"~"^(food_bank|soup_kitchen)$"](area.nsw);out center tags;`;
+  return `[out:json][timeout:${SNAPSHOT_QUERY_TIMEOUT_S}];area["ISO3166-1"="AU"][admin_level=2]->.au;nwr["social_facility"~"^(food_bank|soup_kitchen)$"](area.au);out center tags;`;
 }
 
 type ServerAnswer =
@@ -296,7 +304,7 @@ export async function fetchDonationPoints(
 }
 
 /**
- * Downloads every donation point in NSW as a snapshot dated `now`.
+ * Downloads every donation point in Australia as a snapshot dated `now`.
  *
  * Never throws. A server that refuses, reports a runtime error or runs out of
  * time counts as busy, and the next one is tried. If none of them answers,
