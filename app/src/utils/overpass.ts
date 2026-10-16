@@ -164,7 +164,16 @@ async function askServer(
       return { outcome: 'busy' };
     }
 
-    const body = (await response.json()) as { elements?: OverpassElement[] };
+    const body = (await response.json()) as { elements?: OverpassElement[]; remark?: string };
+
+    /*
+     * A query that runs out of time or memory on the server still comes back
+     * as a 200, with no elements or only some of them and a remark saying so.
+     * Showing that as the result would tell the student nothing is nearby.
+     */
+    if (body.remark?.startsWith('runtime error')) {
+      return { outcome: 'busy' };
+    }
 
     return { outcome: 'found', points: toDonationPoints(body.elements ?? [], latitude, longitude) };
   } catch {
@@ -178,10 +187,11 @@ async function askServer(
  * Asks OpenStreetMap for donation points around a place, closest first.
  *
  * Never throws. When a server is overloaded or refuses the app it answers 406,
- * 429 or 504 with an HTML page, and the next server is tried. A server that
- * runs out of time ends the search, so the student isn't left waiting for a
- * second slow answer. Either way the result is `busy`. With no signal, or an
- * unreadable answer from every server, it is `unavailable`.
+ * 429 or 504 with an HTML page, or a 200 whose remark reports a runtime error,
+ * and the next server is tried. A server that runs out of time ends the
+ * search, so the student isn't left waiting for a second slow answer. Either
+ * way the result is `busy`. With no signal, or an unreadable answer from every
+ * server, it is `unavailable`.
  */
 export async function fetchDonationPoints(
   latitude: number,

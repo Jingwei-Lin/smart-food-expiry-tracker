@@ -252,6 +252,49 @@ describe('fetchDonationPoints', () => {
     });
   });
 
+  describe('a 200 that reports a runtime error', () => {
+    const timedOut = 'runtime error: Query timed out in "query" at line 1 after 91 seconds.';
+    const pantry = { type: 'node', id: 1, lat: HERE.lat, lon: HERE.lon, tags: { name: 'Pantry' } };
+
+    it('tries the backup server instead of saying nothing is nearby', async () => {
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse({ elements: [], remark: timedOut }))
+        .mockResolvedValueOnce(jsonResponse({ elements: [pantry] }));
+
+      const result = await fetchDonationPoints(HERE.lat, HERE.lon);
+
+      expect(result.outcome === 'found' && result.points.map((point) => point.name)).toEqual([
+        'Pantry',
+      ]);
+      expect(fetchMock).toHaveBeenCalledTimes(OVERPASS_SERVERS.length);
+    });
+
+    it('reports busy when every server reports one', async () => {
+      fetchMock.mockResolvedValue(jsonResponse({ elements: [], remark: timedOut }));
+
+      await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({ outcome: 'busy' });
+    });
+
+    it('does not show the partial list that came with it', async () => {
+      fetchMock.mockResolvedValue(jsonResponse({ elements: [pantry], remark: timedOut }));
+
+      await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({ outcome: 'busy' });
+    });
+  });
+
+  it('keeps the points when the remark is not a runtime error', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        elements: [{ type: 'node', id: 1, lat: HERE.lat, lon: HERE.lon, tags: { name: 'Pantry' } }],
+        remark: 'Note: the data is from an older snapshot.',
+      }),
+    );
+
+    const result = await fetchDonationPoints(HERE.lat, HERE.lon);
+
+    expect(result.outcome === 'found' && result.points).toHaveLength(1);
+  });
+
   it('gives up after 95 seconds, reports busy and does not try another server', async () => {
     jest.useFakeTimers();
     fetchMock.mockImplementation(
