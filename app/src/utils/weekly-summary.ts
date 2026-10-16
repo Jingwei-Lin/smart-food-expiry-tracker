@@ -23,8 +23,7 @@ export function getStartOfWeek(date: Date): Date {
 /**
  * Counts what happened to food in this week, last week and the week before.
  *
- * Active items have not been resolved, so they are not outcomes. Nothing counts
- * as donated yet because the data model has no donated status.
+ * Active items have not been resolved, so they are not outcomes.
  */
 export function getWeeklyData(items: FoodItem[], now: Date): WeeklyData[] {
   const currentWeekStart = getStartOfWeek(now);
@@ -60,6 +59,8 @@ export function getWeeklyData(items: FoodItem[], now: Date): WeeklyData[] {
 
     if (item.status === 'eaten') {
       weeks[weekIndex].eaten += 1;
+    } else if (item.status === 'donated') {
+      weeks[weekIndex].donated += 1;
     } else if (item.status === 'discarded') {
       weeks[weekIndex].discarded += 1;
     }

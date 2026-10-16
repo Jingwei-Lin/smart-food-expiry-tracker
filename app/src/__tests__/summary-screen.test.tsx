@@ -65,11 +65,12 @@ beforeEach(async () => {
 });
 
 describe('WeeklySummaryScreen', () => {
-  it('counts eaten and thrown-out food from the inventory', async () => {
+  it('counts eaten, donated and thrown-out food from the inventory', async () => {
     const now = Date.now();
     const view = await renderScreen([
       buildItem('apple', { status: 'eaten', statusUpdatedAt: new Date(now).toISOString() }),
       buildItem('bread', { status: 'discarded', statusUpdatedAt: new Date(now).toISOString() }),
+      buildItem('pasta', { status: 'donated', statusUpdatedAt: new Date(now).toISOString() }),
       buildItem('rice', {
         status: 'eaten',
         statusUpdatedAt: new Date(now - 7 * DAY).toISOString(),
@@ -77,10 +78,11 @@ describe('WeeklySummaryScreen', () => {
       buildItem('milk'),
     ]);
 
-    /* Eaten, thrown out and eaten again, in this week, this week and last week. */
+    /* Eaten, thrown out and donated this week, and eaten last week. */
     expect(view.getByText('Last week')).toBeTruthy();
-    expect(view.getAllByText('1')).toHaveLength(3);
-    expect(view.getByText(/Donation tracking is not available yet/)).toBeTruthy();
+    expect(view.getAllByText('1')).toHaveLength(4);
+    expect(view.getByText(/marked as eaten, donated or thrown out/)).toBeTruthy();
+    expect(view.queryByText(/not available yet/)).toBeNull();
   });
 
   it('scrolls, with room under the tab bar, so small screens can reach the last week', async () => {
