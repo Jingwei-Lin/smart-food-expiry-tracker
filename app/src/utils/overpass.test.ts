@@ -4,6 +4,7 @@ import {
   buildSnapshotQuery,
   distanceKm,
   fetchSnapshot,
+  formatOpeningHours,
   osmAddress,
   toDonationPoint,
   toDonationPoints,
@@ -70,6 +71,27 @@ describe('osmAddress', () => {
   });
 });
 
+describe('formatOpeningHours', () => {
+  it.each([
+    ['Mo-Sa 12:00-16:00; Su off', 'Mon-Sat 12:00-16:00, Sun closed'],
+    ['Tu 12:00-15:30; Fr 08:30-13:30', 'Tue 12:00-15:30, Fri 08:30-13:30'],
+    ['We,Th 18:30-19:30', 'Wed,Thu 18:30-19:30'],
+    ['Mo-Fr 07:30-14:00; PH off', 'Mon-Fri 07:30-14:00, closed on public holidays'],
+    ['24/7', 'Open 24 hours'],
+  ])('spells out "%s"', (raw, readable) => {
+    expect(formatOpeningHours(raw)).toBe(readable);
+  });
+
+  it('leaves what it does not recognise as written', () => {
+    expect(formatOpeningHours('by appointment')).toBe('by appointment');
+    expect(formatOpeningHours('Mo 09:00-12:00 "call first"')).toBe('Mon 09:00-12:00 "call first"');
+  });
+
+  it('does not touch letters inside other words', () => {
+    expect(formatOpeningHours('Summer Sa 10:00-12:00')).toBe('Summer Sat 10:00-12:00');
+  });
+});
+
 describe('toDonationPoint', () => {
   it('maps a node', () => {
     const element: OverpassElement = {
@@ -90,7 +112,7 @@ describe('toDonationPoint', () => {
       name: 'Newtown Pantry',
       type: 'Food bank',
       distanceKm: 0,
-      hours: 'Mo-Fr 09:00-17:00',
+      hours: 'Mon-Fri 09:00-17:00',
       address: 'King St',
       latitude: HERE.lat,
       longitude: HERE.lon,

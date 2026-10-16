@@ -114,6 +114,43 @@ export function osmAddress(tags: Record<string, string>): string {
   return [street, suburb].filter(Boolean).join(', ');
 }
 
+const DAY_NAMES: Record<string, string> = {
+  Mo: 'Mon',
+  Tu: 'Tue',
+  We: 'Wed',
+  Th: 'Thu',
+  Fr: 'Fri',
+  Sa: 'Sat',
+  Su: 'Sun',
+};
+
+/*
+ * OpenStreetMap writes opening hours in a compact code ("Mo-Sa 12:00-16:00;
+ * Su off"). Spells out the days and the common phrases so a student can read
+ * it at a glance; anything else is left as written rather than guessed at.
+ */
+export function formatOpeningHours(raw: string): string {
+  const rules = raw
+    .split(';')
+    .map((rule) => rule.trim())
+    .filter(Boolean)
+    .map((rule) => {
+      if (rule === '24/7') {
+        return 'Open 24 hours';
+      }
+
+      if (/^PH (off|closed)$/.test(rule)) {
+        return 'closed on public holidays';
+      }
+
+      return rule
+        .replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su)\b/g, (day) => DAY_NAMES[day])
+        .replace(/ off$/, ' closed');
+    });
+
+  return rules.join(', ');
+}
+
 function pointType(tags: Record<string, string>): PointType {
   // A tag can hold several values separated by semicolons, e.g. "food_bank;outreach".
   const facilities = (tags.social_facility ?? '').split(';').map((value) => value.trim());
@@ -148,7 +185,7 @@ export function toDonationPoint(
     name: tags.name,
     type: pointType(tags),
     distanceKm: distanceKm(fromLatitude, fromLongitude, latitude, longitude),
-    hours: tags.opening_hours ?? 'Hours not listed',
+    hours: tags.opening_hours ? formatOpeningHours(tags.opening_hours) : 'Hours not listed',
     address: osmAddress(tags),
     latitude,
     longitude,
