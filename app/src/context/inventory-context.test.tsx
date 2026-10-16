@@ -127,6 +127,17 @@ describe('reading the stored inventory', () => {
     expect(result.current.items[0].name).toBe('Cheddar');
   });
 
+  it('loads an item that was donated', async () => {
+    await storeItems([
+      buildStoredItem({ status: 'donated', statusUpdatedAt: '2026-10-16T09:00:00.000Z' }),
+    ]);
+
+    const { result } = await renderInventory();
+
+    expect(result.current.items[0].status).toBe('donated');
+    expect(result.current.activeItems).toEqual([]);
+  });
+
   it('drops records that are missing fields rather than failing the whole load', async () => {
     await storeItems([buildStoredItem(), { id: 'broken' } as FoodItem]);
 
@@ -486,7 +497,7 @@ describe('deleting an item', () => {
 });
 
 describe('resolving an item', () => {
-  it.each([['eaten'], ['discarded']] as const)(
+  it.each([['eaten'], ['discarded'], ['donated']] as const)(
     'records that it was %s, with the date it happened',
     async (status) => {
       const { result } = await renderInventory();

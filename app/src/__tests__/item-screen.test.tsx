@@ -74,6 +74,7 @@ describe('ItemDetailScreen', () => {
   it.each([
     ['Mark as eaten', 'eaten'],
     ['Mark as thrown out', 'discarded'],
+    ['Mark as donated', 'donated'],
   ])('records "%s" with the time, which the weekly summary counts by', async (label, status) => {
     const view = await renderScreen(buildMilk());
     const before = Date.now();

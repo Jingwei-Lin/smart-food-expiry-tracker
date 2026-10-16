@@ -14,10 +14,11 @@ type IconName = ComponentProps<typeof Ionicons>['name'];
 const resolvedStatusLabels: Record<ResolvedFoodItemStatus, string> = {
   eaten: 'Eaten',
   discarded: 'Thrown out',
+  donated: 'Donated',
 };
 
 /**
- * Formats the moment an item was eaten or thrown out.
+ * Formats the moment an item was eaten, thrown out or donated.
  */
 function formatResolvedDate(value: string | undefined): string | null {
   if (!value) {
@@ -278,6 +279,15 @@ export default function ItemDetailScreen() {
                   isDisabled={areActionsDisabled}
                   label="Mark as thrown out"
                   onPress={() => handleResolve('discarded')}
+                />
+
+                <View style={styles.divider} />
+
+                <ActionButton
+                  icon="heart-outline"
+                  isDisabled={areActionsDisabled}
+                  label="Mark as donated"
+                  onPress={() => handleResolve('donated')}
                 />
 
                 <View style={styles.divider} />
