@@ -12,13 +12,9 @@ import {
   View,
 } from 'react-native';
 
-import {
-  type DonationPoint,
-  type DonationPointsResult,
-  type PointType,
-  SEARCH_RADIUS_KM,
-  fetchDonationPoints,
-} from '@/utils/overpass';
+import bundledSnapshot from '@/data/donation-points-au.json';
+import { parseSnapshot, pointsNear } from '@/utils/donation-snapshot';
+import { type DonationPoint, type PointType, SEARCH_RADIUS_KM } from '@/utils/overpass';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -35,6 +31,25 @@ const CARD_GAP = 14;
 const ADDRESS_LOOKUPS = 10;
 const ADDRESS_PENDING = 'Looking up address…';
 const ADDRESS_MISSING = 'Address not listed';
+
+/*
+ * The donation points ship with the app (npm run snapshot:donation-points
+ * refreshes them), because the public OpenStreetMap servers can keep a
+ * request waiting for half a minute. Null only if the bundled file is broken.
+ */
+const SNAPSHOT = parseSnapshot(bundledSnapshot);
+
+const DATA_DATE = SNAPSHOT
+  ? new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }).format(
+      new Date(SNAPSHOT.fetchedAt),
+    )
+  : null;
+
+/*
+ * A position from the last few minutes is close enough for a 10 km list and
+ * comes back at once, where a fresh fix can take several seconds indoors.
+ */
+const RECENT_POSITION_MS = 10 * 60 * 1000;
 
 function initials(name: string): string {
   return name
@@ -105,8 +120,10 @@ async function lookUpAddress(latitude: number, longitude: number): Promise<strin
 }
 
 /**
- * Donation points tab: food banks and soup kitchens from OpenStreetMap within
- * 10 km of the phone, or of a suburb the student types in.
+ * Donation points tab: food banks and soup kitchens from the bundled
+ * OpenStreetMap list within 10 km of the phone, or of a suburb the student
+ * types in. Nothing is downloaded, so the list shows as soon as the location
+ * is known, and the location never leaves the phone.
  *
  * Search narrows the list by name, kind of place or address. Only the newest
  * load is shown, so a slow GPS load can't overwrite a suburb search made while
@@ -177,18 +194,14 @@ export default function DonationPointsScreen() {
     }
   }
 
-  function handleResult(result: DonationPointsResult, isCurrent: () => boolean, near: string) {
-    if (!isCurrent()) {
+  /** Lists the bundled donation points within reach of a place. */
+  function showPointsNear(latitude: number, longitude: number, isCurrent: () => boolean) {
+    if (!SNAPSHOT) {
+      fail("The list of donation points couldn't be read. Please update the app.");
       return;
     }
 
-    if (result.outcome === 'busy') {
-      fail('OpenStreetMap is busy right now. Wait a moment, then try again.');
-    } else if (result.outcome === 'unavailable') {
-      fail(`Couldn't load donation points ${near}. Check your connection and try again.`);
-    } else {
-      void showPoints(result.points, isCurrent);
-    }
+    void showPoints(pointsNear(SNAPSHOT, latitude, longitude, SEARCH_RADIUS_KM), isCurrent);
   }
 
   async function loadNearPhone() {
@@ -215,21 +228,25 @@ export default function DonationPointsScreen() {
         return;
       }
 
-      const current = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const { latitude, longitude } = current.coords;
+      const position =
+        (await Location.getLastKnownPositionAsync({ maxAge: RECENT_POSITION_MS })) ??
+        (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
+      const { latitude, longitude } = position.coords;
 
-      // The header can do without a suburb name, so a failed lookup is ignored.
-      try {
-        const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (!isCurrent()) {
+        return;
+      }
 
-        if (place && isCurrent()) {
-          setPlaceName([place.city, place.region].filter(Boolean).join(', '));
-        }
-      } catch {}
+      // The header can do without a suburb name, so it doesn't hold up the list.
+      Location.reverseGeocodeAsync({ latitude, longitude })
+        .then(([place]) => {
+          if (place && isCurrent()) {
+            setPlaceName([place.city, place.region].filter(Boolean).join(', '));
+          }
+        })
+        .catch(() => undefined);
 
-      handleResult(await fetchDonationPoints(latitude, longitude), isCurrent, 'near you');
+      showPointsNear(latitude, longitude, isCurrent);
     } catch {
       if (isCurrent()) {
         fail("Couldn't find where you are. Try again, or search a suburb instead.");
@@ -252,24 +269,20 @@ export default function DonationPointsScreen() {
     const isCurrent = startRequest();
 
     try {
-      // Suburb names repeat across states (there is a Newtown in NSW, Victoria and
-      // Tasmania), so the search stays in NSW, where the app's students are.
-      const [place] = await Location.geocodeAsync(`${suburb}, NSW, Australia`);
+      // Suburb names repeat across states (there is a Newtown in NSW, Victoria
+      // and Tasmania), so the box asks for the state as well.
+      const [place] = await Location.geocodeAsync(`${suburb}, Australia`);
 
       if (!isCurrent()) {
         return;
       }
 
       if (!place) {
-        fail(`Couldn't find "${suburb}". Check the spelling and try again.`);
+        fail(`Couldn't find "${suburb}". Check the spelling, add the state, and try again.`);
         return;
       }
 
-      handleResult(
-        await fetchDonationPoints(place.latitude, place.longitude),
-        isCurrent,
-        `near "${suburb}"`,
-      );
+      showPointsNear(place.latitude, place.longitude, isCurrent);
     } catch {
       if (isCurrent()) {
         fail(`Couldn't look up "${suburb}". Check your connection and try again.`);
@@ -369,7 +382,7 @@ export default function DonationPointsScreen() {
               autoFocus
               onChangeText={setSuburbQuery}
               onSubmitEditing={() => searchSuburb(suburbQuery)}
-              placeholder="Enter a suburb, e.g. Newtown"
+              placeholder="Enter a suburb and state, e.g. Newtown NSW"
               placeholderTextColor="#7b857d"
               returnKeyType="search"
               style={styles.searchInput}
@@ -406,10 +419,6 @@ export default function DonationPointsScreen() {
       </View>
 
       {renderSection(searchedSuburb ? `Closest to ${placeName}` : 'Closest to you', matches)}
-
-      {points.length > 0 ? (
-        <Text style={styles.attribution}>Data © OpenStreetMap contributors</Text>
-      ) : null}
 
       {isLoading ? <ActivityIndicator color="#2f7d32" size="large" style={styles.spinner} /> : null}
 
@@ -462,6 +471,10 @@ export default function DonationPointsScreen() {
             </>
           )}
         </View>
+      ) : null}
+
+      {!isLoading && !error && DATA_DATE ? (
+        <Text style={styles.attribution}>Data © OpenStreetMap contributors, as of {DATA_DATE}</Text>
       ) : null}
     </ScrollView>
   );

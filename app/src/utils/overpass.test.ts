@@ -1,10 +1,8 @@
 import {
   type OverpassElement,
   OVERPASS_SERVERS,
-  buildQuery,
   buildSnapshotQuery,
   distanceKm,
-  fetchDonationPoints,
   fetchSnapshot,
   osmAddress,
   toDonationPoint,
@@ -233,195 +231,6 @@ describe('toSnapshot', () => {
   });
 });
 
-describe('buildQuery', () => {
-  it('asks Overpass to time out and searches 10 km around the place', () => {
-    const query = buildQuery(-33.87, 151.2);
-
-    expect(query).toContain('[timeout:90]');
-    expect(query).toContain('(around:10000,-33.87,151.2)');
-    expect(query).not.toContain('shelter');
-  });
-});
-
-describe('fetchDonationPoints', () => {
-  const realFetch = globalThis.fetch;
-  let fetchMock: jest.Mock;
-
-  beforeEach(() => {
-    fetchMock = jest.fn();
-    globalThis.fetch = fetchMock;
-  });
-
-  afterEach(() => {
-    globalThis.fetch = realFetch;
-    jest.useRealTimers();
-  });
-
-  it('returns the points, closest first', async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse({
-        elements: [
-          { type: 'node', id: 1, lat: -33.95, lon: 151.2, tags: { name: 'Far' } },
-          { type: 'node', id: 2, lat: -33.875, lon: 151.2, tags: { name: 'Near' } },
-        ],
-      }),
-    );
-
-    const result = await fetchDonationPoints(HERE.lat, HERE.lon);
-
-    expect(result.outcome).toBe('found');
-    expect(result.outcome === 'found' && result.points.map((point) => point.name)).toEqual([
-      'Near',
-      'Far',
-    ]);
-  });
-
-  it('posts the query and names the app in the User-Agent', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ elements: [] }));
-
-    await fetchDonationPoints(HERE.lat, HERE.lon);
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const headers = init.headers as Record<string, string>;
-
-    expect(url).toBe('https://overpass-api.de/api/interpreter');
-    expect(init.method).toBe('POST');
-    expect(headers['User-Agent']).toMatch(/^SmartFoodExpiryTracker\//);
-    expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded');
-    expect(decodeURIComponent(String(init.body))).toContain('data=[out:json][timeout:90]');
-  });
-
-  it('reports busy when Overpass refuses the client (406)', async () => {
-    fetchMock.mockResolvedValue(htmlResponse(406));
-
-    await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({ outcome: 'busy' });
-  });
-
-  it('returns an empty list when nothing is nearby', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ elements: [] }));
-
-    await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({
-      outcome: 'found',
-      points: [],
-    });
-  });
-
-  it.each([429, 504])('reports busy for a %i HTML page', async (status) => {
-    fetchMock.mockResolvedValue(htmlResponse(status));
-
-    await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({ outcome: 'busy' });
-  });
-
-  it('reports unavailable with no connection', async () => {
-    fetchMock.mockRejectedValue(new TypeError('Network request failed'));
-
-    await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({
-      outcome: 'unavailable',
-    });
-  });
-
-  it('reports unavailable for a 200 that is not JSON', async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => JSON.parse('<html></html>'),
-    } as Response);
-
-    await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({
-      outcome: 'unavailable',
-    });
-  });
-
-  describe('a 200 that reports a runtime error', () => {
-    const timedOut = 'runtime error: Query timed out in "query" at line 1 after 91 seconds.';
-    const pantry = { type: 'node', id: 1, lat: HERE.lat, lon: HERE.lon, tags: { name: 'Pantry' } };
-
-    it('tries the backup server instead of saying nothing is nearby', async () => {
-      fetchMock
-        .mockResolvedValueOnce(jsonResponse({ elements: [], remark: timedOut }))
-        .mockResolvedValueOnce(jsonResponse({ elements: [pantry] }));
-
-      const result = await fetchDonationPoints(HERE.lat, HERE.lon);
-
-      expect(result.outcome === 'found' && result.points.map((point) => point.name)).toEqual([
-        'Pantry',
-      ]);
-      expect(fetchMock).toHaveBeenCalledTimes(OVERPASS_SERVERS.length);
-    });
-
-    it('reports busy when every server reports one', async () => {
-      fetchMock.mockResolvedValue(jsonResponse({ elements: [], remark: timedOut }));
-
-      await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({ outcome: 'busy' });
-    });
-
-    it('does not show the partial list that came with it', async () => {
-      fetchMock.mockResolvedValue(jsonResponse({ elements: [pantry], remark: timedOut }));
-
-      await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({ outcome: 'busy' });
-    });
-  });
-
-  it('keeps the points when the remark is not a runtime error', async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse({
-        elements: [{ type: 'node', id: 1, lat: HERE.lat, lon: HERE.lon, tags: { name: 'Pantry' } }],
-        remark: 'Note: the data is from an older snapshot.',
-      }),
-    );
-
-    const result = await fetchDonationPoints(HERE.lat, HERE.lon);
-
-    expect(result.outcome === 'found' && result.points).toHaveLength(1);
-  });
-
-  it('gives up after 95 seconds, reports busy and does not try another server', async () => {
-    jest.useFakeTimers();
-    fetchMock.mockImplementation(
-      (_url: string, init: RequestInit) =>
-        new Promise((_resolve, reject) => {
-          init.signal?.addEventListener('abort', () => reject(new Error('Aborted')));
-        }),
-    );
-
-    const pending = fetchDonationPoints(HERE.lat, HERE.lon);
-    jest.advanceTimersByTime(95000);
-
-    await expect(pending).resolves.toEqual({ outcome: 'busy' });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-
-  it('tries the backup server when the main one refuses', async () => {
-    fetchMock.mockResolvedValueOnce(htmlResponse(406)).mockResolvedValueOnce(
-      jsonResponse({
-        elements: [{ type: 'node', id: 1, lat: HERE.lat, lon: HERE.lon, tags: { name: 'Pantry' } }],
-      }),
-    );
-
-    const result = await fetchDonationPoints(HERE.lat, HERE.lon);
-
-    expect(result.outcome === 'found' && result.points.map((point) => point.name)).toEqual([
-      'Pantry',
-    ]);
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(OVERPASS_SERVERS);
-  });
-
-  it('reports busy when every server refuses', async () => {
-    fetchMock.mockResolvedValueOnce(htmlResponse(429)).mockResolvedValueOnce(htmlResponse(504));
-
-    await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({ outcome: 'busy' });
-    expect(fetchMock).toHaveBeenCalledTimes(OVERPASS_SERVERS.length);
-  });
-
-  it('does not ask the backup server once the main one has answered', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ elements: [] }));
-
-    await fetchDonationPoints(HERE.lat, HERE.lon);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-});
-
 describe('buildSnapshotQuery', () => {
   it('asks for whole-value matches anywhere in Australia, with a long time limit', () => {
     const query = buildSnapshotQuery();
@@ -470,20 +279,32 @@ describe('fetchSnapshot', () => {
     });
   });
 
-  it('posts the Australia query', async () => {
+  it('posts the Australia query and names the app in the User-Agent', async () => {
     fetchMock.mockResolvedValue(jsonResponse({ elements: [] }));
 
     await fetchSnapshot(NOW);
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = init.headers as Record<string, string>;
 
     expect(url).toBe(OVERPASS_SERVERS[0]);
     expect(init.method).toBe('POST');
+    expect(headers['User-Agent']).toMatch(/^SmartFoodExpiryTracker\//);
+    expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded');
     expect(decodeURIComponent(String(init.body))).toBe(`data=${buildSnapshotQuery()}`);
   });
 
+  it('does not ask the backup server once the main one has answered', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ elements: [] }));
+
+    await fetchSnapshot(NOW);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it.each([
-    ['refuses', () => htmlResponse(429)],
+    ['refuses the client (406)', () => htmlResponse(406)],
+    ['is too busy (429)', () => htmlResponse(429)],
     ['reports a runtime error', () => jsonResponse({ elements: [], remark: timedOut })],
   ])('tries the backup server when the main one %s', async (_label, mainAnswer) => {
     fetchMock
@@ -535,5 +356,31 @@ describe('fetchSnapshot', () => {
     fetchMock.mockRejectedValue(new TypeError('Network request failed'));
 
     await expect(fetchSnapshot(NOW)).resolves.toEqual({ outcome: 'unavailable' });
+  });
+
+  it('reports unavailable for a 200 that is not JSON', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => JSON.parse('<html></html>'),
+    } as Response);
+
+    await expect(fetchSnapshot(NOW)).resolves.toEqual({ outcome: 'unavailable' });
+  });
+
+  it('never keeps the partial list that comes with a runtime error', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ elements: [pantry], remark: timedOut }));
+
+    await expect(fetchSnapshot(NOW)).resolves.toEqual({ outcome: 'busy' });
+  });
+
+  it('keeps the places when the remark is not a runtime error', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ elements: [pantry], remark: 'Note: the data is from an older snapshot.' }),
+    );
+
+    const result = await fetchSnapshot(NOW);
+
+    expect(result.outcome === 'found' && result.snapshot.elements).toHaveLength(1);
   });
 });

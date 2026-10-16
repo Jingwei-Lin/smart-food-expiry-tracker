@@ -36,9 +36,6 @@ export type OverpassElement = {
   tags?: Record<string, string>;
 };
 
-export type DonationPointsResult =
-  { outcome: 'found'; points: DonationPoint[] } | { outcome: 'busy' } | { outcome: 'unavailable' };
-
 /**
  * Donation points saved for use without a network: the elements of one
  * Overpass response, cut down to what a card shows.
@@ -79,18 +76,10 @@ const USER_AGENT = 'SmartFoodExpiryTracker/1.0 (COMP5216-2026-GP-23 student proj
 export const SEARCH_RADIUS_KM = 10;
 
 /*
- * An overloaded server can take over a minute to answer, so the query allows
- * 90 s ([timeout:90]) and the phone waits a little longer for that answer.
- */
-const QUERY_TIMEOUT_S = 90;
-const REQUEST_TIMEOUT_MS = 95000;
-
-/*
- * The snapshot is a download the student asked for and keeps using the screen
- * through, so it can wait longer than a search would. When a server has kept
- * the phone waiting for its full limit it counts as busy and the next server
- * is tried. The query's own limit is shorter, so a slow server usually says
- * it gave up before the phone does.
+ * The snapshot is downloaded by a developer's script, not while a student
+ * waits, so a slow server can be given a long time. One that uses up its full
+ * limit counts as busy and the next server is tried. The query's own limit is
+ * shorter, so a slow server usually says it gave up before the script does.
  */
 const SNAPSHOT_QUERY_TIMEOUT_S = 120;
 const SNAPSHOT_REQUEST_TIMEOUT_MS = 130000;
@@ -207,12 +196,6 @@ export function toSnapshot(elements: OverpassElement[], fetchedAt: Date): Donati
   return { fetchedAt: fetchedAt.toISOString(), elements: kept };
 }
 
-export function buildQuery(latitude: number, longitude: number): string {
-  const radiusM = SEARCH_RADIUS_KM * 1000;
-
-  return `[out:json][timeout:${QUERY_TIMEOUT_S}];nwr["social_facility"~"food_bank|soup_kitchen"](around:${radiusM},${latitude},${longitude});out center tags;`;
-}
-
 /*
  * Every donation point in Australia. OpenStreetMap lists only a few dozen, so
  * the whole country stays a small file and works wherever the phone is. The
@@ -225,10 +208,9 @@ export function buildSnapshotQuery(): string {
 type ServerAnswer =
   | { outcome: 'found'; elements: OverpassElement[] }
   | { outcome: 'busy' }
-  | { outcome: 'timed-out' }
   | { outcome: 'unavailable' };
 
-/** Sends one query to one Overpass server. */
+/** Sends one query to one Overpass server. Running out of time counts as busy. */
 async function askServer(server: string, query: string, timeoutMs: number): Promise<ServerAnswer> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -254,7 +236,7 @@ async function askServer(server: string, query: string, timeoutMs: number): Prom
     /*
      * A query that runs out of time or memory on the server still comes back
      * as a 200, with no elements or only some of them and a remark saying so.
-     * Showing that as the result would tell the student nothing is nearby.
+     * Saving that would ship an empty or partial list.
      */
     if (body.remark?.startsWith('runtime error')) {
       return { outcome: 'busy' };
@@ -262,54 +244,19 @@ async function askServer(server: string, query: string, timeoutMs: number): Prom
 
     return { outcome: 'found', elements: body.elements ?? [] };
   } catch {
-    return controller.signal.aborted ? { outcome: 'timed-out' } : { outcome: 'unavailable' };
+    return controller.signal.aborted ? { outcome: 'busy' } : { outcome: 'unavailable' };
   } finally {
     clearTimeout(timeout);
   }
 }
 
 /**
- * Asks OpenStreetMap for donation points around a place, closest first.
- *
- * Never throws. When a server is overloaded or refuses the app it answers 406,
- * 429 or 504 with an HTML page, or a 200 whose remark reports a runtime error,
- * and the next server is tried. A server that runs out of time ends the
- * search, so the student isn't left waiting for a second slow answer. Either
- * way the result is `busy`. With no signal, or an unreadable answer from every
- * server, it is `unavailable`.
- */
-export async function fetchDonationPoints(
-  latitude: number,
-  longitude: number,
-): Promise<DonationPointsResult> {
-  let anyBusy = false;
-
-  for (const server of OVERPASS_SERVERS) {
-    const answer = await askServer(server, buildQuery(latitude, longitude), REQUEST_TIMEOUT_MS);
-
-    if (answer.outcome === 'found') {
-      return { outcome: 'found', points: toDonationPoints(answer.elements, latitude, longitude) };
-    }
-
-    if (answer.outcome === 'timed-out') {
-      return { outcome: 'busy' };
-    }
-
-    if (answer.outcome === 'busy') {
-      anyBusy = true;
-    }
-  }
-
-  return anyBusy ? { outcome: 'busy' } : { outcome: 'unavailable' };
-}
-
-/**
  * Downloads every donation point in Australia as a snapshot dated `now`.
  *
- * Never throws. A server that refuses, reports a runtime error or runs out of
- * time counts as busy, and the next one is tried. If none of them answers,
- * the result is `busy`. With no signal, or an unreadable answer from every
- * server, it is `unavailable`.
+ * Never throws. A server that refuses (406, 429 or 504 with an HTML page),
+ * reports a runtime error or runs out of time counts as busy, and the next one
+ * is tried. If none of them answers, the result is `busy`. With no signal, or
+ * an unreadable answer from every server, it is `unavailable`.
  */
 export async function fetchSnapshot(now = new Date()): Promise<SnapshotResult> {
   let anyBusy = false;
@@ -321,7 +268,7 @@ export async function fetchSnapshot(now = new Date()): Promise<SnapshotResult> {
       return { outcome: 'found', snapshot: toSnapshot(answer.elements, now) };
     }
 
-    if (answer.outcome !== 'unavailable') {
+    if (answer.outcome === 'busy') {
       anyBusy = true;
     }
   }

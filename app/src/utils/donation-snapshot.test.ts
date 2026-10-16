@@ -1,4 +1,4 @@
-import { newerSnapshot, parseSnapshot, pointsNear } from '@/utils/donation-snapshot';
+import { parseSnapshot, pointsNear } from '@/utils/donation-snapshot';
 import { type DonationSnapshot } from '@/utils/overpass';
 
 /* Sydney Town Hall, used as "where the phone is". */
@@ -61,24 +61,6 @@ describe('parseSnapshot', () => {
     });
 
     expect(parsed?.elements[0].tags).toEqual({ name: 'Pantry' });
-  });
-});
-
-describe('newerSnapshot', () => {
-  const bundled = snapshot('2026-10-16T09:00:00.000Z');
-
-  it('uses a saved update that is newer than the bundled data', () => {
-    const saved = snapshot('2026-11-01T09:00:00.000Z');
-
-    expect(newerSnapshot(bundled, saved)).toBe(saved);
-  });
-
-  it('keeps the bundled data when the saved update is older', () => {
-    expect(newerSnapshot(bundled, snapshot('2026-10-01T09:00:00.000Z'))).toBe(bundled);
-  });
-
-  it('keeps the bundled data when nothing was saved', () => {
-    expect(newerSnapshot(bundled, null)).toBe(bundled);
   });
 });
 

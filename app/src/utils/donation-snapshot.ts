@@ -46,9 +46,9 @@ function parseElement(value: unknown): OverpassElement | null {
 }
 
 /**
- * Reads a saved or bundled snapshot back. Returns null when it has no usable
- * date or no element list, so the caller can fall back to another one. Single
- * elements that can't be read are dropped rather than losing the whole list.
+ * Reads the bundled snapshot. Returns null when it has no usable date or no
+ * element list, so the screen can say so instead of crashing. Single elements
+ * that can't be read are dropped rather than losing the whole list.
  */
 export function parseSnapshot(value: unknown): DonationSnapshot | null {
   if (
@@ -66,21 +66,6 @@ export function parseSnapshot(value: unknown): DonationSnapshot | null {
       .map(parseElement)
       .filter((element): element is OverpassElement => element !== null),
   };
-}
-
-/**
- * The newer of the bundled snapshot and a saved one. A saved update wins over
- * the bundled file, but an old saved update never hides a newer app release.
- */
-export function newerSnapshot(
-  bundled: DonationSnapshot,
-  saved: DonationSnapshot | null,
-): DonationSnapshot {
-  if (saved && Date.parse(saved.fetchedAt) > Date.parse(bundled.fetchedAt)) {
-    return saved;
-  }
-
-  return bundled;
 }
 
 /** Donation points in the snapshot within `radiusKm` of a place, closest first. */
