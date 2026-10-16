@@ -121,16 +121,6 @@ describe('toDonationPoint', () => {
     });
   });
 
-  it('maps shelters', () => {
-    const point = toDonationPoint(
-      { type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'Haven', social_facility: 'shelter' } },
-      0,
-      0,
-    );
-
-    expect(point?.type).toBe('Shelter');
-  });
-
   it('skips places without a name', () => {
     expect(toDonationPoint({ type: 'node', id: 1, lat: 0, lon: 0, tags: {} }, 0, 0)).toBeNull();
     expect(toDonationPoint({ type: 'node', id: 2, lat: 0, lon: 0 }, 0, 0)).toBeNull();
@@ -227,6 +217,7 @@ describe('buildQuery', () => {
 
     expect(query).toContain('[timeout:90]');
     expect(query).toContain('(around:10000,-33.87,151.2)');
+    expect(query).not.toContain('shelter');
   });
 });
 
@@ -415,7 +406,8 @@ describe('buildSnapshotQuery', () => {
 
     expect(query).toContain('[timeout:120]');
     expect(query).toContain('area["ISO3166-2"="AU-NSW"]->.nsw');
-    expect(query).toContain('["social_facility"~"^(food_bank|soup_kitchen|shelter)$"](area.nsw)');
+    expect(query).toContain('["social_facility"~"^(food_bank|soup_kitchen)$"](area.nsw)');
+    expect(query).not.toContain('shelter');
     expect(query).not.toContain('around:');
   });
 });

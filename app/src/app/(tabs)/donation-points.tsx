@@ -26,7 +26,6 @@ type IconName = keyof typeof Ionicons.glyphMap;
 const TYPE_LOOK: Record<PointType, { icon: IconName; tint: string; accent: string }> = {
   'Food bank': { icon: 'basket-outline', tint: '#e7f4e8', accent: '#2f7d32' },
   'Soup kitchen': { icon: 'restaurant-outline', tint: '#fbf0dc', accent: '#9a5b12' },
-  Shelter: { icon: 'people-outline', tint: '#e2eee9', accent: '#2c6b57' },
 };
 
 const CARD_WIDTH = 290;
@@ -106,8 +105,8 @@ async function lookUpAddress(latitude: number, longitude: number): Promise<strin
 }
 
 /**
- * Donation points tab: food banks, soup kitchens and shelters from
- * OpenStreetMap within 10 km of the phone, or of a suburb the student types in.
+ * Donation points tab: food banks and soup kitchens from OpenStreetMap within
+ * 10 km of the phone, or of a suburb the student types in.
  *
  * Search narrows the list by name, kind of place or address. Only the newest
  * load is shown, so a slow GPS load can't overwrite a suburb search made while

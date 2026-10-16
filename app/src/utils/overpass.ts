@@ -5,7 +5,11 @@
  * network, in the same way as the Open Food Facts client.
  */
 
-export type PointType = 'Food bank' | 'Soup kitchen' | 'Shelter';
+/*
+ * Shelters are left out: they don't take food from the public, and a refuge's
+ * address shouldn't be promoted in a public app.
+ */
+export type PointType = 'Food bank' | 'Soup kitchen';
 
 export type DonationPoint = {
   id: string;
@@ -119,10 +123,6 @@ export function osmAddress(tags: Record<string, string>): string {
 }
 
 function pointType(socialFacility: string | undefined): PointType {
-  if (socialFacility === 'shelter') {
-    return 'Shelter';
-  }
-
   return socialFacility === 'soup_kitchen' ? 'Soup kitchen' : 'Food bank';
 }
 
@@ -202,7 +202,7 @@ export function toSnapshot(elements: OverpassElement[], fetchedAt: Date): Donati
 export function buildQuery(latitude: number, longitude: number): string {
   const radiusM = SEARCH_RADIUS_KM * 1000;
 
-  return `[out:json][timeout:${QUERY_TIMEOUT_S}];nwr["social_facility"~"food_bank|soup_kitchen|shelter"](around:${radiusM},${latitude},${longitude});out center tags;`;
+  return `[out:json][timeout:${QUERY_TIMEOUT_S}];nwr["social_facility"~"food_bank|soup_kitchen"](around:${radiusM},${latitude},${longitude});out center tags;`;
 }
 
 /*
@@ -211,7 +211,7 @@ export function buildQuery(latitude: number, longitude: number): string {
  * values only.
  */
 export function buildSnapshotQuery(): string {
-  return `[out:json][timeout:${SNAPSHOT_QUERY_TIMEOUT_S}];area["ISO3166-2"="AU-NSW"]->.nsw;nwr["social_facility"~"^(food_bank|soup_kitchen|shelter)$"](area.nsw);out center tags;`;
+  return `[out:json][timeout:${SNAPSHOT_QUERY_TIMEOUT_S}];area["ISO3166-2"="AU-NSW"]->.nsw;nwr["social_facility"~"^(food_bank|soup_kitchen)$"](area.nsw);out center tags;`;
 }
 
 type ServerAnswer =
