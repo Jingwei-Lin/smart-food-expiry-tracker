@@ -81,6 +81,21 @@ export const SEARCH_RADIUS_KM = 10;
 const QUERY_TIMEOUT_S = 90;
 const REQUEST_TIMEOUT_MS = 95000;
 
+/*
+ * The snapshot is a download the student asked for and keeps using the screen
+ * through, so it can wait longer than a search would. When a server has kept
+ * the phone waiting for its full limit it counts as busy and the next server
+ * is tried. The query's own limit is shorter, so a slow server usually says
+ * it gave up before the phone does.
+ */
+const SNAPSHOT_QUERY_TIMEOUT_S = 120;
+const SNAPSHOT_REQUEST_TIMEOUT_MS = 130000;
+
+export type SnapshotResult =
+  | { outcome: 'found'; snapshot: DonationSnapshot }
+  | { outcome: 'busy' }
+  | { outcome: 'unavailable' };
+
 /** Straight-line distance between two points in km. */
 export function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const r = (degrees: number) => (degrees * Math.PI) / 180;
@@ -190,16 +205,25 @@ export function buildQuery(latitude: number, longitude: number): string {
   return `[out:json][timeout:${QUERY_TIMEOUT_S}];nwr["social_facility"~"food_bank|soup_kitchen|shelter"](around:${radiusM},${latitude},${longitude});out center tags;`;
 }
 
-type ServerAnswer = DonationPointsResult | { outcome: 'timed-out' };
+/*
+ * Every donation point in NSW. The suburb search only looks in NSW, so the
+ * snapshot covers the same area. The pattern is anchored so it matches whole
+ * values only.
+ */
+export function buildSnapshotQuery(): string {
+  return `[out:json][timeout:${SNAPSHOT_QUERY_TIMEOUT_S}];area["ISO3166-2"="AU-NSW"]->.nsw;nwr["social_facility"~"^(food_bank|soup_kitchen|shelter)$"](area.nsw);out center tags;`;
+}
 
-/** Asks one Overpass server. */
-async function askServer(
-  server: string,
-  latitude: number,
-  longitude: number,
-): Promise<ServerAnswer> {
+type ServerAnswer =
+  | { outcome: 'found'; elements: OverpassElement[] }
+  | { outcome: 'busy' }
+  | { outcome: 'timed-out' }
+  | { outcome: 'unavailable' };
+
+/** Sends one query to one Overpass server. */
+async function askServer(server: string, query: string, timeoutMs: number): Promise<ServerAnswer> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     // Overpass asks for the query in a POST body rather than in the URL.
@@ -209,7 +233,7 @@ async function askServer(
         'Content-Type': 'application/x-www-form-urlencoded',
         'User-Agent': USER_AGENT,
       },
-      body: `data=${encodeURIComponent(buildQuery(latitude, longitude))}`,
+      body: `data=${encodeURIComponent(query)}`,
       signal: controller.signal,
     });
 
@@ -228,7 +252,7 @@ async function askServer(
       return { outcome: 'busy' };
     }
 
-    return { outcome: 'found', points: toDonationPoints(body.elements ?? [], latitude, longitude) };
+    return { outcome: 'found', elements: body.elements ?? [] };
   } catch {
     return controller.signal.aborted ? { outcome: 'timed-out' } : { outcome: 'unavailable' };
   } finally {
@@ -253,10 +277,10 @@ export async function fetchDonationPoints(
   let anyBusy = false;
 
   for (const server of OVERPASS_SERVERS) {
-    const answer = await askServer(server, latitude, longitude);
+    const answer = await askServer(server, buildQuery(latitude, longitude), REQUEST_TIMEOUT_MS);
 
     if (answer.outcome === 'found') {
-      return answer;
+      return { outcome: 'found', points: toDonationPoints(answer.elements, latitude, longitude) };
     }
 
     if (answer.outcome === 'timed-out') {
@@ -264,6 +288,32 @@ export async function fetchDonationPoints(
     }
 
     if (answer.outcome === 'busy') {
+      anyBusy = true;
+    }
+  }
+
+  return anyBusy ? { outcome: 'busy' } : { outcome: 'unavailable' };
+}
+
+/**
+ * Downloads every donation point in NSW as a snapshot dated `now`.
+ *
+ * Never throws. A server that refuses, reports a runtime error or runs out of
+ * time counts as busy, and the next one is tried. If none of them answers,
+ * the result is `busy`. With no signal, or an unreadable answer from every
+ * server, it is `unavailable`.
+ */
+export async function fetchSnapshot(now = new Date()): Promise<SnapshotResult> {
+  let anyBusy = false;
+
+  for (const server of OVERPASS_SERVERS) {
+    const answer = await askServer(server, buildSnapshotQuery(), SNAPSHOT_REQUEST_TIMEOUT_MS);
+
+    if (answer.outcome === 'found') {
+      return { outcome: 'found', snapshot: toSnapshot(answer.elements, now) };
+    }
+
+    if (answer.outcome !== 'unavailable') {
       anyBusy = true;
     }
   }

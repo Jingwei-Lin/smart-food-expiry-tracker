@@ -2,8 +2,10 @@ import {
   type OverpassElement,
   OVERPASS_SERVERS,
   buildQuery,
+  buildSnapshotQuery,
   distanceKm,
   fetchDonationPoints,
+  fetchSnapshot,
   osmAddress,
   toDonationPoint,
   toDonationPoints,
@@ -404,5 +406,120 @@ describe('fetchDonationPoints', () => {
     await fetchDonationPoints(HERE.lat, HERE.lon);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('buildSnapshotQuery', () => {
+  it('asks for whole-value matches anywhere in NSW, with a long time limit', () => {
+    const query = buildSnapshotQuery();
+
+    expect(query).toContain('[timeout:120]');
+    expect(query).toContain('area["ISO3166-2"="AU-NSW"]->.nsw');
+    expect(query).toContain('["social_facility"~"^(food_bank|soup_kitchen|shelter)$"](area.nsw)');
+    expect(query).not.toContain('around:');
+  });
+});
+
+describe('fetchSnapshot', () => {
+  const realFetch = globalThis.fetch;
+  const NOW = new Date('2026-10-16T09:00:00.000Z');
+  const pantry = { type: 'node', id: 1, lat: HERE.lat, lon: HERE.lon, tags: { name: 'Pantry' } };
+  const timedOut = 'runtime error: Query timed out in "query" at line 1 after 121 seconds.';
+  let fetchMock: jest.Mock;
+
+  /* Hangs until the app gives up on it, like an overloaded server. */
+  function hangUntilAborted(_url: string, init: RequestInit): Promise<Response> {
+    return new Promise((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => reject(new Error('Aborted')));
+    });
+  }
+
+  beforeEach(() => {
+    fetchMock = jest.fn();
+    globalThis.fetch = fetchMock;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = realFetch;
+    jest.useRealTimers();
+  });
+
+  it('returns a snapshot of the answer, dated now', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ elements: [pantry] }));
+
+    await expect(fetchSnapshot(NOW)).resolves.toEqual({
+      outcome: 'found',
+      snapshot: {
+        fetchedAt: '2026-10-16T09:00:00.000Z',
+        elements: [{ type: 'node', id: 1, lat: HERE.lat, lon: HERE.lon, tags: { name: 'Pantry' } }],
+      },
+    });
+  });
+
+  it('posts the NSW query', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ elements: [] }));
+
+    await fetchSnapshot(NOW);
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+
+    expect(url).toBe(OVERPASS_SERVERS[0]);
+    expect(init.method).toBe('POST');
+    expect(decodeURIComponent(String(init.body))).toBe(`data=${buildSnapshotQuery()}`);
+  });
+
+  it.each([
+    ['refuses', () => htmlResponse(429)],
+    ['reports a runtime error', () => jsonResponse({ elements: [], remark: timedOut })],
+  ])('tries the backup server when the main one %s', async (_label, mainAnswer) => {
+    fetchMock
+      .mockResolvedValueOnce(mainAnswer())
+      .mockResolvedValueOnce(jsonResponse({ elements: [pantry] }));
+
+    const result = await fetchSnapshot(NOW);
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(OVERPASS_SERVERS);
+    expect(result.outcome === 'found' && result.snapshot.elements).toHaveLength(1);
+  });
+
+  it('gives up on a server after 130 seconds and tries the backup', async () => {
+    jest.useFakeTimers();
+    fetchMock
+      .mockImplementationOnce(hangUntilAborted)
+      .mockResolvedValueOnce(jsonResponse({ elements: [pantry] }));
+
+    const pending = fetchSnapshot(NOW);
+
+    await jest.advanceTimersByTimeAsync(129999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await jest.advanceTimersByTimeAsync(1);
+    const result = await pending;
+
+    expect(fetchMock).toHaveBeenCalledTimes(OVERPASS_SERVERS.length);
+    expect(result.outcome).toBe('found');
+  });
+
+  it('reports busy when every server hangs', async () => {
+    jest.useFakeTimers();
+    fetchMock.mockImplementation(hangUntilAborted);
+
+    const pending = fetchSnapshot(NOW);
+    await jest.advanceTimersByTimeAsync(130000 * OVERPASS_SERVERS.length);
+
+    await expect(pending).resolves.toEqual({ outcome: 'busy' });
+  });
+
+  it('reports busy when every server refuses', async () => {
+    fetchMock.mockResolvedValue(htmlResponse(504));
+
+    await expect(fetchSnapshot(NOW)).resolves.toEqual({ outcome: 'busy' });
+    expect(fetchMock).toHaveBeenCalledTimes(OVERPASS_SERVERS.length);
+  });
+
+  it('reports unavailable with no connection', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Network request failed'));
+
+    await expect(fetchSnapshot(NOW)).resolves.toEqual({ outcome: 'unavailable' });
   });
 });
