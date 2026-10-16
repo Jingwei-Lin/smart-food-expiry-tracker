@@ -24,9 +24,6 @@ const TYPE_LOOK: Record<PointType, { icon: IconName; tint: string; accent: strin
   'Soup kitchen': { icon: 'restaurant-outline', tint: '#fbf0dc', accent: '#9a5b12' },
 };
 
-const CARD_WIDTH = 290;
-const CARD_GAP = 14;
-
 /* The phone's geocoder rate-limits, so only the closest places get an address looked up. */
 const ADDRESS_LOOKUPS = 10;
 const ADDRESS_PENDING = 'Looking up address…';
@@ -51,51 +48,31 @@ const DATA_DATE = SNAPSHOT
  */
 const RECENT_POSITION_MS = 10 * 60 * 1000;
 
-function initials(name: string): string {
-  return name
-    .split(' ')
-    .filter((word) => word.length > 0)
-    .slice(0, 2)
-    .map((word) => word[0].toUpperCase())
-    .join('');
-}
-
-function DonationPointCard({ point }: { point: DonationPoint }) {
+function DonationPointRow({ point }: { point: DonationPoint }) {
   const look = TYPE_LOOK[point.type];
 
   return (
-    <View style={styles.card}>
-      <View style={[styles.cardHeader, { backgroundColor: look.tint }]}>
-        <View pointerEvents="none" style={styles.watermark}>
-          <Ionicons name={look.icon} size={96} color={look.accent} />
-        </View>
-
-        <View style={styles.typePill}>
-          <Text style={[styles.typePillText, { color: look.accent }]}>{point.type}</Text>
-        </View>
-
-        <View style={styles.identity}>
-          <View style={[styles.avatar, { backgroundColor: look.accent }]}>
-            <Text style={styles.avatarText}>{initials(point.name)}</Text>
-          </View>
-
-          <Text numberOfLines={2} style={styles.cardName}>
-            {point.name}
-          </Text>
-        </View>
+    <View style={styles.row}>
+      <View style={[styles.rowIcon, { backgroundColor: look.tint }]}>
+        <Ionicons name={look.icon} size={24} color={look.accent} />
       </View>
 
-      <View style={styles.cardBody}>
+      <View style={styles.rowText}>
+        <View style={styles.rowTop}>
+          <Text numberOfLines={2} style={styles.rowName}>
+            {point.name}
+          </Text>
+
+          <Text style={styles.distance}>{point.distanceKm.toFixed(1)} km</Text>
+        </View>
+
+        <Text style={[styles.rowType, { color: look.accent }]}>{point.type}</Text>
+
         <Text numberOfLines={2} style={styles.address}>
-          <Text style={styles.addressLabel}>Address: </Text>
           {point.address}
         </Text>
 
         <Text style={styles.hours}>{point.hours}</Text>
-
-        <View style={styles.footer}>
-          <Text style={styles.distance}>{point.distanceKm.toFixed(1)} km</Text>
-        </View>
       </View>
     </View>
   );
@@ -337,22 +314,22 @@ export default function DonationPointsScreen() {
       return null;
     }
 
+    const count = `${sectionPoints.length} ${sectionPoints.length === 1 ? 'place' : 'places'}`;
+
+    /*
+     * One list the student scrolls down with the screen. There are rarely more
+     * than a handful of places within 10 km, and a sideways row showed only
+     * one of them at a time.
+     */
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{title.toUpperCase()}</Text>
+        <Text style={styles.sectionTitle}>{`${title} · ${count}`.toUpperCase()}</Text>
 
-        <ScrollView
-          contentContainerStyle={styles.carousel}
-          decelerationRate="fast"
-          horizontal
-          keyboardShouldPersistTaps="handled"
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={CARD_WIDTH + CARD_GAP}
-        >
+        <View style={styles.list} testID="donation-points-list">
           {sectionPoints.map((point) => (
-            <DonationPointCard key={point.id} point={point} />
+            <DonationPointRow key={point.id} point={point} />
           ))}
-        </ScrollView>
+        </View>
       </View>
     );
   }
@@ -566,103 +543,66 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   section: {
-    marginTop: 26,
+    marginTop: 22,
+    paddingHorizontal: 20,
   },
   sectionTitle: {
     marginBottom: 10,
-    paddingHorizontal: 20,
     color: '#687269',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.9,
   },
-  carousel: {
-    paddingHorizontal: 20,
-    gap: CARD_GAP,
+  list: {
+    gap: 10,
   },
-  card: {
-    width: CARD_WIDTH,
-    overflow: 'hidden',
+  row: {
+    flexDirection: 'row',
+    gap: 12,
     borderWidth: 1,
     borderColor: '#dce4da',
     borderRadius: 16,
     backgroundColor: '#ffffff',
+    padding: 14,
   },
-  cardHeader: {
-    height: 112,
-    justifyContent: 'space-between',
-    overflow: 'hidden',
-    padding: 12,
-  },
-  watermark: {
-    position: 'absolute',
-    right: -6,
-    bottom: -14,
-    opacity: 0.16,
-  },
-  typePill: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  typePillText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  identity: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  avatar: {
+  rowIcon: {
     alignItems: 'center',
     justifyContent: 'center',
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 14,
   },
-  avatarText: {
-    color: '#ffffff',
+  rowText: {
+    flex: 1,
+    gap: 3,
+  },
+  rowTop: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 10,
+  },
+  rowName: {
+    flex: 1,
+    color: '#172019',
     fontSize: 16,
     fontWeight: '800',
   },
-  cardName: {
-    flex: 1,
-    color: '#172019',
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  cardBody: {
-    flex: 1,
-    gap: 4,
-    padding: 14,
+  rowType: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   address: {
     color: '#172019',
-    fontSize: 15,
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  addressLabel: {
-    color: '#687269',
-    fontWeight: '600',
+    fontSize: 14,
+    lineHeight: 19,
   },
   hours: {
     color: '#687269',
     fontSize: 13,
   },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 'auto',
-    paddingTop: 8,
-  },
   distance: {
     color: '#2f7d32',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
   },
   attribution: {

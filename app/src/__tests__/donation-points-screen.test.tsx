@@ -1,4 +1,4 @@
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, within } from '@testing-library/react-native';
 import * as Location from 'expo-location';
 
 import DonationPointsScreen from '@/app/(tabs)/donation-points';
@@ -122,9 +122,21 @@ describe('DonationPointsScreen', () => {
     await view.findByText('Close Pantry');
 
     expect(shownPlaces(view)).toEqual(['Close Pantry', 'Soup Hall']);
-    expect(view.getByText('CLOSEST TO YOU')).toBeTruthy();
+    expect(view.getByText('CLOSEST TO YOU · 2 PLACES')).toBeTruthy();
     expect(view.getByText('1.0 km')).toBeTruthy();
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('shows every place in one list, each with its kind', async () => {
+    const view = await render(<DonationPointsScreen />);
+    await view.findByText('Close Pantry');
+
+    const list = within(view.getByTestId('donation-points-list'));
+
+    expect(list.getByText('Close Pantry')).toBeTruthy();
+    expect(list.getByText('Soup Hall')).toBeTruthy();
+    expect(list.getByText('Food bank')).toBeTruthy();
+    expect(list.getByText('Soup kitchen')).toBeTruthy();
   });
 
   it('says where the data comes from and how old it is', async () => {
@@ -197,7 +209,7 @@ describe('DonationPointsScreen', () => {
 
     expect(await view.findByText('Fitzroy Pantry')).toBeTruthy();
     expect(location.geocodeAsync).toHaveBeenCalledWith('Fitzroy VIC, Australia');
-    expect(view.getByText('CLOSEST TO FITZROY VIC')).toBeTruthy();
+    expect(view.getByText('CLOSEST TO FITZROY VIC · 1 PLACE')).toBeTruthy();
     expect(shownPlaces(view)).toEqual(['Fitzroy Pantry']);
   });
 
@@ -260,7 +272,7 @@ describe('DonationPointsScreen', () => {
       await fireEvent.press(view.getByText('Use my location'));
 
       expect(await view.findByText('Close Pantry')).toBeTruthy();
-      expect(view.getByText('CLOSEST TO YOU')).toBeTruthy();
+      expect(view.getByText('CLOSEST TO YOU · 2 PLACES')).toBeTruthy();
       expect(shownPlaces(view)).toEqual(['Close Pantry', 'Soup Hall']);
       expect(location.getLastKnownPositionAsync).toHaveBeenCalledTimes(2);
       expect(view.queryByText('Use my location')).toBeNull();
