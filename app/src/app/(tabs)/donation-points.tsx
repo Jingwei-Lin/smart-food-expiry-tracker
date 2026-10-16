@@ -290,6 +290,15 @@ export default function DonationPointsScreen() {
     }
   }
 
+  /** Goes back to the places around the phone after a suburb search. */
+  function backToMyLocation() {
+    setIsEditingSuburb(false);
+    setSearchedSuburb(null);
+    setPlaceName('Your location');
+    showLoading();
+    void loadNearPhone();
+  }
+
   /** Repeats whichever load failed: the phone's location or the last suburb. */
   function retry() {
     if (searchedSuburb) {
@@ -301,6 +310,11 @@ export default function DonationPointsScreen() {
   }
 
   useEffect(() => {
+    /*
+     * loadNearPhone only sets state after its first await, but the lint rule
+     * against setting state inside an effect can't see that through a direct
+     * call, so it is started from an async wrapper.
+     */
     (async () => {
       await loadNearPhone();
     })();
@@ -361,7 +375,7 @@ export default function DonationPointsScreen() {
           <Ionicons name="navigate" size={16} color="#2f7d32" />
 
           <Text style={styles.locationName}>
-            {isLoading ? 'Finding your location…' : placeName}
+            {isLoading && !searchedSuburb ? 'Finding your location…' : placeName}
           </Text>
 
           <Ionicons
@@ -381,7 +395,7 @@ export default function DonationPointsScreen() {
               accessibilityLabel="Suburb"
               autoFocus
               onChangeText={setSuburbQuery}
-              onSubmitEditing={() => searchSuburb(suburbQuery)}
+              onSubmitEditing={() => void searchSuburb(suburbQuery)}
               placeholder="Enter a suburb and state, e.g. Newtown NSW"
               placeholderTextColor="#7b857d"
               returnKeyType="search"
@@ -389,6 +403,18 @@ export default function DonationPointsScreen() {
               value={suburbQuery}
             />
           </View>
+        ) : null}
+
+        {isEditingSuburb && searchedSuburb ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={backToMyLocation}
+            style={({ pressed }) => [styles.myLocationButton, pressed ? styles.pressed : null]}
+          >
+            <Ionicons name="navigate" size={16} color="#2f7d32" />
+
+            <Text style={styles.myLocationText}>Use my location</Text>
+          </Pressable>
         ) : null}
 
         <View style={styles.searchBox}>
@@ -515,6 +541,23 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#ffffff',
     paddingHorizontal: 14,
+  },
+  myLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 44,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#2f7d32',
+    borderRadius: 12,
+    backgroundColor: '#e7f4e8',
+  },
+  myLocationText: {
+    color: '#1f5a22',
+    fontSize: 15,
+    fontWeight: '700',
   },
   searchInput: {
     flex: 1,

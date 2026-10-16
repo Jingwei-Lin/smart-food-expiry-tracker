@@ -234,4 +234,75 @@ describe('DonationPointsScreen', () => {
       ),
     ).toBeTruthy();
   });
+
+  describe('going back to the phone after a suburb search', () => {
+    it('only offers "Use my location" once a suburb has been searched', async () => {
+      const view = await render(<DonationPointsScreen />);
+      await view.findByText('Close Pantry');
+
+      await fireEvent.press(view.getByLabelText('Change suburb'));
+      expect(view.queryByText('Use my location')).toBeNull();
+
+      await searchSuburb(view, 'Fitzroy VIC');
+      await view.findByText('Fitzroy Pantry');
+      await fireEvent.press(view.getByLabelText('Change suburb'));
+
+      expect(view.getByText('Use my location')).toBeTruthy();
+    });
+
+    it('lists the places around the phone again', async () => {
+      const view = await render(<DonationPointsScreen />);
+      await view.findByText('Close Pantry');
+      await searchSuburb(view, 'Fitzroy VIC');
+      await view.findByText('Fitzroy Pantry');
+
+      await fireEvent.press(view.getByLabelText('Change suburb'));
+      await fireEvent.press(view.getByText('Use my location'));
+
+      expect(await view.findByText('Close Pantry')).toBeTruthy();
+      expect(view.getByText('CLOSEST TO YOU')).toBeTruthy();
+      expect(shownPlaces(view)).toEqual(['Close Pantry', 'Soup Hall']);
+      expect(location.getLastKnownPositionAsync).toHaveBeenCalledTimes(2);
+      expect(view.queryByText('Use my location')).toBeNull();
+    });
+
+    it('retries near the phone, not the old suburb, after going back', async () => {
+      const view = await render(<DonationPointsScreen />);
+      await view.findByText('Close Pantry');
+      await searchSuburb(view, 'Fitzroy VIC');
+      await view.findByText('Fitzroy Pantry');
+
+      location.hasServicesEnabledAsync.mockResolvedValue(false);
+      await fireEvent.press(view.getByLabelText('Change suburb'));
+      await fireEvent.press(view.getByText('Use my location'));
+      await view.findByText(/Location services are turned off/);
+
+      location.hasServicesEnabledAsync.mockResolvedValue(true);
+      await fireEvent.press(view.getByText('Try again'));
+
+      expect(await view.findByText('Close Pantry')).toBeTruthy();
+      expect(location.geocodeAsync).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('the place named at the top', () => {
+    it('says it is finding the location while the phone looks', async () => {
+      location.getLastKnownPositionAsync.mockReturnValue(new Promise(() => undefined));
+
+      const view = await render(<DonationPointsScreen />);
+
+      expect(view.getByText('Finding your location…')).toBeTruthy();
+    });
+
+    it('names the suburb, not the phone, while a suburb loads', async () => {
+      const view = await render(<DonationPointsScreen />);
+      await view.findByText('Close Pantry');
+
+      location.geocodeAsync.mockReturnValue(new Promise(() => undefined));
+      await searchSuburb(view, 'Fitzroy VIC');
+
+      expect(view.getByText('Fitzroy VIC')).toBeTruthy();
+      expect(view.queryByText('Finding your location…')).toBeNull();
+    });
+  });
 });
