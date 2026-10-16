@@ -35,6 +35,28 @@ export type OverpassElement = {
 export type DonationPointsResult =
   { outcome: 'found'; points: DonationPoint[] } | { outcome: 'busy' } | { outcome: 'unavailable' };
 
+/**
+ * Donation points saved for use without a network: the elements of one
+ * Overpass response, cut down to what a card shows.
+ */
+export type DonationSnapshot = {
+  /** When the data was downloaded from OpenStreetMap, as an ISO time. */
+  fetchedAt: string;
+  elements: OverpassElement[];
+};
+
+/* The only tags toDonationPoint and osmAddress read; the rest would just make the file bigger. */
+const SNAPSHOT_TAGS = [
+  'name',
+  'social_facility',
+  'opening_hours',
+  'addr:full',
+  'addr:housenumber',
+  'addr:street',
+  'addr:suburb',
+  'addr:city',
+];
+
 /*
  * Free public Overpass servers, tried in order. The main one is often
  * overloaded, so a refusal there moves on to the next.
@@ -129,6 +151,37 @@ export function toDonationPoints(
     .map((element) => toDonationPoint(element, fromLatitude, fromLongitude))
     .filter((point): point is DonationPoint => point !== null)
     .sort((a, b) => a.distanceKm - b.distanceKm);
+}
+
+/**
+ * Cuts a response down to a snapshot. Elements a card can't show (no name or
+ * no coordinates) are dropped, and a way's or relation's centre becomes its
+ * coordinates, so every saved element reads like a node.
+ */
+export function toSnapshot(elements: OverpassElement[], fetchedAt: Date): DonationSnapshot {
+  const kept: OverpassElement[] = [];
+
+  for (const element of elements) {
+    const tags = element.tags ?? {};
+    const lat = element.lat ?? element.center?.lat;
+    const lon = element.lon ?? element.center?.lon;
+
+    if (!tags.name || lat === undefined || lon === undefined) {
+      continue;
+    }
+
+    const keptTags: Record<string, string> = {};
+
+    for (const key of SNAPSHOT_TAGS) {
+      if (tags[key]) {
+        keptTags[key] = tags[key];
+      }
+    }
+
+    kept.push({ type: element.type, id: element.id, lat, lon, tags: keptTags });
+  }
+
+  return { fetchedAt: fetchedAt.toISOString(), elements: kept };
 }
 
 export function buildQuery(latitude: number, longitude: number): string {

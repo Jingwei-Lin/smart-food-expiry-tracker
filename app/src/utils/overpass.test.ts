@@ -7,6 +7,7 @@ import {
   osmAddress,
   toDonationPoint,
   toDonationPoints,
+  toSnapshot,
 } from './overpass';
 
 /* Sydney Town Hall, used as "where the phone is". */
@@ -151,6 +152,70 @@ describe('toDonationPoints', () => {
     );
 
     expect(points.map((point) => point.name)).toEqual(['Near', 'Far']);
+  });
+});
+
+describe('toSnapshot', () => {
+  const fetchedAt = new Date('2026-10-16T09:00:00.000Z');
+
+  it('dates the snapshot', () => {
+    expect(toSnapshot([], fetchedAt)).toEqual({
+      fetchedAt: '2026-10-16T09:00:00.000Z',
+      elements: [],
+    });
+  });
+
+  it('keeps only the tags a card reads', () => {
+    const { elements } = toSnapshot(
+      [
+        {
+          type: 'node',
+          id: 1,
+          lat: HERE.lat,
+          lon: HERE.lon,
+          tags: {
+            name: 'Pantry',
+            social_facility: 'food_bank',
+            opening_hours: 'Mo-Fr 09:00-17:00',
+            'addr:street': 'George Street',
+            amenity: 'social_facility',
+            website: 'https://example.org',
+          },
+        },
+      ],
+      fetchedAt,
+    );
+
+    expect(elements[0].tags).toEqual({
+      name: 'Pantry',
+      social_facility: 'food_bank',
+      opening_hours: 'Mo-Fr 09:00-17:00',
+      'addr:street': 'George Street',
+    });
+  });
+
+  it("stores a way's centre as its coordinates", () => {
+    const { elements } = toSnapshot(
+      [{ type: 'way', id: 7, center: { lat: -33.9, lon: 151.1 }, tags: { name: 'Hall' } }],
+      fetchedAt,
+    );
+
+    expect(elements).toEqual([
+      { type: 'way', id: 7, lat: -33.9, lon: 151.1, tags: { name: 'Hall' } },
+    ]);
+  });
+
+  it('drops elements without a name or coordinates', () => {
+    const { elements } = toSnapshot(
+      [
+        { type: 'node', id: 1, lat: HERE.lat, lon: HERE.lon, tags: { amenity: 'social_facility' } },
+        { type: 'way', id: 2, tags: { name: 'No centre' } },
+        { type: 'node', id: 3, lat: HERE.lat, lon: HERE.lon, tags: { name: 'Kept' } },
+      ],
+      fetchedAt,
+    );
+
+    expect(elements.map((element) => element.id)).toEqual([3]);
   });
 });
 
