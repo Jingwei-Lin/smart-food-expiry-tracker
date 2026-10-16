@@ -40,6 +40,12 @@
           "recordAudioAndroid": false
         }
       ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Smart Food Expiry Tracker to use your location to show food donation points near you."
+        }
+      ],
       "expo-secure-store"
     ],
     "experiments": {
