@@ -59,9 +59,20 @@ async function renderScreen(items: FoodItem[]) {
   return view;
 }
 
+/*
+ * A Wednesday at noon, so "now" and "a week ago" are nowhere near a Monday
+ * midnight or a clock change. The clocks still run, so the screen can load.
+ */
+const NOW = new Date(2026, 9, 14, 12, 0);
+
 beforeEach(async () => {
   jest.restoreAllMocks();
+  jest.useFakeTimers({ now: NOW, advanceTimers: true });
   await AsyncStorage.clear();
+});
+
+afterEach(() => {
+  jest.useRealTimers();
 });
 
 describe('WeeklySummaryScreen', () => {
