@@ -100,7 +100,7 @@ Then scan the QR code with Expo Go. You need a real phone to test the barcode sc
 All four pass on `main`. Run them from the `app/` folder.
 
 ```bash
-npm test             # 397 unit tests
+npm test             # 405 unit tests
 npm run typecheck    # TypeScript, strict mode
 npm run lint
 npm run format:check # Prettier
@@ -114,7 +114,8 @@ The tests cover:
 - the OpenStreetMap snapshot: its download, the server fallback, the kinds of place, the opening hours and the distance filter;
 - the recipe prompt and the checks on every AI reply;
 - each AI provider's replies and errors, and key storage;
-- the Recipes, recipe settings, saved recipes, item, weekly summary and donation points screens;
+- the Home, Recipes, recipe settings, saved recipes, item, weekly summary and donation points screens;
+- the tabs moving on to a new day after midnight;
 - the weekly summary's counts and week boundaries, including the week the clocks change.
 
 None of the tests need an API key or an internet connection.
@@ -126,6 +127,7 @@ app/                  Expo project
   src/app/            screens and routes
   src/components/     shared UI
   src/context/        inventory state and saving to the device
+  src/hooks/          useToday, which moves the tabs on to a new day
   src/services/       local expiry reminder scheduling
   src/utils/          expiry dates, shelf-life estimates, Open Food Facts lookup,
                       OpenStreetMap donation points, recipe prompts, AI providers,

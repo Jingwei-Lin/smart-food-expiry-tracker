@@ -5,24 +5,31 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { InventoryRow } from '@/components/inventory-row';
 import { useInventory } from '@/context/inventory-context';
+import { useToday } from '@/hooks/use-today';
 import { FoodItem } from '@/types/food-item';
 import { daysUntilExpiry } from '@/utils/expiry-date';
-import { buildInventorySections, InventorySection } from '@/utils/inventory-sections';
-
-const EAT_SOON_DAYS = 3;
+import {
+  buildInventorySections,
+  EAT_SOON_DAYS,
+  InventorySection,
+} from '@/utils/inventory-sections';
 
 /**
- * Builds the one-line summary under the title.
+ * Builds the one-line summary under the title. "To eat soon" counts the same
+ * food as the Eat soon section: expired food has its own section, so it is
+ * not counted again here.
  */
-function describeInventory(items: FoodItem[]): string {
+function describeInventory(items: FoodItem[], today: Date): string {
   if (items.length === 0) {
     return 'Nothing tracked yet';
   }
 
   const itemWord = items.length === 1 ? 'item' : 'items';
-  const soonCount = items.filter(
-    (item) => daysUntilExpiry(item.expiryDate) <= EAT_SOON_DAYS,
-  ).length;
+  const soonCount = items.filter((item) => {
+    const days = daysUntilExpiry(item.expiryDate, today);
+
+    return days >= 0 && days <= EAT_SOON_DAYS;
+  }).length;
 
   if (soonCount === 0) {
     return `${items.length} ${itemWord}`;
@@ -45,6 +52,9 @@ export default function InventoryScreen() {
   /* This screen has no header or tab bar of its own to sit inside. */
   const insets = useSafeAreaInsets();
 
+  /* So the sections and rows move on a day when the app is opened the next morning. */
+  const today = useToday();
+
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
@@ -65,7 +75,7 @@ export default function InventoryScreen() {
           {section.items.map((item, index) => (
             <View key={item.id}>
               {index > 0 ? <View style={styles.divider} /> : null}
-              <InventoryRow item={item} />
+              <InventoryRow item={item} today={today} />
             </View>
           ))}
         </View>
@@ -80,13 +90,13 @@ export default function InventoryScreen() {
           styles.listContent,
           { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 124 },
         ]}
-        data={buildInventorySections(activeItems)}
+        data={buildInventorySections(activeItems, today)}
         keyExtractor={(section) => section.title}
         ListHeaderComponent={
           <View>
             <Text style={styles.title}>My Food Inventory</Text>
 
-            <Text style={styles.subtitle}>{describeInventory(activeItems)}</Text>
+            <Text style={styles.subtitle}>{describeInventory(activeItems, today)}</Text>
 
             {storageError ? (
               <View style={styles.errorBanner}>

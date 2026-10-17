@@ -99,8 +99,8 @@ export type ExpiryPresentation = {
 /**
  * Creates the label and colours displayed in an expiry badge.
  */
-export function getExpiryPresentation(value: string): ExpiryPresentation {
-  const days = daysUntilExpiry(value);
+export function getExpiryPresentation(value: string, today = new Date()): ExpiryPresentation {
+  const days = daysUntilExpiry(value, today);
 
   if (!Number.isFinite(days)) {
     return {

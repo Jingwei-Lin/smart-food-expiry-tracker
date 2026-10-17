@@ -3,14 +3,16 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useInventory } from '@/context/inventory-context';
+import { useToday } from '@/hooks/use-today';
 import { getWeeklyData } from '@/utils/weekly-summary';
 
 export default function WeeklySummaryScreen() {
   const insets = useSafeAreaInsets();
   const { items, isLoading, isStorageReady } = useInventory();
 
-  /* Not memoised: the weeks must follow the clock, not only changes to the inventory. */
-  const weeklyData = getWeeklyData(items, new Date());
+  /* Moves on to the new week when the tab or the app is opened again after Monday midnight. */
+  const today = useToday();
+  const weeklyData = getWeeklyData(items, today);
 
   return (
     <ScrollView

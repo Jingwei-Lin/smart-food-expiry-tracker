@@ -10,7 +10,11 @@ module.exports = defineConfig([
   prettierConfig,
   {
     // .expo holds Expo's generated types, which are rebuilt on every start.
+    // An object with only `ignores` ignores the files everywhere; next to
+    // other keys it would only scope that object's own settings.
     ignores: ['dist/*', '.expo/*'],
+  },
+  {
     settings: {
       // Keep ESLint's import checks in sync with the @/* alias in tsconfig.json.
       'import/resolver': {
