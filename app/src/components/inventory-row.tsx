@@ -112,7 +112,7 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
         accessibilityLabel={`${item.name}, ${getExpiryPresentation(item.expiryDate, today).label}`}
         accessibilityRole="button"
         onPress={openItem}
-        style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}
+        style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null]}
       >
         <View style={[styles.rail, { backgroundColor: railColor }]} />
 
@@ -170,6 +170,14 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '700',
+  },
+  /*
+   * The swipe actions sit right behind the row and become visible the moment
+   * it moves, while a finger starting a swipe still counts as a press. Fading
+   * the row would let them show through, so a press darkens it instead.
+   */
+  rowPressed: {
+    backgroundColor: '#eef2ec',
   },
   pressed: {
     opacity: 0.72,
