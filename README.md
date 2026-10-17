@@ -80,7 +80,7 @@ The list ships with the app, so nothing is downloaded when you open the tab and 
 npm run snapshot:donation-points
 ```
 
-The public servers limit how often one computer can ask, so if it says every server is busy, wait a couple of minutes and run it again. A failed run leaves the current list alone.
+The script needs Node.js 22.18 or newer, which runs TypeScript directly; older versions stop with `ERR_UNKNOWN_FILE_EXTENSION`. The public servers limit how often one computer can ask, so if it says every server is busy, wait a couple of minutes and run it again. A failed run leaves the current list alone, and so does a download with no places or fewer than half the current number, which usually means the server's data was out of date.
 
 ## How to run it
 

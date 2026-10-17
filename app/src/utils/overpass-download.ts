@@ -89,6 +89,28 @@ async function askServer(server: string, query: string): Promise<DownloadResult>
 }
 
 /**
+ * Why a download shouldn't replace the list the app ships with, or null if it
+ * can. `found` is the number of places downloaded, `current` the number in
+ * the list now (0 when there is none yet).
+ *
+ * A server whose area index is out of date answers a 200 with no elements and
+ * no error remark, which looks like a successful download. Saving it would
+ * tell every student there is nothing nearby, so an empty list, or one under
+ * half the current size, is refused.
+ */
+export function snapshotProblem(found: number, current: number): string | null {
+  if (found === 0) {
+    return 'Overpass sent back no donation points.';
+  }
+
+  if (found < current / 2) {
+    return `Overpass sent back ${found} donation points, under half of the ${current} in the current list. If the drop is real, delete the current file and run this again.`;
+  }
+
+  return null;
+}
+
+/**
  * Downloads the elements for every donation point in Australia.
  *
  * Never throws. A server that refuses (406, 429 or 504 with an HTML page),

@@ -1,4 +1,9 @@
-import { OVERPASS_SERVERS, buildSnapshotQuery, fetchDonationElements } from './overpass-download';
+import {
+  OVERPASS_SERVERS,
+  buildSnapshotQuery,
+  fetchDonationElements,
+  snapshotProblem,
+} from './overpass-download';
 
 function jsonResponse(body: unknown, status = 200): Response {
   return {
@@ -40,6 +45,26 @@ describe('buildSnapshotQuery', () => {
       false,
       false,
     ]);
+  });
+});
+
+describe('snapshotProblem', () => {
+  it('refuses an empty download, even with no current list', () => {
+    expect(snapshotProblem(0, 37)).toMatch(/no donation points/);
+    expect(snapshotProblem(0, 0)).toMatch(/no donation points/);
+  });
+
+  it('refuses a download under half the current list', () => {
+    expect(snapshotProblem(18, 37)).toMatch(/18 donation points, under half of the 37/);
+  });
+
+  it('accepts a download of half the current list or more', () => {
+    expect(snapshotProblem(19, 37)).toBeNull();
+    expect(snapshotProblem(40, 37)).toBeNull();
+  });
+
+  it('accepts any places at all when there is no current list', () => {
+    expect(snapshotProblem(1, 0)).toBeNull();
   });
 });
 
