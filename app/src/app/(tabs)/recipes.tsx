@@ -16,6 +16,7 @@ import { RecipeCard } from '@/components/recipe-card';
 import { RecipeChecklist } from '@/components/recipe-checklist';
 import { SavedRecipesBox } from '@/components/saved-recipes-box';
 import { useInventory } from '@/context/inventory-context';
+import { useToday } from '@/hooks/use-today';
 import { fetchRecipeSuggestions, RecipeSuggestionResult } from '@/utils/recipe-client';
 import { getRecipeCredentials, RecipeCredentials } from '@/utils/recipe-credentials';
 import {
@@ -183,7 +184,9 @@ export default function RecipesScreen() {
 
   /* ---- Checklist rows and ticks ---- */
 
-  const candidates = useMemo(() => listRecipeCandidates(activeItems), [activeItems]);
+  /* Food that expired overnight must be warned about, and stop being ticked by default. */
+  const today = useToday();
+  const candidates = useMemo(() => listRecipeCandidates(activeItems, today), [activeItems, today]);
 
   /* Ticks for food that has since been eaten or deleted simply drop out. */
   const selectedIds =

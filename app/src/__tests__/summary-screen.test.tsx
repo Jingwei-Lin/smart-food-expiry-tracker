@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, within } from '@testing-library/react-native';
 import { Pressable, Text } from 'react-native';
 
 import WeeklySummaryScreen from '@/app/(tabs)/summary';
@@ -10,6 +10,21 @@ jest.mock('@/services/expiry-notifications', () => ({
   cancelExpiryReminders: jest.fn().mockResolvedValue(true),
   scheduleExpiryReminders: jest.fn().mockResolvedValue({ status: 'not-needed' }),
 }));
+
+/* The latest focus effect, so a test can bring the tab back into view. */
+const mockFocus: { effect: (() => void) | null } = { effect: null };
+
+jest.mock('expo-router', () => {
+  const { useEffect } = jest.requireActual<typeof import('react')>('react');
+
+  return {
+    useFocusEffect: (effect: () => void) =>
+      useEffect(() => {
+        mockFocus.effect = effect;
+        effect();
+      }, [effect]),
+  };
+});
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
@@ -105,6 +120,28 @@ describe('WeeklySummaryScreen', () => {
     expect(scroll.props.contentContainerStyle).toEqual(
       expect.arrayContaining([expect.objectContaining({ paddingBottom: 124 })]),
     );
+  });
+
+  it('moves on to the new week when the tab is opened again after Monday midnight', async () => {
+    jest.setSystemTime(new Date(2026, 9, 18, 23, 0));
+    const view = await renderScreen([
+      buildItem('apple', {
+        status: 'eaten',
+        statusUpdatedAt: new Date(2026, 9, 18, 22, 0).toISOString(),
+      }),
+    ]);
+    const eatenIn = (week: string) =>
+      within(view.getByText(week).parent!).getAllByText(/^[0-9]+$/)[0].props.children;
+
+    expect(eatenIn('This week')).toBe(1);
+
+    jest.setSystemTime(new Date(2026, 9, 19, 0, 30));
+    await act(async () => {
+      mockFocus.effect?.();
+    });
+
+    expect(eatenIn('This week')).toBe(0);
+    expect(eatenIn('Last week')).toBe(1);
   });
 
   it('keeps showing the counts after a save fails', async () => {

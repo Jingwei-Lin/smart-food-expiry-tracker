@@ -10,6 +10,8 @@ import { getExpiryListPresentation, getExpiryPresentation } from '@/utils/expiry
 
 type InventoryRowProps = {
   item: FoodItem;
+  /** Passed in so every row on the screen agrees on what day it is. */
+  today: Date;
 };
 
 /**
@@ -20,8 +22,8 @@ type InventoryRowProps = {
  * Tapping opens the item; swiping left is the shortcut past it to the edit
  * form, for the common case of correcting a date at the fridge door.
  */
-export function InventoryRow({ item }: InventoryRowProps) {
-  const { meta, railColor } = getExpiryListPresentation(item.expiryDate);
+export function InventoryRow({ item, today }: InventoryRowProps) {
+  const { meta, railColor } = getExpiryListPresentation(item.expiryDate, today);
 
   function openItem() {
     router.push({ pathname: '/item/[id]', params: { id: item.id } });
@@ -62,7 +64,7 @@ export function InventoryRow({ item }: InventoryRowProps) {
     >
       <Pressable
         accessibilityHint="Opens the item"
-        accessibilityLabel={`${item.name}, ${getExpiryPresentation(item.expiryDate).label}`}
+        accessibilityLabel={`${item.name}, ${getExpiryPresentation(item.expiryDate, today).label}`}
         accessibilityRole="button"
         onPress={openItem}
         style={({ pressed }) => [styles.row, pressed ? styles.pressed : null]}
