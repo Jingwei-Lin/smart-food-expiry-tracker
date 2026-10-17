@@ -1,32 +1,15 @@
 import {
   type OverpassElement,
-  OVERPASS_SERVERS,
-  buildQuery,
   distanceKm,
-  fetchDonationPoints,
+  formatOpeningHours,
   osmAddress,
   toDonationPoint,
   toDonationPoints,
+  toSnapshot,
 } from './overpass';
 
 /* Sydney Town Hall, used as "where the phone is". */
 const HERE = { lat: -33.8731, lon: 151.2061 };
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => body,
-  } as Response;
-}
-
-function htmlResponse(status: number): Response {
-  return {
-    ok: false,
-    status,
-    json: async () => JSON.parse('<html>Too Many Requests</html>'),
-  } as Response;
-}
 
 describe('distanceKm', () => {
   it('is zero for the same point', () => {
@@ -69,6 +52,32 @@ describe('osmAddress', () => {
   });
 });
 
+describe('formatOpeningHours', () => {
+  it.each([
+    ['Mo-Sa 12:00-16:00; Su off', 'Mon-Sat 12:00-16:00 · Sun closed'],
+    ['Tu 12:00-15:30; Fr 08:30-13:30', 'Tue 12:00-15:30 · Fri 08:30-13:30'],
+    ['We,Th 18:30-19:30', 'Wed, Thu 18:30-19:30'],
+    ['Mo-Fr 07:30-14:00; PH off', 'Mon-Fri 07:30-14:00 · closed on public holidays'],
+    [
+      'Mo-Fr 09:00-12:00,13:00-16:00; Sa 09:00-12:00',
+      'Mon-Fri 09:00-12:00, 13:00-16:00 · Sat 09:00-12:00',
+    ],
+    ['Mo-Fr,PH 09:00-12:00', 'Mon-Fri, public holidays 09:00-12:00'],
+    ['24/7', 'Open 24 hours'],
+  ])('spells out "%s"', (raw, readable) => {
+    expect(formatOpeningHours(raw)).toBe(readable);
+  });
+
+  it('leaves what it does not recognise as written', () => {
+    expect(formatOpeningHours('by appointment')).toBe('by appointment');
+    expect(formatOpeningHours('Mo 09:00-12:00 "call first"')).toBe('Mon 09:00-12:00 "call first"');
+  });
+
+  it('does not touch letters inside other words', () => {
+    expect(formatOpeningHours('Summer Sa 10:00-12:00')).toBe('Summer Sat 10:00-12:00');
+  });
+});
+
 describe('toDonationPoint', () => {
   it('maps a node', () => {
     const element: OverpassElement = {
@@ -89,7 +98,7 @@ describe('toDonationPoint', () => {
       name: 'Newtown Pantry',
       type: 'Food bank',
       distanceKm: 0,
-      hours: 'Mo-Fr 09:00-17:00',
+      hours: 'Mon-Fri 09:00-17:00',
       address: 'King St',
       latitude: HERE.lat,
       longitude: HERE.lon,
@@ -118,14 +127,31 @@ describe('toDonationPoint', () => {
     });
   });
 
-  it('maps shelters', () => {
+  it.each([
+    ['a community fridge tagged as an amenity', { amenity: 'food_sharing' }, 'Community pantry'],
+    [
+      'a pantry tagged as a social facility',
+      { social_facility: 'food_sharing' },
+      'Community pantry',
+    ],
+    [
+      'a food bank listed with other services',
+      { social_facility: 'food_bank;outreach' },
+      'Food bank',
+    ],
+    [
+      'a soup kitchen listed with other services',
+      { social_facility: 'outreach; soup_kitchen' },
+      'Soup kitchen',
+    ],
+  ])('maps %s', (_label, kind, type) => {
     const point = toDonationPoint(
-      { type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'Haven', social_facility: 'shelter' } },
+      { type: 'node', id: 1, lat: 0, lon: 0, tags: { name: 'Place', ...kind } },
       0,
       0,
     );
 
-    expect(point?.type).toBe('Shelter');
+    expect(point?.type).toBe(type);
   });
 
   it('skips places without a name', () => {
@@ -154,147 +180,90 @@ describe('toDonationPoints', () => {
   });
 });
 
-describe('buildQuery', () => {
-  it('asks Overpass to time out and searches 10 km around the place', () => {
-    const query = buildQuery(-33.87, 151.2);
+describe('toSnapshot', () => {
+  const fetchedAt = new Date('2026-10-16T09:00:00.000Z');
 
-    expect(query).toContain('[timeout:90]');
-    expect(query).toContain('(around:10000,-33.87,151.2)');
-  });
-});
-
-describe('fetchDonationPoints', () => {
-  const realFetch = globalThis.fetch;
-  let fetchMock: jest.Mock;
-
-  beforeEach(() => {
-    fetchMock = jest.fn();
-    globalThis.fetch = fetchMock;
+  it('dates the snapshot', () => {
+    expect(toSnapshot([], fetchedAt)).toEqual({
+      fetchedAt: '2026-10-16T09:00:00.000Z',
+      elements: [],
+    });
   });
 
-  afterEach(() => {
-    globalThis.fetch = realFetch;
-    jest.useRealTimers();
-  });
-
-  it('returns the points, closest first', async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse({
-        elements: [
-          { type: 'node', id: 1, lat: -33.95, lon: 151.2, tags: { name: 'Far' } },
-          { type: 'node', id: 2, lat: -33.875, lon: 151.2, tags: { name: 'Near' } },
-        ],
-      }),
+  it('keeps only the tags a card reads', () => {
+    const { elements } = toSnapshot(
+      [
+        {
+          type: 'node',
+          id: 1,
+          lat: HERE.lat,
+          lon: HERE.lon,
+          tags: {
+            name: 'Pantry',
+            social_facility: 'food_bank',
+            opening_hours: 'Mo-Fr 09:00-17:00',
+            'addr:street': 'George Street',
+            amenity: 'social_facility',
+            operator: 'Pantry Inc',
+            website: 'https://example.org',
+          },
+        },
+      ],
+      fetchedAt,
     );
 
-    const result = await fetchDonationPoints(HERE.lat, HERE.lon);
+    expect(elements[0].tags).toEqual({
+      name: 'Pantry',
+      amenity: 'social_facility',
+      social_facility: 'food_bank',
+      opening_hours: 'Mo-Fr 09:00-17:00',
+      'addr:street': 'George Street',
+    });
+  });
 
-    expect(result.outcome).toBe('found');
-    expect(result.outcome === 'found' && result.points.map((point) => point.name)).toEqual([
-      'Near',
-      'Far',
+  it("stores a way's centre as its coordinates", () => {
+    const { elements } = toSnapshot(
+      [{ type: 'way', id: 7, center: { lat: -33.9, lon: 151.1 }, tags: { name: 'Hall' } }],
+      fetchedAt,
+    );
+
+    expect(elements).toEqual([
+      { type: 'way', id: 7, lat: -33.9, lon: 151.1, tags: { name: 'Hall' } },
     ]);
   });
 
-  it('posts the query and names the app in the User-Agent', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ elements: [] }));
-
-    await fetchDonationPoints(HERE.lat, HERE.lon);
-
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const headers = init.headers as Record<string, string>;
-
-    expect(url).toBe('https://overpass-api.de/api/interpreter');
-    expect(init.method).toBe('POST');
-    expect(headers['User-Agent']).toMatch(/^SmartFoodExpiryTracker\//);
-    expect(headers['Content-Type']).toBe('application/x-www-form-urlencoded');
-    expect(decodeURIComponent(String(init.body))).toContain('data=[out:json][timeout:90]');
-  });
-
-  it('reports busy when Overpass refuses the client (406)', async () => {
-    fetchMock.mockResolvedValue(htmlResponse(406));
-
-    await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({ outcome: 'busy' });
-  });
-
-  it('returns an empty list when nothing is nearby', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ elements: [] }));
-
-    await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({
-      outcome: 'found',
-      points: [],
-    });
-  });
-
-  it.each([429, 504])('reports busy for a %i HTML page', async (status) => {
-    fetchMock.mockResolvedValue(htmlResponse(status));
-
-    await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({ outcome: 'busy' });
-  });
-
-  it('reports unavailable with no connection', async () => {
-    fetchMock.mockRejectedValue(new TypeError('Network request failed'));
-
-    await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({
-      outcome: 'unavailable',
-    });
-  });
-
-  it('reports unavailable for a 200 that is not JSON', async () => {
-    fetchMock.mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => JSON.parse('<html></html>'),
-    } as Response);
-
-    await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({
-      outcome: 'unavailable',
-    });
-  });
-
-  it('gives up after 95 seconds, reports busy and does not try another server', async () => {
-    jest.useFakeTimers();
-    fetchMock.mockImplementation(
-      (_url: string, init: RequestInit) =>
-        new Promise((_resolve, reject) => {
-          init.signal?.addEventListener('abort', () => reject(new Error('Aborted')));
-        }),
+  it('drops elements without a name or coordinates', () => {
+    const { elements } = toSnapshot(
+      [
+        { type: 'node', id: 1, lat: HERE.lat, lon: HERE.lon, tags: { amenity: 'social_facility' } },
+        { type: 'way', id: 2, tags: { name: 'No centre' } },
+        { type: 'node', id: 3, lat: HERE.lat, lon: HERE.lon, tags: { name: 'Kept' } },
+      ],
+      fetchedAt,
     );
 
-    const pending = fetchDonationPoints(HERE.lat, HERE.lon);
-    jest.advanceTimersByTime(95000);
-
-    await expect(pending).resolves.toEqual({ outcome: 'busy' });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(elements.map((element) => element.id)).toEqual([3]);
   });
 
-  it('tries the backup server when the main one refuses', async () => {
-    fetchMock.mockResolvedValueOnce(htmlResponse(406)).mockResolvedValueOnce(
-      jsonResponse({
-        elements: [{ type: 'node', id: 1, lat: HERE.lat, lon: HERE.lon, tags: { name: 'Pantry' } }],
-      }),
+  it('drops Meals on Wheels, which delivers meals rather than taking food in', () => {
+    const place = (id: number, name: string) => ({
+      type: 'node' as const,
+      id,
+      lat: HERE.lat,
+      lon: HERE.lon,
+      tags: { name, social_facility: 'food_bank' },
+    });
+
+    const { elements } = toSnapshot(
+      [
+        place(1, 'Meals on Wheels'),
+        place(2, 'Stafford Meals On Wheels'),
+        place(3, 'Meals on Wheels Kedron'),
+        place(4, 'Addi Road Food Pantry'),
+      ],
+      fetchedAt,
     );
 
-    const result = await fetchDonationPoints(HERE.lat, HERE.lon);
-
-    expect(result.outcome === 'found' && result.points.map((point) => point.name)).toEqual([
-      'Pantry',
-    ]);
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(OVERPASS_SERVERS);
-  });
-
-  it('reports busy when every server refuses', async () => {
-    fetchMock.mockResolvedValueOnce(htmlResponse(429)).mockResolvedValueOnce(htmlResponse(504));
-
-    await expect(fetchDonationPoints(HERE.lat, HERE.lon)).resolves.toEqual({ outcome: 'busy' });
-    expect(fetchMock).toHaveBeenCalledTimes(OVERPASS_SERVERS.length);
-  });
-
-  it('does not ask the backup server once the main one has answered', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ elements: [] }));
-
-    await fetchDonationPoints(HERE.lat, HERE.lon);
-
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(elements.map((element) => element.id)).toEqual([4]);
   });
 });

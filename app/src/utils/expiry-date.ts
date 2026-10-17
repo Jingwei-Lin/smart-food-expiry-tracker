@@ -39,6 +39,17 @@ export function formatExpiryDateInput(value: string): string {
 }
 
 /**
+ * Writes a date the way every screen shows a full date, e.g. 15 Sept 2026.
+ */
+export function formatDayMonthYear(date: Date): string {
+  return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+/**
  * Converts YYYY-MM-DD into a readable Australian date.
  *
  * Example:
@@ -51,11 +62,7 @@ export function formatExpiryDate(value: string): string {
     return value;
   }
 
-  return new Intl.DateTimeFormat('en-AU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
+  return formatDayMonthYear(date);
 }
 
 /**

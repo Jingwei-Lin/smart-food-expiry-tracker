@@ -71,8 +71,7 @@ export default function WeeklySummaryScreen() {
 
       {!isLoading && isStorageReady && (
         <Text style={styles.note}>
-          Counts are based on food items marked as eaten or discarded. Donation tracking is not
-          available yet.
+          Counts are based on the food you marked as eaten, donated or thrown out.
         </Text>
       )}
     </ScrollView>

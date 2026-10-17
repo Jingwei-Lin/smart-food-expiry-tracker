@@ -22,7 +22,7 @@ function buildItem(overrides: Partial<FoodItem>): FoodItem {
   };
 }
 
-function resolvedAt(status: 'eaten' | 'discarded', when: Date): FoodItem {
+function resolvedAt(status: 'eaten' | 'discarded' | 'donated', when: Date): FoodItem {
   return buildItem({ status, statusUpdatedAt: when.toISOString() });
 }
 
@@ -136,9 +136,21 @@ describe('getWeeklyData', () => {
     expect(getWeeklyData(items, NOW).map(({ eaten }) => eaten)).toEqual([0, 0, 0]);
   });
 
-  it('never counts a donation, because items cannot be marked donated yet', () => {
-    const weeks = getWeeklyData([resolvedAt('eaten', NOW)], NOW);
+  it('counts donated food in the week it was given away', () => {
+    const weeks = getWeeklyData(
+      [
+        resolvedAt('donated', new Date(2026, 9, 6, 9, 0)),
+        resolvedAt('donated', new Date(2026, 9, 7, 9, 0)),
+        resolvedAt('donated', new Date(2026, 9, 1, 9, 0)),
+        resolvedAt('eaten', new Date(2026, 9, 7, 9, 0)),
+      ],
+      NOW,
+    );
 
-    expect(weeks.every(({ donated }) => donated === 0)).toBe(true);
+    expect(weeks.map(({ eaten, donated, discarded }) => [eaten, donated, discarded])).toEqual([
+      [1, 2, 0],
+      [0, 1, 0],
+      [0, 0, 0],
+    ]);
   });
 });

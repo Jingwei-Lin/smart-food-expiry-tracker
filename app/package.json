@@ -48,6 +48,7 @@
     "lint": "expo lint",
     "format": "prettier --write .",
     "format:check": "prettier --check --end-of-line auto .",
+    "snapshot:donation-points": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/update-donation-snapshot.ts",
     "typecheck": "tsc --noEmit",
     "test": "jest",
     "test:watch": "jest --watch"

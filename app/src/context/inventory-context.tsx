@@ -53,7 +53,10 @@ function normalizeFoodItem(value: unknown): FoodItem | null {
     typeof item.expiryDate !== 'string' ||
     typeof item.notes !== 'string' ||
     typeof item.createdAt !== 'string' ||
-    (item.status !== 'active' && item.status !== 'eaten' && item.status !== 'discarded')
+    (item.status !== 'active' &&
+      item.status !== 'eaten' &&
+      item.status !== 'discarded' &&
+      item.status !== 'donated')
   ) {
     return null;
   }
@@ -477,7 +480,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   );
 
   /*
-   * Record that an item was eaten or thrown out. The timestamp is what the
+   * Record that an item was eaten, thrown out or donated. The timestamp is what the
    * weekly waste summary will group by, so it is written here rather than
    * being inferred from the expiry date later.
    */

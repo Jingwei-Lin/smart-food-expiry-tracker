@@ -7,17 +7,18 @@ import { ExpiryBadge } from '@/components/expiry-badge';
 import { useInventory } from '@/context/inventory-context';
 import { returnToInventory } from '@/utils/navigation';
 import { ResolvedFoodItemStatus } from '@/types/food-item';
-import { formatExpiryDate } from '@/utils/expiry-date';
+import { formatDayMonthYear, formatExpiryDate } from '@/utils/expiry-date';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
 const resolvedStatusLabels: Record<ResolvedFoodItemStatus, string> = {
   eaten: 'Eaten',
   discarded: 'Thrown out',
+  donated: 'Donated',
 };
 
 /**
- * Formats the moment an item was eaten or thrown out.
+ * Formats the moment an item was eaten, thrown out or donated.
  */
 function formatResolvedDate(value: string | undefined): string | null {
   if (!value) {
@@ -30,11 +31,7 @@ function formatResolvedDate(value: string | undefined): string | null {
     return null;
   }
 
-  return new Intl.DateTimeFormat('en-AU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
+  return formatDayMonthYear(date);
 }
 
 export default function ItemDetailScreen() {
@@ -253,6 +250,22 @@ export default function ItemDetailScreen() {
 
                 <View style={styles.divider} />
 
+                {/*
+                 * The same way back to the tabs, for food the student can't
+                 * finish, listing the places near the phone. It saves nothing,
+                 * so only a save already running holds it back.
+                 */}
+                <ActionButton
+                  icon="location-outline"
+                  isDisabled={isWorking}
+                  label="Find donation point"
+                  onPress={() =>
+                    router.dismissTo({ pathname: '/donation-points', params: { near: 'phone' } })
+                  }
+                />
+
+                <View style={styles.divider} />
+
                 <ActionButton
                   icon="create-outline"
                   isDisabled={areActionsDisabled}
@@ -278,6 +291,15 @@ export default function ItemDetailScreen() {
                   isDisabled={areActionsDisabled}
                   label="Mark as thrown out"
                   onPress={() => handleResolve('discarded')}
+                />
+
+                <View style={styles.divider} />
+
+                <ActionButton
+                  icon="heart-outline"
+                  isDisabled={areActionsDisabled}
+                  label="Mark as donated"
+                  onPress={() => handleResolve('donated')}
                 />
 
                 <View style={styles.divider} />

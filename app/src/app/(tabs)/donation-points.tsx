@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -12,13 +13,10 @@ import {
   View,
 } from 'react-native';
 
-import {
-  type DonationPoint,
-  type DonationPointsResult,
-  type PointType,
-  SEARCH_RADIUS_KM,
-  fetchDonationPoints,
-} from '@/utils/overpass';
+import bundledSnapshot from '@/data/donation-points-au.json';
+import { parseSnapshot, pointsNear } from '@/utils/donation-snapshot';
+import { formatDayMonthYear } from '@/utils/expiry-date';
+import { type DonationPoint, type PointType, SEARCH_RADIUS_KM } from '@/utils/overpass';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -26,62 +24,57 @@ type IconName = keyof typeof Ionicons.glyphMap;
 const TYPE_LOOK: Record<PointType, { icon: IconName; tint: string; accent: string }> = {
   'Food bank': { icon: 'basket-outline', tint: '#e7f4e8', accent: '#2f7d32' },
   'Soup kitchen': { icon: 'restaurant-outline', tint: '#fbf0dc', accent: '#9a5b12' },
-  Shelter: { icon: 'people-outline', tint: '#e2eee9', accent: '#2c6b57' },
+  'Community pantry': { icon: 'file-tray-stacked-outline', tint: '#e3edf7', accent: '#2b5f8a' },
 };
-
-const CARD_WIDTH = 290;
-const CARD_GAP = 14;
 
 /* The phone's geocoder rate-limits, so only the closest places get an address looked up. */
 const ADDRESS_LOOKUPS = 10;
 const ADDRESS_PENDING = 'Looking up address…';
 const ADDRESS_MISSING = 'Address not listed';
 
-function initials(name: string): string {
-  return name
-    .split(' ')
-    .filter((word) => word.length > 0)
-    .slice(0, 2)
-    .map((word) => word[0].toUpperCase())
-    .join('');
-}
+/*
+ * The donation points ship with the app (npm run snapshot:donation-points
+ * refreshes them), because the public OpenStreetMap servers can keep a
+ * request waiting for half a minute. Null only if the bundled file is broken.
+ */
+const SNAPSHOT = parseSnapshot(bundledSnapshot);
 
-function DonationPointCard({ point }: { point: DonationPoint }) {
+const DATA_DATE = SNAPSHOT ? formatDayMonthYear(new Date(SNAPSHOT.fetchedAt)) : null;
+
+/*
+ * A position from the last few minutes is close enough for a 10 km list and
+ * comes back at once, where a fresh fix can take several seconds indoors. A
+ * coarse one (a network fix can be off by kilometres) would skew distances
+ * shown to 0.1 km, so it must be within 500 m; otherwise a fresh fix is used.
+ */
+const RECENT_POSITION_MS = 10 * 60 * 1000;
+const RECENT_POSITION_ACCURACY_M = 500;
+
+function DonationPointRow({ point }: { point: DonationPoint }) {
   const look = TYPE_LOOK[point.type];
 
   return (
-    <View style={styles.card}>
-      <View style={[styles.cardHeader, { backgroundColor: look.tint }]}>
-        <View pointerEvents="none" style={styles.watermark}>
-          <Ionicons name={look.icon} size={96} color={look.accent} />
-        </View>
-
-        <View style={styles.typePill}>
-          <Text style={[styles.typePillText, { color: look.accent }]}>{point.type}</Text>
-        </View>
-
-        <View style={styles.identity}>
-          <View style={[styles.avatar, { backgroundColor: look.accent }]}>
-            <Text style={styles.avatarText}>{initials(point.name)}</Text>
-          </View>
-
-          <Text numberOfLines={2} style={styles.cardName}>
-            {point.name}
-          </Text>
-        </View>
+    <View style={styles.row}>
+      <View style={[styles.rowIcon, { backgroundColor: look.tint }]}>
+        <Ionicons name={look.icon} size={24} color={look.accent} />
       </View>
 
-      <View style={styles.cardBody}>
+      <View style={styles.rowText}>
+        <View style={styles.rowTop}>
+          <Text numberOfLines={2} style={styles.rowName}>
+            {point.name}
+          </Text>
+
+          <Text style={styles.distance}>{point.distanceKm.toFixed(1)} km</Text>
+        </View>
+
+        <Text style={[styles.rowType, { color: look.accent }]}>{point.type}</Text>
+
         <Text numberOfLines={2} style={styles.address}>
-          <Text style={styles.addressLabel}>Address: </Text>
           {point.address}
         </Text>
 
         <Text style={styles.hours}>{point.hours}</Text>
-
-        <View style={styles.footer}>
-          <Text style={styles.distance}>{point.distanceKm.toFixed(1)} km</Text>
-        </View>
       </View>
     </View>
   );
@@ -106,8 +99,10 @@ async function lookUpAddress(latitude: number, longitude: number): Promise<strin
 }
 
 /**
- * Donation points tab: food banks, soup kitchens and shelters from
- * OpenStreetMap within 10 km of the phone, or of a suburb the student types in.
+ * Donation points tab: food banks and soup kitchens from the bundled
+ * OpenStreetMap list within 10 km of the phone, or of a suburb the student
+ * types in. Nothing is downloaded, so the list shows as soon as the location
+ * is known, and the location never leaves the phone.
  *
  * Search narrows the list by name, kind of place or address. Only the newest
  * load is shown, so a slow GPS load can't overwrite a suburb search made while
@@ -151,8 +146,15 @@ export default function DonationPointsScreen() {
     setIsLoading(false);
   }
 
-  /** Shows the list straight away, then fills in missing addresses one at a time. */
-  async function showPoints(found: DonationPoint[], isCurrent: () => boolean) {
+  /**
+   * Shows the list straight away, then asks the geocoder for the header's
+   * suburb name (when `nameAt` is given) and for the missing addresses.
+   */
+  async function showPoints(
+    found: DonationPoint[],
+    isCurrent: () => boolean,
+    nameAt?: { latitude: number; longitude: number },
+  ) {
     const toLookUp = found.slice(0, ADDRESS_LOOKUPS).filter((point) => !point.address);
 
     setPoints(
@@ -164,7 +166,23 @@ export default function DonationPointsScreen() {
     );
     setIsLoading(false);
 
-    // One at a time, so the geocoder doesn't refuse.
+    // One at a time, header first, so the geocoder doesn't refuse.
+    if (nameAt) {
+      try {
+        const [place] = await Location.reverseGeocodeAsync(nameAt);
+
+        if (place && isCurrent()) {
+          setPlaceName([place.city, place.region].filter(Boolean).join(', '));
+        }
+      } catch {
+        // The header can do without a suburb name.
+      }
+
+      if (!isCurrent()) {
+        return;
+      }
+    }
+
     for (const point of toLookUp) {
       const address = await lookUpAddress(point.latitude, point.longitude);
 
@@ -178,18 +196,26 @@ export default function DonationPointsScreen() {
     }
   }
 
-  function handleResult(result: DonationPointsResult, isCurrent: () => boolean, near: string) {
-    if (!isCurrent()) {
+  /**
+   * Lists the bundled donation points within reach of a place, and names the
+   * place in the header if asked to.
+   */
+  function showPointsNear(
+    latitude: number,
+    longitude: number,
+    isCurrent: () => boolean,
+    nameHeader = false,
+  ) {
+    if (!SNAPSHOT) {
+      fail("The list of donation points couldn't be read. Please update the app.");
       return;
     }
 
-    if (result.outcome === 'busy') {
-      fail('OpenStreetMap is busy right now. Wait a moment, then try again.');
-    } else if (result.outcome === 'unavailable') {
-      fail(`Couldn't load donation points ${near}. Check your connection and try again.`);
-    } else {
-      void showPoints(result.points, isCurrent);
-    }
+    void showPoints(
+      pointsNear(SNAPSHOT, latitude, longitude, SEARCH_RADIUS_KM),
+      isCurrent,
+      nameHeader ? { latitude, longitude } : undefined,
+    );
   }
 
   async function loadNearPhone() {
@@ -216,21 +242,18 @@ export default function DonationPointsScreen() {
         return;
       }
 
-      const current = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-      const { latitude, longitude } = current.coords;
+      const position =
+        (await Location.getLastKnownPositionAsync({
+          maxAge: RECENT_POSITION_MS,
+          requiredAccuracy: RECENT_POSITION_ACCURACY_M,
+        })) ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
+      const { latitude, longitude } = position.coords;
 
-      // The header can do without a suburb name, so a failed lookup is ignored.
-      try {
-        const [place] = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (!isCurrent()) {
+        return;
+      }
 
-        if (place && isCurrent()) {
-          setPlaceName([place.city, place.region].filter(Boolean).join(', '));
-        }
-      } catch {}
-
-      handleResult(await fetchDonationPoints(latitude, longitude), isCurrent, 'near you');
+      showPointsNear(latitude, longitude, isCurrent, true);
     } catch {
       if (isCurrent()) {
         fail("Couldn't find where you are. Try again, or search a suburb instead.");
@@ -253,29 +276,39 @@ export default function DonationPointsScreen() {
     const isCurrent = startRequest();
 
     try {
-      // Suburb names repeat across states (there is a Newtown in NSW, Victoria and
-      // Tasmania), so the search stays in NSW, where the app's students are.
-      const [place] = await Location.geocodeAsync(`${suburb}, NSW, Australia`);
+      // Suburb names repeat across states (there is a Newtown in NSW, Victoria
+      // and Tasmania), so the box asks for the state as well.
+      const [place] = await Location.geocodeAsync(`${suburb}, Australia`);
 
       if (!isCurrent()) {
         return;
       }
 
       if (!place) {
-        fail(`Couldn't find "${suburb}". Check the spelling and try again.`);
+        fail(`Couldn't find "${suburb}". Check the spelling, add the state, and try again.`);
         return;
       }
 
-      handleResult(
-        await fetchDonationPoints(place.latitude, place.longitude),
-        isCurrent,
-        `near "${suburb}"`,
-      );
+      showPointsNear(place.latitude, place.longitude, isCurrent);
     } catch {
       if (isCurrent()) {
         fail(`Couldn't look up "${suburb}". Check your connection and try again.`);
       }
     }
+  }
+
+  /** Drops a suburb search and clears the screen for a load near the phone. */
+  function clearSuburb() {
+    setIsEditingSuburb(false);
+    setSearchedSuburb(null);
+    setPlaceName('Your location');
+    showLoading();
+  }
+
+  /** Goes back to the places around the phone after a suburb search. */
+  function backToMyLocation() {
+    clearSuburb();
+    void loadNearPhone();
   }
 
   /** Repeats whichever load failed: the phone's location or the last suburb. */
@@ -288,18 +321,52 @@ export default function DonationPointsScreen() {
     }
   }
 
+  /*
+   * "Find donation point" on an item's screen opens this tab with near=phone.
+   * The tab stays mounted once opened, so without this it would still show
+   * whatever it showed last: another suburb, a search or an error. It is
+   * applied while rendering, React's pattern for state that follows a changing
+   * param. On a cold open the first load is near the phone anyway, so the
+   * param it opened with counts as applied.
+   */
+  const { near } = useLocalSearchParams<{ near?: string }>();
+  const [appliedNear, setAppliedNear] = useState(near ?? null);
+  /* Each change starts a load near the phone: the first when the tab opens, then one per "Find donation point". */
+  const [phoneLoads, setPhoneLoads] = useState(0);
+
+  if ((near ?? null) !== appliedNear) {
+    setAppliedNear(near ?? null);
+
+    if (near === 'phone') {
+      setQuery('');
+      clearSuburb();
+      setPhoneLoads((count) => count + 1);
+    }
+  }
+
+  /* Clear the param, so the next "Find donation point" counts as a change. */
   useEffect(() => {
+    if (appliedNear) {
+      router.setParams({ near: undefined });
+    }
+  }, [appliedNear]);
+
+  useEffect(() => {
+    /*
+     * loadNearPhone only sets state after its first await, but the lint rule
+     * against setting state inside an effect can't see that through a direct
+     * call, so it is started from an async wrapper.
+     */
     (async () => {
       await loadNearPhone();
     })();
 
-    // Anything still loading when the tab goes away is ignored.
+    // Anything still loading when the tab goes away, or a newer load starts, is ignored.
     return () => {
       latestRequest.current += 1;
     };
-    // Runs once, when the tab first opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [phoneLoads]);
 
   const search = query.trim().toLowerCase();
   const matches = points.filter((point) =>
@@ -311,35 +378,41 @@ export default function DonationPointsScreen() {
       return null;
     }
 
+    const count = `${sectionPoints.length} ${sectionPoints.length === 1 ? 'place' : 'places'}`;
+
+    /*
+     * One list the student scrolls down with the screen. There are rarely more
+     * than a handful of places within 10 km, and a sideways row showed only
+     * one of them at a time.
+     */
     return (
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{title.toUpperCase()}</Text>
+        <Text style={styles.sectionTitle}>{`${title} · ${count}`.toUpperCase()}</Text>
 
-        <ScrollView
-          contentContainerStyle={styles.carousel}
-          decelerationRate="fast"
-          horizontal
-          keyboardShouldPersistTaps="handled"
-          showsHorizontalScrollIndicator={false}
-          snapToInterval={CARD_WIDTH + CARD_GAP}
-        >
+        <View style={styles.list} testID="donation-points-list">
           {sectionPoints.map((point) => (
-            <DonationPointCard key={point.id} point={point} />
+            <DonationPointRow key={point.id} point={point} />
           ))}
-        </ScrollView>
+        </View>
       </View>
     );
   }
 
   return (
     <ScrollView
-      contentContainerStyle={{ paddingTop: insets.top + 16, paddingBottom: insets.bottom + 124 }}
+      contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + 124 }}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
       style={styles.screen}
     >
       <View style={styles.header}>
+        <Text accessibilityRole="header" style={styles.title}>
+          Donation Points
+        </Text>
+
+        <Text style={styles.subtitle}>Places near you that take spare food.</Text>
+
         <Pressable
           accessibilityLabel="Change suburb"
           accessibilityRole="button"
@@ -349,7 +422,7 @@ export default function DonationPointsScreen() {
           <Ionicons name="navigate" size={16} color="#2f7d32" />
 
           <Text style={styles.locationName}>
-            {isLoading ? 'Finding your location…' : placeName}
+            {isLoading && !searchedSuburb ? 'Finding your location…' : placeName}
           </Text>
 
           <Ionicons
@@ -369,14 +442,26 @@ export default function DonationPointsScreen() {
               accessibilityLabel="Suburb"
               autoFocus
               onChangeText={setSuburbQuery}
-              onSubmitEditing={() => searchSuburb(suburbQuery)}
-              placeholder="Enter a suburb, e.g. Newtown"
+              onSubmitEditing={() => void searchSuburb(suburbQuery)}
+              placeholder="Enter a suburb and state, e.g. Newtown NSW"
               placeholderTextColor="#7b857d"
               returnKeyType="search"
               style={styles.searchInput}
               value={suburbQuery}
             />
           </View>
+        ) : null}
+
+        {isEditingSuburb && searchedSuburb ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={backToMyLocation}
+            style={({ pressed }) => [styles.myLocationButton, pressed ? styles.pressed : null]}
+          >
+            <Ionicons name="navigate" size={16} color="#2f7d32" />
+
+            <Text style={styles.myLocationText}>Use my location</Text>
+          </Pressable>
         ) : null}
 
         <View style={styles.searchBox}>
@@ -407,10 +492,6 @@ export default function DonationPointsScreen() {
       </View>
 
       {renderSection(searchedSuburb ? `Closest to ${placeName}` : 'Closest to you', matches)}
-
-      {points.length > 0 ? (
-        <Text style={styles.attribution}>Data © OpenStreetMap contributors</Text>
-      ) : null}
 
       {isLoading ? <ActivityIndicator color="#2f7d32" size="large" style={styles.spinner} /> : null}
 
@@ -464,6 +545,10 @@ export default function DonationPointsScreen() {
           )}
         </View>
       ) : null}
+
+      {!isLoading && !error && DATA_DATE ? (
+        <Text style={styles.attribution}>Data © OpenStreetMap contributors, as of {DATA_DATE}</Text>
+      ) : null}
     </ScrollView>
   );
 }
@@ -476,10 +561,23 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
   },
+  title: {
+    color: '#172019',
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+  subtitle: {
+    marginTop: 5,
+    color: '#59635b',
+    fontSize: 15,
+    lineHeight: 22,
+  },
   locationLine: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    marginTop: 18,
   },
   locationName: {
     color: '#2f7d32',
@@ -504,6 +602,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
     paddingHorizontal: 14,
   },
+  myLocationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 44,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#2f7d32',
+    borderRadius: 12,
+    backgroundColor: '#e7f4e8',
+  },
+  myLocationText: {
+    color: '#1f5a22',
+    fontSize: 15,
+    fontWeight: '700',
+  },
   searchInput: {
     flex: 1,
     paddingVertical: 12,
@@ -511,110 +626,73 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   section: {
-    marginTop: 26,
+    marginTop: 22,
+    paddingHorizontal: 20,
   },
   sectionTitle: {
     marginBottom: 10,
-    paddingHorizontal: 20,
     color: '#687269',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.9,
   },
-  carousel: {
-    paddingHorizontal: 20,
-    gap: CARD_GAP,
+  list: {
+    gap: 10,
   },
-  card: {
-    width: CARD_WIDTH,
-    overflow: 'hidden',
+  row: {
+    flexDirection: 'row',
+    gap: 12,
     borderWidth: 1,
     borderColor: '#dce4da',
     borderRadius: 16,
     backgroundColor: '#ffffff',
+    padding: 14,
   },
-  cardHeader: {
-    height: 112,
-    justifyContent: 'space-between',
-    overflow: 'hidden',
-    padding: 12,
-  },
-  watermark: {
-    position: 'absolute',
-    right: -6,
-    bottom: -14,
-    opacity: 0.16,
-  },
-  typePill: {
-    alignSelf: 'flex-start',
-    borderRadius: 999,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  typePillText: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  identity: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  avatar: {
+  rowIcon: {
     alignItems: 'center',
     justifyContent: 'center',
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: 14,
   },
-  avatarText: {
-    color: '#ffffff',
+  rowText: {
+    flex: 1,
+    gap: 3,
+  },
+  rowTop: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 10,
+  },
+  rowName: {
+    flex: 1,
+    color: '#172019',
     fontSize: 16,
     fontWeight: '800',
   },
-  cardName: {
-    flex: 1,
-    color: '#172019',
-    fontSize: 17,
-    fontWeight: '800',
-  },
-  cardBody: {
-    flex: 1,
-    gap: 4,
-    padding: 14,
+  rowType: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   address: {
     color: '#172019',
-    fontSize: 15,
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  addressLabel: {
-    color: '#687269',
-    fontWeight: '600',
+    fontSize: 14,
+    lineHeight: 19,
   },
   hours: {
     color: '#687269',
     fontSize: 13,
   },
-  footer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 'auto',
-    paddingTop: 8,
-  },
   distance: {
     color: '#2f7d32',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '800',
   },
   attribution: {
     marginTop: 10,
     paddingHorizontal: 20,
-    color: '#7b857d',
-    fontSize: 11,
+    color: '#687269',
+    fontSize: 12,
   },
   pressed: {
     opacity: 0.72,
@@ -671,6 +749,8 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   primaryButton: {
+    justifyContent: 'center',
+    minHeight: 44,
     borderRadius: 999,
     backgroundColor: '#2f7d32',
     paddingHorizontal: 18,
@@ -682,6 +762,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   secondaryButton: {
+    justifyContent: 'center',
+    minHeight: 44,
     borderWidth: 1,
     borderColor: '#2f7d32',
     borderRadius: 999,
