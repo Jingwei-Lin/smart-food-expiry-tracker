@@ -45,7 +45,8 @@
           "locationWhenInUsePermission": "Allow Smart Food Expiry Tracker to use your location to show food donation points near you."
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true,

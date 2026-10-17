@@ -5,8 +5,10 @@ import {
   formatExpiryDate,
   formatExpiryDateInput,
   getExpiryListPresentation,
+  formatWeekdayDate,
   getExpiryPresentation,
   parseExpiryDate,
+  toExpiryDateString,
 } from '@/utils/expiry-date';
 
 const today = new Date(2026, 8, 17);
@@ -26,6 +28,24 @@ describe('parseExpiryDate', () => {
   it('rejects a day that does not exist in that month', () => {
     expect(parseExpiryDate('2026-02-30')).toBeNull();
     expect(parseExpiryDate('2026-13-01')).toBeNull();
+  });
+});
+
+describe('toExpiryDateString', () => {
+  it('writes the local calendar day, padded', () => {
+    expect(toExpiryDateString(new Date(2026, 8, 7, 23, 30))).toBe('2026-09-07');
+  });
+
+  it('reads back as the same day', () => {
+    const picked = new Date(2027, 0, 31, 9, 0);
+
+    expect(parseExpiryDate(toExpiryDateString(picked))).toEqual(new Date(2027, 0, 31));
+  });
+});
+
+describe('formatWeekdayDate', () => {
+  it('names the weekday with the date', () => {
+    expect(formatWeekdayDate(new Date(2026, 8, 20))).toMatch(/^Sun,? 20 Sept? 2026$/);
   });
 });
 

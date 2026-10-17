@@ -25,10 +25,21 @@ export function parseExpiryDate(value: string): Date | null {
 }
 
 /**
+ * Writes a calendar day as the YYYY-MM-DD the inventory stores, in local time.
+ */
+export function toExpiryDateString(date: Date): string {
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+/**
  * Formats digits typed into the expiry field as YYYY-MM-DD.
  *
- * The field uses a digits-only keypad, which has no hyphen key on either iOS
- * or Android, so the separators are inserted as the student types.
+ * Only the web build types the date, because the phone calendar picker has no
+ * web version. The digits-only keypad has no hyphen key, so the separators are
+ * inserted as the student types.
  */
 export function formatExpiryDateInput(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 8);
@@ -45,6 +56,19 @@ export function formatExpiryDateInput(value: string): string {
  */
 export function formatDayMonthYear(date: Date): string {
   return new Intl.DateTimeFormat('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).format(date);
+}
+
+/**
+ * Writes a chosen date with its weekday, e.g. "Sun, 20 Sept 2026", so the
+ * student can check it against the packet at a glance.
+ */
+export function formatWeekdayDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-AU', {
+    weekday: 'short',
     day: 'numeric',
     month: 'short',
     year: 'numeric',
