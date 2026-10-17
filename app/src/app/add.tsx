@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useHeaderHeight } from 'expo-router/react-navigation';
+import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ItemForm, ItemFormValues } from '@/components/item-form';
 import { useInventory } from '@/context/inventory-context';
@@ -51,6 +52,7 @@ function describeScan(params: ScanParams): { tone: 'found' | 'manual'; text: str
 export default function AddItemScreen() {
   const { addItem, isStorageReady, storageError } = useInventory();
   const params = useLocalSearchParams<ScanParams>();
+  const headerHeight = useHeaderHeight();
 
   const scanNotice = describeScan(params);
 
@@ -61,8 +63,14 @@ export default function AddItemScreen() {
   }
 
   return (
+    /*
+     * Android draws edge to edge, so the window no longer shrinks for the
+     * keyboard and the padding is needed there too. The view measures itself
+     * from below the header, so the header's height is added back.
+     */
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior="padding"
+      keyboardVerticalOffset={headerHeight}
       style={styles.screen}
     >
       <ScrollView
