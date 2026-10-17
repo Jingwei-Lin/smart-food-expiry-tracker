@@ -90,6 +90,16 @@ describe('InventoryScreen', () => {
     expect(view.getByText('Tomorrow')).toBeTruthy();
   });
 
+  it('counts only the Eat soon section as "to eat soon", not expired food', async () => {
+    const view = await renderScreen([
+      buildItem('Yoghurt', '2026-10-15'),
+      buildItem('Milk', '2026-10-19'),
+      buildItem('Rice', '2026-12-01'),
+    ]);
+
+    expect(view.getByText('3 items · 1 to eat soon')).toBeTruthy();
+  });
+
   it('moves on a day when the tab is opened again the next morning', async () => {
     const view = await renderScreen([buildItem('Milk', '2026-10-19')]);
 

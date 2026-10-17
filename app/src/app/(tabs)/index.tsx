@@ -8,12 +8,16 @@ import { useInventory } from '@/context/inventory-context';
 import { useToday } from '@/hooks/use-today';
 import { FoodItem } from '@/types/food-item';
 import { daysUntilExpiry } from '@/utils/expiry-date';
-import { buildInventorySections, InventorySection } from '@/utils/inventory-sections';
-
-const EAT_SOON_DAYS = 3;
+import {
+  buildInventorySections,
+  EAT_SOON_DAYS,
+  InventorySection,
+} from '@/utils/inventory-sections';
 
 /**
- * Builds the one-line summary under the title.
+ * Builds the one-line summary under the title. "To eat soon" counts the same
+ * food as the Eat soon section: expired food has its own section, so it is
+ * not counted again here.
  */
 function describeInventory(items: FoodItem[], today: Date): string {
   if (items.length === 0) {
@@ -21,9 +25,11 @@ function describeInventory(items: FoodItem[], today: Date): string {
   }
 
   const itemWord = items.length === 1 ? 'item' : 'items';
-  const soonCount = items.filter(
-    (item) => daysUntilExpiry(item.expiryDate, today) <= EAT_SOON_DAYS,
-  ).length;
+  const soonCount = items.filter((item) => {
+    const days = daysUntilExpiry(item.expiryDate, today);
+
+    return days >= 0 && days <= EAT_SOON_DAYS;
+  }).length;
 
   if (soonCount === 0) {
     return `${items.length} ${itemWord}`;
