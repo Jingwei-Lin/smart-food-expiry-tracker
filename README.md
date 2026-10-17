@@ -100,7 +100,7 @@ Then scan the QR code with Expo Go. You need a real phone to test the barcode sc
 All four pass on `main`. Run them from the `app/` folder.
 
 ```bash
-npm test             # 387 unit tests
+npm test             # 397 unit tests
 npm run typecheck    # TypeScript, strict mode
 npm run lint
 npm run format:check # Prettier

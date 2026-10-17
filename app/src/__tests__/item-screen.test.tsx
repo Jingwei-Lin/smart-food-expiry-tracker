@@ -71,12 +71,15 @@ describe('ItemDetailScreen', () => {
     });
   });
 
-  it('opens the Donation Points tab for food that cannot be finished', async () => {
+  it('opens the Donation Points tab near the phone for food that cannot be finished', async () => {
     const view = await renderScreen(buildMilk());
 
     await fireEvent.press(view.getByText('Find donation point'));
 
-    expect(router.dismissTo).toHaveBeenCalledWith('/donation-points');
+    expect(router.dismissTo).toHaveBeenCalledWith({
+      pathname: '/donation-points',
+      params: { near: 'phone' },
+    });
   });
 
   it.each([

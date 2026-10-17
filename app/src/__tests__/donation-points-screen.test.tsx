@@ -1,10 +1,19 @@
-import { fireEvent, render, within } from '@testing-library/react-native';
+import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import * as Location from 'expo-location';
+import { router } from 'expo-router';
 
 import DonationPointsScreen from '@/app/(tabs)/donation-points';
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+
+/* The tab's search params, as "Find donation point" on an item's screen sets them. */
+const mockSearchParams: { near?: string } = {};
+
+jest.mock('expo-router', () => ({
+  router: { setParams: jest.fn() },
+  useLocalSearchParams: () => mockSearchParams,
 }));
 
 jest.mock('expo-location', () => ({
@@ -97,6 +106,7 @@ async function searchSuburb(view: Awaited<ReturnType<typeof render>>, suburb: st
 
 beforeEach(() => {
   jest.clearAllMocks();
+  delete mockSearchParams.near;
   globalThis.fetch = jest.fn();
 
   location.requestForegroundPermissionsAsync.mockResolvedValue({
@@ -155,11 +165,14 @@ describe('DonationPointsScreen', () => {
     ).toBeTruthy();
   });
 
-  it('uses a recent position instead of waiting for a fresh fix', async () => {
+  it('uses a recent, accurate position instead of waiting for a fresh fix', async () => {
     const view = await render(<DonationPointsScreen />);
     await view.findByText('Close Pantry');
 
-    expect(location.getLastKnownPositionAsync).toHaveBeenCalledWith({ maxAge: 10 * 60 * 1000 });
+    expect(location.getLastKnownPositionAsync).toHaveBeenCalledWith({
+      maxAge: 10 * 60 * 1000,
+      requiredAccuracy: 500,
+    });
     expect(location.getCurrentPositionAsync).not.toHaveBeenCalled();
   });
 
@@ -172,25 +185,40 @@ describe('DonationPointsScreen', () => {
     expect(location.getCurrentPositionAsync).toHaveBeenCalledTimes(1);
   });
 
-  it('fills in a missing address after the list shows', async () => {
-    let answerLookup: (places: Location.LocationGeocodedAddress[]) => void = () => undefined;
-    location.reverseGeocodeAsync.mockImplementation(
-      () =>
-        new Promise((resolve) => {
-          answerLookup = resolve;
-        }),
-    );
+  it('names the suburb, then fills in a missing address, one geocoder call at a time', async () => {
+    const answers: (() => void)[] = [];
+    let running = 0;
+    let mostAtOnce = 0;
+
+    location.reverseGeocodeAsync.mockImplementation(() => {
+      running += 1;
+      mostAtOnce = Math.max(mostAtOnce, running);
+
+      return new Promise((resolve) => {
+        answers.push(() => {
+          running -= 1;
+          resolve([
+            { city: 'Sydney', region: 'NSW', street: 'Pitt Street', streetNumber: '5' },
+          ] as Location.LocationGeocodedAddress[]);
+        });
+      });
+    });
 
     const view = await render(<DonationPointsScreen />);
 
+    // The list shows before the geocoder answers anything.
     expect(await view.findByText(/Looking up address…/)).toBeTruthy();
     expect(view.getByText(/1 George Street/)).toBeTruthy();
+    expect(location.reverseGeocodeAsync).toHaveBeenCalledTimes(1);
+    expect(location.reverseGeocodeAsync).toHaveBeenCalledWith(HERE);
 
-    answerLookup([
-      { city: 'Sydney', region: 'NSW', street: 'Pitt Street', streetNumber: '5' },
-    ] as Location.LocationGeocodedAddress[]);
+    answers.shift()?.();
+    expect(await view.findByText('Sydney, NSW')).toBeTruthy();
+    await waitFor(() => expect(location.reverseGeocodeAsync).toHaveBeenCalledTimes(2));
 
+    answers.shift()?.();
     expect(await view.findByText(/5 Pitt Street, Sydney/)).toBeTruthy();
+    expect(mostAtOnce).toBe(1);
   });
 
   it('still lists the places when the suburb name for the header cannot be found', async () => {
@@ -302,6 +330,48 @@ describe('DonationPointsScreen', () => {
 
       expect(await view.findByText('Close Pantry')).toBeTruthy();
       expect(location.geocodeAsync).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('opened by "Find donation point" on an item', () => {
+    it('loads near the phone once on a cold open, and clears the param', async () => {
+      mockSearchParams.near = 'phone';
+
+      const view = await render(<DonationPointsScreen />);
+
+      expect(await view.findByText('Close Pantry')).toBeTruthy();
+      expect(router.setParams).toHaveBeenCalledWith({ near: undefined });
+      expect(location.getLastKnownPositionAsync).toHaveBeenCalledTimes(1);
+    });
+
+    it('drops an earlier suburb and search, and lists the places near the phone again', async () => {
+      const view = await render(<DonationPointsScreen />);
+      await view.findByText('Close Pantry');
+      await searchSuburb(view, 'Fitzroy VIC');
+      await view.findByText('Fitzroy Pantry');
+      await fireEvent.changeText(view.getByLabelText('Search donation points'), 'Fitzroy');
+
+      mockSearchParams.near = 'phone';
+      await view.rerender(<DonationPointsScreen />);
+
+      expect(await view.findByText('Close Pantry')).toBeTruthy();
+      expect(view.getByText('CLOSEST TO YOU · 2 PLACES')).toBeTruthy();
+      expect(view.getByLabelText('Search donation points').props.value).toBe('');
+      expect(router.setParams).toHaveBeenCalledWith({ near: undefined });
+    });
+
+    it('loads again on the next "Find donation point" once the param is cleared', async () => {
+      mockSearchParams.near = 'phone';
+      const view = await render(<DonationPointsScreen />);
+      await view.findByText('Close Pantry');
+
+      delete mockSearchParams.near;
+      await view.rerender(<DonationPointsScreen />);
+      mockSearchParams.near = 'phone';
+      await view.rerender(<DonationPointsScreen />);
+      await view.findByText('Close Pantry');
+
+      expect(location.getLastKnownPositionAsync).toHaveBeenCalledTimes(2);
     });
   });
 

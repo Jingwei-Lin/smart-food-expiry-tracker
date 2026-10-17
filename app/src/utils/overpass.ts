@@ -100,6 +100,8 @@ const DAY_NAMES: Record<string, string> = {
  * OpenStreetMap writes opening hours in a compact code ("Mo-Sa 12:00-16:00;
  * Su off"). Spells out the days and the common phrases so a student can read
  * it at a glance; anything else is left as written rather than guessed at.
+ * A rule can hold commas of its own ("Mo-Fr 09:00-12:00,13:00-16:00"), so
+ * rules are set apart with a dot rather than another comma.
  */
 export function formatOpeningHours(raw: string): string {
   const rules = raw
@@ -117,10 +119,12 @@ export function formatOpeningHours(raw: string): string {
 
       return rule
         .replace(/\b(Mo|Tu|We|Th|Fr|Sa|Su)\b/g, (day) => DAY_NAMES[day])
+        .replace(/\bPH\b/g, 'public holidays')
+        .replace(/,(?=\S)/g, ', ')
         .replace(/ off$/, ' closed');
     });
 
-  return rules.join(', ');
+  return rules.join(' · ');
 }
 
 function pointType(tags: Record<string, string>): PointType {

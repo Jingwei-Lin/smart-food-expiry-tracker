@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -42,9 +43,12 @@ const DATA_DATE = SNAPSHOT ? formatDayMonthYear(new Date(SNAPSHOT.fetchedAt)) : 
 
 /*
  * A position from the last few minutes is close enough for a 10 km list and
- * comes back at once, where a fresh fix can take several seconds indoors.
+ * comes back at once, where a fresh fix can take several seconds indoors. A
+ * coarse one (a network fix can be off by kilometres) would skew distances
+ * shown to 0.1 km, so it must be within 500 m; otherwise a fresh fix is used.
  */
 const RECENT_POSITION_MS = 10 * 60 * 1000;
+const RECENT_POSITION_ACCURACY_M = 500;
 
 function DonationPointRow({ point }: { point: DonationPoint }) {
   const look = TYPE_LOOK[point.type];
@@ -142,8 +146,15 @@ export default function DonationPointsScreen() {
     setIsLoading(false);
   }
 
-  /** Shows the list straight away, then fills in missing addresses one at a time. */
-  async function showPoints(found: DonationPoint[], isCurrent: () => boolean) {
+  /**
+   * Shows the list straight away, then asks the geocoder for the header's
+   * suburb name (when `nameAt` is given) and for the missing addresses.
+   */
+  async function showPoints(
+    found: DonationPoint[],
+    isCurrent: () => boolean,
+    nameAt?: { latitude: number; longitude: number },
+  ) {
     const toLookUp = found.slice(0, ADDRESS_LOOKUPS).filter((point) => !point.address);
 
     setPoints(
@@ -155,7 +166,23 @@ export default function DonationPointsScreen() {
     );
     setIsLoading(false);
 
-    // One at a time, so the geocoder doesn't refuse.
+    // One at a time, header first, so the geocoder doesn't refuse.
+    if (nameAt) {
+      try {
+        const [place] = await Location.reverseGeocodeAsync(nameAt);
+
+        if (place && isCurrent()) {
+          setPlaceName([place.city, place.region].filter(Boolean).join(', '));
+        }
+      } catch {
+        // The header can do without a suburb name.
+      }
+
+      if (!isCurrent()) {
+        return;
+      }
+    }
+
     for (const point of toLookUp) {
       const address = await lookUpAddress(point.latitude, point.longitude);
 
@@ -169,14 +196,26 @@ export default function DonationPointsScreen() {
     }
   }
 
-  /** Lists the bundled donation points within reach of a place. */
-  function showPointsNear(latitude: number, longitude: number, isCurrent: () => boolean) {
+  /**
+   * Lists the bundled donation points within reach of a place, and names the
+   * place in the header if asked to.
+   */
+  function showPointsNear(
+    latitude: number,
+    longitude: number,
+    isCurrent: () => boolean,
+    nameHeader = false,
+  ) {
     if (!SNAPSHOT) {
       fail("The list of donation points couldn't be read. Please update the app.");
       return;
     }
 
-    void showPoints(pointsNear(SNAPSHOT, latitude, longitude, SEARCH_RADIUS_KM), isCurrent);
+    void showPoints(
+      pointsNear(SNAPSHOT, latitude, longitude, SEARCH_RADIUS_KM),
+      isCurrent,
+      nameHeader ? { latitude, longitude } : undefined,
+    );
   }
 
   async function loadNearPhone() {
@@ -204,24 +243,17 @@ export default function DonationPointsScreen() {
       }
 
       const position =
-        (await Location.getLastKnownPositionAsync({ maxAge: RECENT_POSITION_MS })) ??
-        (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
+        (await Location.getLastKnownPositionAsync({
+          maxAge: RECENT_POSITION_MS,
+          requiredAccuracy: RECENT_POSITION_ACCURACY_M,
+        })) ?? (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
       const { latitude, longitude } = position.coords;
 
       if (!isCurrent()) {
         return;
       }
 
-      // The header can do without a suburb name, so it doesn't hold up the list.
-      Location.reverseGeocodeAsync({ latitude, longitude })
-        .then(([place]) => {
-          if (place && isCurrent()) {
-            setPlaceName([place.city, place.region].filter(Boolean).join(', '));
-          }
-        })
-        .catch(() => undefined);
-
-      showPointsNear(latitude, longitude, isCurrent);
+      showPointsNear(latitude, longitude, isCurrent, true);
     } catch {
       if (isCurrent()) {
         fail("Couldn't find where you are. Try again, or search a suburb instead.");
@@ -265,12 +297,17 @@ export default function DonationPointsScreen() {
     }
   }
 
-  /** Goes back to the places around the phone after a suburb search. */
-  function backToMyLocation() {
+  /** Drops a suburb search and clears the screen for a load near the phone. */
+  function clearSuburb() {
     setIsEditingSuburb(false);
     setSearchedSuburb(null);
     setPlaceName('Your location');
     showLoading();
+  }
+
+  /** Goes back to the places around the phone after a suburb search. */
+  function backToMyLocation() {
+    clearSuburb();
     void loadNearPhone();
   }
 
@@ -284,6 +321,36 @@ export default function DonationPointsScreen() {
     }
   }
 
+  /*
+   * "Find donation point" on an item's screen opens this tab with near=phone.
+   * The tab stays mounted once opened, so without this it would still show
+   * whatever it showed last: another suburb, a search or an error. It is
+   * applied while rendering, React's pattern for state that follows a changing
+   * param. On a cold open the first load is near the phone anyway, so the
+   * param it opened with counts as applied.
+   */
+  const { near } = useLocalSearchParams<{ near?: string }>();
+  const [appliedNear, setAppliedNear] = useState(near ?? null);
+  /* Each change starts a load near the phone: the first when the tab opens, then one per "Find donation point". */
+  const [phoneLoads, setPhoneLoads] = useState(0);
+
+  if ((near ?? null) !== appliedNear) {
+    setAppliedNear(near ?? null);
+
+    if (near === 'phone') {
+      setQuery('');
+      clearSuburb();
+      setPhoneLoads((count) => count + 1);
+    }
+  }
+
+  /* Clear the param, so the next "Find donation point" counts as a change. */
+  useEffect(() => {
+    if (appliedNear) {
+      router.setParams({ near: undefined });
+    }
+  }, [appliedNear]);
+
   useEffect(() => {
     /*
      * loadNearPhone only sets state after its first await, but the lint rule
@@ -294,13 +361,12 @@ export default function DonationPointsScreen() {
       await loadNearPhone();
     })();
 
-    // Anything still loading when the tab goes away is ignored.
+    // Anything still loading when the tab goes away, or a newer load starts, is ignored.
     return () => {
       latestRequest.current += 1;
     };
-    // Runs once, when the tab first opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [phoneLoads]);
 
   const search = query.trim().toLowerCase();
   const matches = points.filter((point) =>

@@ -54,10 +54,15 @@ describe('osmAddress', () => {
 
 describe('formatOpeningHours', () => {
   it.each([
-    ['Mo-Sa 12:00-16:00; Su off', 'Mon-Sat 12:00-16:00, Sun closed'],
-    ['Tu 12:00-15:30; Fr 08:30-13:30', 'Tue 12:00-15:30, Fri 08:30-13:30'],
-    ['We,Th 18:30-19:30', 'Wed,Thu 18:30-19:30'],
-    ['Mo-Fr 07:30-14:00; PH off', 'Mon-Fri 07:30-14:00, closed on public holidays'],
+    ['Mo-Sa 12:00-16:00; Su off', 'Mon-Sat 12:00-16:00 · Sun closed'],
+    ['Tu 12:00-15:30; Fr 08:30-13:30', 'Tue 12:00-15:30 · Fri 08:30-13:30'],
+    ['We,Th 18:30-19:30', 'Wed, Thu 18:30-19:30'],
+    ['Mo-Fr 07:30-14:00; PH off', 'Mon-Fri 07:30-14:00 · closed on public holidays'],
+    [
+      'Mo-Fr 09:00-12:00,13:00-16:00; Sa 09:00-12:00',
+      'Mon-Fri 09:00-12:00, 13:00-16:00 · Sat 09:00-12:00',
+    ],
+    ['Mo-Fr,PH 09:00-12:00', 'Mon-Fri, public holidays 09:00-12:00'],
     ['24/7', 'Open 24 hours'],
   ])('spells out "%s"', (raw, readable) => {
     expect(formatOpeningHours(raw)).toBe(readable);

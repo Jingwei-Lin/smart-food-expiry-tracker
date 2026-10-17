@@ -250,12 +250,18 @@ export default function ItemDetailScreen() {
 
                 <View style={styles.divider} />
 
-                {/* The same way back to the tabs, for food the student can't finish. */}
+                {/*
+                 * The same way back to the tabs, for food the student can't
+                 * finish, listing the places near the phone. It saves nothing,
+                 * so only a save already running holds it back.
+                 */}
                 <ActionButton
                   icon="location-outline"
-                  isDisabled={areActionsDisabled}
+                  isDisabled={isWorking}
                   label="Find donation point"
-                  onPress={() => router.dismissTo('/donation-points')}
+                  onPress={() =>
+                    router.dismissTo({ pathname: '/donation-points', params: { near: 'phone' } })
+                  }
                 />
 
                 <View style={styles.divider} />
