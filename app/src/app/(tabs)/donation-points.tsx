@@ -14,6 +14,7 @@ import {
 
 import bundledSnapshot from '@/data/donation-points-au.json';
 import { parseSnapshot, pointsNear } from '@/utils/donation-snapshot';
+import { formatDayMonthYear } from '@/utils/expiry-date';
 import { type DonationPoint, type PointType, SEARCH_RADIUS_KM } from '@/utils/overpass';
 
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -37,11 +38,7 @@ const ADDRESS_MISSING = 'Address not listed';
  */
 const SNAPSHOT = parseSnapshot(bundledSnapshot);
 
-const DATA_DATE = SNAPSHOT
-  ? new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }).format(
-      new Date(SNAPSHOT.fetchedAt),
-    )
-  : null;
+const DATA_DATE = SNAPSHOT ? formatDayMonthYear(new Date(SNAPSHOT.fetchedAt)) : null;
 
 /*
  * A position from the last few minutes is close enough for a 10 km list and

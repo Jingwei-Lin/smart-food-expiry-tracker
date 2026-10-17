@@ -1,5 +1,6 @@
 import {
   daysUntilExpiry,
+  formatDayMonthYear,
   formatExpiryDate,
   formatExpiryDateInput,
   getExpiryListPresentation,
@@ -66,6 +67,12 @@ describe('daysUntilExpiry', () => {
 
   it('treats an unreadable date as infinitely far away, so it sorts last', () => {
     expect(daysUntilExpiry('whenever', today)).toBe(Number.POSITIVE_INFINITY);
+  });
+});
+
+describe('formatDayMonthYear', () => {
+  it('writes the day, short month and year', () => {
+    expect(formatDayMonthYear(new Date(2026, 9, 17, 20, 30))).toBe('17 Oct 2026');
   });
 });
 

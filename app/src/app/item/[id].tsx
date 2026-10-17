@@ -7,7 +7,7 @@ import { ExpiryBadge } from '@/components/expiry-badge';
 import { useInventory } from '@/context/inventory-context';
 import { returnToInventory } from '@/utils/navigation';
 import { ResolvedFoodItemStatus } from '@/types/food-item';
-import { formatExpiryDate } from '@/utils/expiry-date';
+import { formatDayMonthYear, formatExpiryDate } from '@/utils/expiry-date';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -31,11 +31,7 @@ function formatResolvedDate(value: string | undefined): string | null {
     return null;
   }
 
-  return new Intl.DateTimeFormat('en-AU', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  }).format(date);
+  return formatDayMonthYear(date);
 }
 
 export default function ItemDetailScreen() {

@@ -1,8 +1,9 @@
 /*
- * Donation points from OpenStreetMap, through the Overpass API.
+ * Donation points from OpenStreetMap, as the Overpass API returns them.
  *
- * The parsing is kept apart from the request so it can be tested without a
- * network, in the same way as the Open Food Facts client.
+ * Only the parsing is here, which the app needs to read its bundled list. The
+ * download that builds that list is in overpass-download.ts, for the
+ * developer's script.
  */
 
 /*
@@ -61,36 +62,7 @@ const SNAPSHOT_TAGS = [
   'addr:city',
 ];
 
-/*
- * Free public Overpass servers, tried in order. The main one is often
- * overloaded, so a refusal there moves on to the next.
- */
-export const OVERPASS_SERVERS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter',
-];
-
-/*
- * Overpass blocks requests that carry a phone's or library's default
- * User-Agent, so the app names itself, as it does for Open Food Facts.
- */
-const USER_AGENT = 'SmartFoodExpiryTracker/1.0 (COMP5216-2026-GP-23 student project)';
-
 export const SEARCH_RADIUS_KM = 10;
-
-/*
- * The snapshot is downloaded by a developer's script, not while a student
- * waits, so a slow server can be given a long time. One that uses up its full
- * limit counts as busy and the next server is tried. The query's own limit is
- * shorter, so a slow server usually says it gave up before the script does.
- */
-const SNAPSHOT_QUERY_TIMEOUT_S = 120;
-const SNAPSHOT_REQUEST_TIMEOUT_MS = 130000;
-
-export type SnapshotResult =
-  | { outcome: 'found'; snapshot: DonationSnapshot }
-  | { outcome: 'busy' }
-  | { outcome: 'unavailable' };
 
 /** Straight-line distance between two points in km. */
 export function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -162,6 +134,25 @@ function pointType(tags: Record<string, string>): PointType {
   return facilities.includes('soup_kitchen') ? 'Soup kitchen' : 'Food bank';
 }
 
+/*
+ * The name and coordinates a card needs, or null if the element lacks either.
+ * A way or relation has no coordinates of its own, so its centre is used.
+ * Shared by the app and the snapshot download, so both keep the same places.
+ */
+function cardPosition(
+  element: OverpassElement,
+): { name: string; latitude: number; longitude: number } | null {
+  const name = element.tags?.name;
+  const latitude = element.lat ?? element.center?.lat;
+  const longitude = element.lon ?? element.center?.lon;
+
+  if (!name || latitude === undefined || longitude === undefined) {
+    return null;
+  }
+
+  return { name, latitude, longitude };
+}
+
 /**
  * Turns one Overpass element into a donation point, measured from the given
  * place. Returns null for elements without a name or coordinates, which can't
@@ -172,17 +163,18 @@ export function toDonationPoint(
   fromLatitude: number,
   fromLongitude: number,
 ): DonationPoint | null {
-  const tags = element.tags ?? {};
-  const latitude = element.lat ?? element.center?.lat;
-  const longitude = element.lon ?? element.center?.lon;
+  const position = cardPosition(element);
 
-  if (!tags.name || latitude === undefined || longitude === undefined) {
+  if (!position) {
     return null;
   }
 
+  const { name, latitude, longitude } = position;
+  const tags = element.tags ?? {};
+
   return {
     id: `${element.type}/${element.id}`,
-    name: tags.name,
+    name,
     type: pointType(tags),
     distanceKm: distanceKm(fromLatitude, fromLongitude, latitude, longitude),
     hours: tags.opening_hours ? formatOpeningHours(tags.opening_hours) : 'Hours not listed',
@@ -221,14 +213,13 @@ export function toSnapshot(elements: OverpassElement[], fetchedAt: Date): Donati
   const kept: OverpassElement[] = [];
 
   for (const element of elements) {
-    const tags = element.tags ?? {};
-    const lat = element.lat ?? element.center?.lat;
-    const lon = element.lon ?? element.center?.lon;
+    const position = cardPosition(element);
 
-    if (!tags.name || lat === undefined || lon === undefined || NOT_A_DROP_OFF.test(tags.name)) {
+    if (!position || NOT_A_DROP_OFF.test(position.name)) {
       continue;
     }
 
+    const tags = element.tags ?? {};
     const keptTags: Record<string, string> = {};
 
     for (const key of SNAPSHOT_TAGS) {
@@ -237,90 +228,14 @@ export function toSnapshot(elements: OverpassElement[], fetchedAt: Date): Donati
       }
     }
 
-    kept.push({ type: element.type, id: element.id, lat, lon, tags: keptTags });
+    kept.push({
+      type: element.type,
+      id: element.id,
+      lat: position.latitude,
+      lon: position.longitude,
+      tags: keptTags,
+    });
   }
 
   return { fetchedAt: fetchedAt.toISOString(), elements: kept };
-}
-
-/*
- * Every donation point in Australia. OpenStreetMap lists only a few dozen, so
- * the whole country stays a small file and works wherever the phone is.
- * Community pantries are tagged either way round, so both are asked for. The
- * pattern matches one whole value in a semicolon list, so "food_bank;outreach"
- * counts but "food_bank_volunteers" would not.
- */
-export function buildSnapshotQuery(): string {
-  return `[out:json][timeout:${SNAPSHOT_QUERY_TIMEOUT_S}];area["ISO3166-1"="AU"][admin_level=2]->.au;(nwr["social_facility"~"(^|;) *(food_bank|soup_kitchen|food_sharing) *(;|$)"](area.au);nwr["amenity"="food_sharing"](area.au););out center tags;`;
-}
-
-type ServerAnswer =
-  | { outcome: 'found'; elements: OverpassElement[] }
-  | { outcome: 'busy' }
-  | { outcome: 'unavailable' };
-
-/** Sends one query to one Overpass server. Running out of time counts as busy. */
-async function askServer(server: string, query: string, timeoutMs: number): Promise<ServerAnswer> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-
-  try {
-    // Overpass asks for the query in a POST body rather than in the URL.
-    const response = await fetch(server, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'User-Agent': USER_AGENT,
-      },
-      body: `data=${encodeURIComponent(query)}`,
-      signal: controller.signal,
-    });
-
-    if (!response.ok) {
-      return { outcome: 'busy' };
-    }
-
-    const body = (await response.json()) as { elements?: OverpassElement[]; remark?: string };
-
-    /*
-     * A query that runs out of time or memory on the server still comes back
-     * as a 200, with no elements or only some of them and a remark saying so.
-     * Saving that would ship an empty or partial list.
-     */
-    if (body.remark?.startsWith('runtime error')) {
-      return { outcome: 'busy' };
-    }
-
-    return { outcome: 'found', elements: body.elements ?? [] };
-  } catch {
-    return controller.signal.aborted ? { outcome: 'busy' } : { outcome: 'unavailable' };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-/**
- * Downloads every donation point in Australia as a snapshot dated `now`.
- *
- * Never throws. A server that refuses (406, 429 or 504 with an HTML page),
- * reports a runtime error or runs out of time counts as busy, and the next one
- * is tried. If none of them answers, the result is `busy`. With no signal, or
- * an unreadable answer from every server, it is `unavailable`.
- */
-export async function fetchSnapshot(now = new Date()): Promise<SnapshotResult> {
-  let anyBusy = false;
-
-  for (const server of OVERPASS_SERVERS) {
-    const answer = await askServer(server, buildSnapshotQuery(), SNAPSHOT_REQUEST_TIMEOUT_MS);
-
-    if (answer.outcome === 'found') {
-      return { outcome: 'found', snapshot: toSnapshot(answer.elements, now) };
-    }
-
-    if (answer.outcome === 'busy') {
-      anyBusy = true;
-    }
-  }
-
-  return anyBusy ? { outcome: 'busy' } : { outcome: 'unavailable' };
 }
