@@ -99,6 +99,29 @@ describe('ItemDetailScreen', () => {
     expect(router.back).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['active', buildMilk({ createdAt: new Date(2026, 8, 25, 12).toISOString() })],
+    [
+      'eaten',
+      buildMilk({
+        createdAt: new Date(2026, 8, 25, 12).toISOString(),
+        status: 'eaten',
+        statusUpdatedAt: '2026-09-28T00:00:00.000Z',
+      }),
+    ],
+  ])('shows the day an %s item was added', async (_label, item) => {
+    const view = await renderScreen(item);
+
+    expect(view.getByText('Added')).toBeTruthy();
+    expect(view.getByText(/^25 Sept? 2026$/)).toBeTruthy();
+  });
+
+  it('leaves out an added day it cannot read', async () => {
+    const view = await renderScreen(buildMilk({ createdAt: 'someday' }));
+
+    expect(view.queryByText('Added')).toBeNull();
+  });
+
   it('names the notice when both reminders are scheduled', async () => {
     const view = await renderScreen(
       buildMilk({ expiryDate: '2099-01-10', notificationIds: ['advance', 'expiry-day'] }),

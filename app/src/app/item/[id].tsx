@@ -18,9 +18,11 @@ const resolvedStatusLabels: Record<ResolvedFoodItemStatus, string> = {
 };
 
 /**
- * Formats the moment an item was eaten, thrown out or donated.
+ * Formats a stored moment, such as when an item was added or eaten, as its
+ * day. Null when there is none or it can't be read, so the screen leaves it
+ * out rather than showing "Invalid Date".
  */
-function formatResolvedDate(value: string | undefined): string | null {
+function formatStoredDate(value: string | undefined): string | null {
   if (!value) {
     return null;
   }
@@ -116,7 +118,8 @@ export default function ItemDetailScreen() {
     );
   }
 
-  const resolvedDate = formatResolvedDate(item.statusUpdatedAt);
+  const resolvedDate = formatStoredDate(item.statusUpdatedAt);
+  const addedDate = formatStoredDate(item.createdAt);
 
   return (
     <>
@@ -154,6 +157,18 @@ export default function ItemDetailScreen() {
           />
 
           <View style={styles.divider} />
+
+          {/*
+           * Tells apart two of the same product bought on different days. It is
+           * set when the item is saved and never edited.
+           */}
+          {addedDate ? (
+            <>
+              <DetailRow icon="time-outline" label="Added" value={addedDate} />
+
+              <View style={styles.divider} />
+            </>
+          ) : null}
 
           {/* A resolved item's reminders were cancelled, so there is nothing to show. */}
           {item.status === 'active' ? (
