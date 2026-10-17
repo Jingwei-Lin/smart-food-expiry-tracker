@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable, {
   SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
+import { useInventory } from '@/context/inventory-context';
 import { FoodItem } from '@/types/food-item';
 import { getExpiryListPresentation, getExpiryPresentation } from '@/utils/expiry-date';
 
@@ -19,10 +20,12 @@ type InventoryRowProps = {
  *
  * The row is deliberately two facts — what it is and when it goes off — with
  * the colour rail repeating the urgency its section heading already states.
- * Tapping opens the item; swiping left is the shortcut past it to the edit
- * form, for the common case of correcting a date at the fridge door.
+ * Tapping opens the item. Swiping left offers two shortcuts past it: Edit,
+ * for the common case of correcting a date at the fridge door, and Delete,
+ * for food added by mistake.
  */
 export function InventoryRow({ item, today }: InventoryRowProps) {
+  const { deleteItem } = useInventory();
   const { meta, railColor } = getExpiryListPresentation(item.expiryDate, today);
 
   function openItem() {
@@ -35,21 +38,63 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
     router.push({ pathname: '/item/edit/[id]', params: { id: item.id } });
   }
 
-  function renderEditAction(
-    _progress: unknown,
-    _translation: unknown,
-    swipeable: SwipeableMethods,
-  ) {
+  async function removeItem() {
+    try {
+      await deleteItem(item.id);
+    } catch {
+      Alert.alert("Couldn't delete", 'This item could not be deleted. Please try again.');
+    }
+  }
+
+  /*
+   * Asks first, with the item screen's wording, so a stray swipe and tap can
+   * still be backed out of. A native dialog, because a row has no room for the
+   * item screen's inline confirm card.
+   */
+  function confirmDelete(swipeable: SwipeableMethods) {
+    swipeable.close();
+
+    Alert.alert(
+      `Delete ${item.name}?`,
+      'This removes the item from your inventory and from the waste summary. It cannot be undone.',
+      [
+        { text: 'Keep item', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => void removeItem() },
+      ],
+    );
+  }
+
+  function renderActions(_progress: unknown, _translation: unknown, swipeable: SwipeableMethods) {
     return (
-      <Pressable
-        accessibilityLabel={`Edit ${item.name}`}
-        accessibilityRole="button"
-        onPress={() => openEditForm(swipeable)}
-        style={({ pressed }) => [styles.editAction, pressed ? styles.pressed : null]}
-      >
-        <Ionicons color="#ffffff" name="create-outline" size={20} />
-        <Text style={styles.editActionLabel}>Edit</Text>
-      </Pressable>
+      <View style={styles.actions}>
+        <Pressable
+          accessibilityLabel={`Edit ${item.name}`}
+          accessibilityRole="button"
+          onPress={() => openEditForm(swipeable)}
+          style={({ pressed }) => [
+            styles.action,
+            styles.editAction,
+            pressed ? styles.pressed : null,
+          ]}
+        >
+          <Ionicons color="#ffffff" name="create-outline" size={20} />
+          <Text style={styles.actionLabel}>Edit</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityLabel={`Delete ${item.name}`}
+          accessibilityRole="button"
+          onPress={() => confirmDelete(swipeable)}
+          style={({ pressed }) => [
+            styles.action,
+            styles.deleteAction,
+            pressed ? styles.pressed : null,
+          ]}
+        >
+          <Ionicons color="#ffffff" name="trash-outline" size={20} />
+          <Text style={styles.actionLabel}>Delete</Text>
+        </Pressable>
+      </View>
     );
   }
 
@@ -59,7 +104,7 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
       /* There are no left actions, so dragging the other way must not move the row. */
       overshootLeft={false}
       overshootRight={false}
-      renderRightActions={renderEditAction}
+      renderRightActions={renderActions}
       rightThreshold={36}
     >
       <Pressable
@@ -105,14 +150,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  editAction: {
+  actions: {
+    flexDirection: 'row',
+  },
+  action: {
     width: 88,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
+  },
+  editAction: {
     backgroundColor: '#2f7d32',
   },
-  editActionLabel: {
+  /* The item screen's colour for deleting. */
+  deleteAction: {
+    backgroundColor: '#9f2420',
+  },
+  actionLabel: {
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '700',
