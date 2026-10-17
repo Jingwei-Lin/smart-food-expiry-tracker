@@ -1,3 +1,5 @@
+import type { FoodItem } from '@/types/food-item';
+
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /**
@@ -88,6 +90,38 @@ export function daysUntilExpiry(value: string, today = new Date()): number {
   const expiryUtc = Date.UTC(expiryDate.getFullYear(), expiryDate.getMonth(), expiryDate.getDate());
 
   return Math.round((expiryUtc - todayUtc) / MILLISECONDS_PER_DAY);
+}
+
+/**
+ * What an active item's reminders actually are, for the item screen.
+ *
+ * Read from the reminders that were scheduled rather than from the chosen
+ * notice, because nothing is scheduled when notifications are off or
+ * scheduling failed, and an item saved on its expiry day gets only the
+ * expiry-day reminder. An edit reschedules an item that has none, even when
+ * nothing else changes, which is why the hint points to Edit.
+ */
+export function describeReminders(
+  item: Pick<FoodItem, 'expiryDate' | 'reminderDaysBefore' | 'notificationIds'>,
+  today = new Date(),
+): string {
+  if (daysUntilExpiry(item.expiryDate, today) < 0) {
+    return 'None, it has expired';
+  }
+
+  const scheduled = item.notificationIds?.length ?? 0;
+
+  if (scheduled >= 2) {
+    const dayWord = item.reminderDaysBefore === 1 ? 'day' : 'days';
+
+    return `${item.reminderDaysBefore} ${dayWord} before and on expiry day`;
+  }
+
+  if (scheduled === 1) {
+    return 'On expiry day';
+  }
+
+  return 'Not set. Turn on notifications, then save the item again from Edit';
 }
 
 export type ExpiryPresentation = {

@@ -99,6 +99,30 @@ describe('ItemDetailScreen', () => {
     expect(router.back).toHaveBeenCalledTimes(1);
   });
 
+  it('names the notice when both reminders are scheduled', async () => {
+    const view = await renderScreen(
+      buildMilk({ expiryDate: '2099-01-10', notificationIds: ['advance', 'expiry-day'] }),
+    );
+
+    expect(view.getByText('1 day before and on expiry day')).toBeTruthy();
+  });
+
+  it('says reminders are not set when none were scheduled', async () => {
+    const view = await renderScreen(buildMilk({ expiryDate: '2099-01-10' }));
+
+    expect(
+      view.getByText('Not set. Turn on notifications, then save the item again from Edit'),
+    ).toBeTruthy();
+  });
+
+  it('shows no reminders for food that has already been eaten', async () => {
+    const view = await renderScreen(
+      buildMilk({ status: 'eaten', statusUpdatedAt: '2026-09-28T00:00:00.000Z' }),
+    );
+
+    expect(view.queryByText('Reminders')).toBeNull();
+  });
+
   it('does not offer recipes or a donation point for food that has already been eaten', async () => {
     const view = await renderScreen(
       buildMilk({ status: 'eaten', statusUpdatedAt: '2026-09-28T00:00:00.000Z' }),

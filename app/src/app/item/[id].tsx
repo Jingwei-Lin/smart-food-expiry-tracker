@@ -7,7 +7,7 @@ import { ExpiryBadge } from '@/components/expiry-badge';
 import { useInventory } from '@/context/inventory-context';
 import { returnToInventory } from '@/utils/navigation';
 import { ResolvedFoodItemStatus } from '@/types/food-item';
-import { formatDayMonthYear, formatExpiryDate } from '@/utils/expiry-date';
+import { describeReminders, formatDayMonthYear, formatExpiryDate } from '@/utils/expiry-date';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -155,13 +155,18 @@ export default function ItemDetailScreen() {
 
           <View style={styles.divider} />
 
-          <DetailRow
-            icon="notifications-outline"
-            label="Reminders"
-            value={`${item.reminderDaysBefore} ${item.reminderDaysBefore === 1 ? 'day' : 'days'} before and on expiry day`}
-          />
+          {/* A resolved item's reminders were cancelled, so there is nothing to show. */}
+          {item.status === 'active' ? (
+            <>
+              <DetailRow
+                icon="notifications-outline"
+                label="Reminders"
+                value={describeReminders(item)}
+              />
 
-          <View style={styles.divider} />
+              <View style={styles.divider} />
+            </>
+          ) : null}
 
           <DetailRow icon="cube-outline" label="Quantity" value={item.quantity} />
 

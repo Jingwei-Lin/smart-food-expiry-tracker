@@ -1,5 +1,6 @@
 import {
   daysUntilExpiry,
+  describeReminders,
   formatDayMonthYear,
   formatExpiryDate,
   formatExpiryDateInput,
@@ -67,6 +68,38 @@ describe('daysUntilExpiry', () => {
 
   it('treats an unreadable date as infinitely far away, so it sorts last', () => {
     expect(daysUntilExpiry('whenever', today)).toBe(Number.POSITIVE_INFINITY);
+  });
+});
+
+describe('describeReminders', () => {
+  const milk = { expiryDate: '2026-09-20', reminderDaysBefore: 2 };
+
+  it('names the notice when both reminders are scheduled', () => {
+    expect(describeReminders({ ...milk, notificationIds: ['a', 'b'] }, today)).toBe(
+      '2 days before and on expiry day',
+    );
+    expect(
+      describeReminders({ ...milk, reminderDaysBefore: 1, notificationIds: ['a', 'b'] }, today),
+    ).toBe('1 day before and on expiry day');
+  });
+
+  it('says only the expiry day when that is all that was scheduled', () => {
+    expect(describeReminders({ ...milk, notificationIds: ['a'] }, today)).toBe('On expiry day');
+  });
+
+  it('says reminders are not set, and how to set them, when none were scheduled', () => {
+    expect(describeReminders(milk, today)).toBe(
+      'Not set. Turn on notifications, then save the item again from Edit',
+    );
+  });
+
+  it('says there are none for expired food, whatever was scheduled', () => {
+    expect(describeReminders({ ...milk, expiryDate: '2026-09-16' }, today)).toBe(
+      'None, it has expired',
+    );
+    expect(
+      describeReminders({ ...milk, expiryDate: '2026-09-16', notificationIds: ['a', 'b'] }, today),
+    ).toBe('None, it has expired');
   });
 });
 
