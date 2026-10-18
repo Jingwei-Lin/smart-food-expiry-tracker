@@ -8,6 +8,8 @@ An app that helps university students waste less food by taking the effort out o
 
 You scan a product's barcode when you unpack your shopping, and the app fills in the product and estimates when it will go off. It reminds you before the food spoils and suggests recipes for whatever needs using up. For anything you can't finish in time, it points you to a nearby donation point, and a weekly summary shows what you ate, donated and threw away.
 
+**New to the app?** The [user guide](userguide/README.md) shows how to use it, step by step, with screenshots.
+
 **Contents:**
 - [Key features](#key-features)
 - [Getting started](#getting-started)
@@ -349,6 +351,7 @@ None of the tests need an API key or an internet connection.
 ## Project structure
 
 ```
+userguide/            the user guide, with its screenshots in userguide/images/
 app/                  Expo project (run every command from here)
   src/app/            screens and routes
   src/components/     shared UI: the item form, inventory row, recipe cards
