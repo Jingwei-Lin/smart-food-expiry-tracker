@@ -43,8 +43,7 @@ function describeInventory(items: FoodItem[], today: Date): string {
  *
  * Groups what is being tracked by how long it has left, so the food that needs
  * deciding on today is at the top and everything else stays quiet. Each group
- * is one card of single-line rows. The floating button is the only way into
- * the add screen, so it stays above the list at all times.
+ * is one card of single-line rows.
  */
 export default function InventoryScreen() {
   const { activeItems, isLoading, reminderNotice, storageError } = useInventory();
@@ -273,25 +272,6 @@ const styles = StyleSheet.create({
     color: '#2f7d32',
     fontSize: 14,
     fontWeight: '700',
-  },
-  addButtonContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  addButton: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: '#2f7d32',
-    shadowColor: '#0f1a12',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.28,
-    shadowRadius: 8,
-    elevation: 6,
   },
   pressedButton: {
     opacity: 0.72,

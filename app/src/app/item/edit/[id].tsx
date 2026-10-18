@@ -1,8 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
+import { useHeaderHeight } from 'expo-router/react-navigation';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,6 +22,7 @@ import { returnToInventory } from '@/utils/navigation';
 export default function EditItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { items, isLoading, isStorageReady, storageError, updateItem } = useInventory();
+  const headerHeight = useHeaderHeight();
 
   const item = items.find((candidate) => candidate.id === id);
 
@@ -51,8 +52,14 @@ export default function EditItemScreen() {
   }
 
   return (
+    /*
+     * Android draws edge to edge, so the window no longer shrinks for the
+     * keyboard and the padding is needed there too. The view measures itself
+     * from below the header, so the header's height is added back.
+     */
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior="padding"
+      keyboardVerticalOffset={headerHeight}
       style={styles.screen}
     >
       <ScrollView

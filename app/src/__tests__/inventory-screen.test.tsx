@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { act, render } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
+import { Alert, AlertButton, Platform } from 'react-native';
 
 import InventoryScreen from '@/app/(tabs)/index';
 import { InventoryProvider } from '@/context/inventory-context';
@@ -26,11 +27,36 @@ jest.mock('expo-router', () => {
   };
 });
 
-/* Reanimated has no native side under Jest, and these tests don't swipe. */
-jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => ({
-  __esModule: true,
-  default: ({ children }: { children: import('react').ReactNode }) => children,
-}));
+/*
+ * Reanimated has no native side under Jest, so each row is drawn as if
+ * already swiped open: the row, then its Edit and Delete actions.
+ */
+const mockClose = jest.fn();
+
+jest.mock('react-native-gesture-handler/ReanimatedSwipeable', () => {
+  const { createElement, Fragment } = jest.requireActual<typeof import('react')>('react');
+
+  return {
+    __esModule: true,
+    default: ({
+      children,
+      renderRightActions,
+    }: {
+      children: import('react').ReactNode;
+      renderRightActions?: (
+        progress: unknown,
+        translation: unknown,
+        swipeable: { close: () => void },
+      ) => import('react').ReactNode;
+    }) =>
+      createElement(
+        Fragment,
+        null,
+        children,
+        renderRightActions?.(undefined, undefined, { close: mockClose }),
+      ),
+  };
+});
 
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
@@ -69,11 +95,99 @@ async function renderScreen(items: FoodItem[]) {
 beforeEach(async () => {
   /* Sunday night, the evening before the milk's expiry day. */
   jest.useFakeTimers({ now: new Date(2026, 9, 18, 23, 0), advanceTimers: true });
+  mockClose.mockClear();
   await AsyncStorage.clear();
 });
 
 afterEach(() => {
   jest.useRealTimers();
+  jest.restoreAllMocks();
+});
+
+async function storedNames(): Promise<string[]> {
+  const items = JSON.parse((await AsyncStorage.getItem(STORAGE_KEY)) ?? '[]') as FoodItem[];
+
+  return items.map((item) => item.name);
+}
+
+describe('deleting from the list', () => {
+  /* The buttons of the confirm dialog the swipe's Delete opened. */
+  async function swipeDelete(view: Awaited<ReturnType<typeof renderScreen>>, name: string) {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined);
+
+    await fireEvent.press(view.getByLabelText(`Delete ${name}`));
+
+    const [title, message, buttons] = alert.mock.calls[0];
+
+    return { title, message, buttons: buttons as AlertButton[] };
+  }
+
+  it('asks first, and "Keep item" keeps it', async () => {
+    const view = await renderScreen([buildItem('Milk', '2026-10-19')]);
+    const { title, message, buttons } = await swipeDelete(view, 'Milk');
+
+    expect(title).toBe('Delete Milk?');
+    // Food still in the list isn't in the waste summary yet.
+    expect(message).toBe('This removes the item from your inventory. It cannot be undone.');
+    expect(buttons.map((button) => button.text)).toEqual(['Keep item', 'Delete']);
+    expect(buttons[0].style).toBe('cancel');
+    expect(mockClose).toHaveBeenCalled();
+
+    expect(view.getByText('Milk')).toBeTruthy();
+    expect(await storedNames()).toEqual(['Milk']);
+  });
+
+  it('removes the item from the list and from storage once confirmed', async () => {
+    const view = await renderScreen([
+      buildItem('Milk', '2026-10-19'),
+      buildItem('Rice', '2026-12-01'),
+    ]);
+    const { buttons } = await swipeDelete(view, 'Milk');
+
+    await act(async () => {
+      buttons[1].onPress?.();
+    });
+
+    await waitFor(() => expect(view.queryByText('Milk')).toBeNull());
+    expect(view.getByText('Rice')).toBeTruthy();
+    expect(await storedNames()).toEqual(['Rice']);
+  });
+
+  /* react-native-web's Alert does nothing, so web asks with the browser's dialog. */
+  describe('on web', () => {
+    const confirm = jest.fn<boolean, [string?]>();
+
+    beforeEach(() => {
+      jest.replaceProperty(Platform, 'OS', 'web');
+      confirm.mockReset();
+      window.confirm = confirm;
+    });
+
+    it('removes the item once the browser dialog is confirmed', async () => {
+      confirm.mockReturnValue(true);
+      const view = await renderScreen([
+        buildItem('Milk', '2026-10-19'),
+        buildItem('Rice', '2026-12-01'),
+      ]);
+
+      await fireEvent.press(view.getByLabelText('Delete Milk'));
+
+      expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/^Delete Milk\?\n\n/));
+      await waitFor(() => expect(view.queryByText('Milk')).toBeNull());
+      expect(await storedNames()).toEqual(['Rice']);
+    });
+
+    it('keeps the item when the browser dialog is cancelled', async () => {
+      confirm.mockReturnValue(false);
+      const view = await renderScreen([buildItem('Milk', '2026-10-19')]);
+
+      await fireEvent.press(view.getByLabelText('Delete Milk'));
+
+      expect(confirm).toHaveBeenCalled();
+      expect(view.getByText('Milk')).toBeTruthy();
+      expect(await storedNames()).toEqual(['Milk']);
+    });
+  });
 });
 
 describe('InventoryScreen', () => {

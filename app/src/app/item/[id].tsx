@@ -1,13 +1,22 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { ComponentProps, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { ExpiryBadge } from '@/components/expiry-badge';
 import { useInventory } from '@/context/inventory-context';
 import { returnToInventory } from '@/utils/navigation';
 import { ResolvedFoodItemStatus } from '@/types/food-item';
-import { formatDayMonthYear, formatExpiryDate } from '@/utils/expiry-date';
+import { describeDeletion } from '@/utils/delete-confirm';
+import { describeReminders, formatDayMonthYear, formatExpiryDate } from '@/utils/expiry-date';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
@@ -18,9 +27,11 @@ const resolvedStatusLabels: Record<ResolvedFoodItemStatus, string> = {
 };
 
 /**
- * Formats the moment an item was eaten, thrown out or donated.
+ * Formats a stored moment, such as when an item was added or eaten, as its
+ * day. Null when there is none or it can't be read, so the screen leaves it
+ * out rather than showing "Invalid Date".
  */
-function formatResolvedDate(value: string | undefined): string | null {
+function formatStoredDate(value: string | undefined): string | null {
   if (!value) {
     return null;
   }
@@ -116,7 +127,9 @@ export default function ItemDetailScreen() {
     );
   }
 
-  const resolvedDate = formatResolvedDate(item.statusUpdatedAt);
+  const resolvedDate = formatStoredDate(item.statusUpdatedAt);
+  const addedDate = formatStoredDate(item.createdAt);
+  const deletion = describeDeletion(item);
 
   return (
     <>
@@ -155,13 +168,36 @@ export default function ItemDetailScreen() {
 
           <View style={styles.divider} />
 
-          <DetailRow
-            icon="notifications-outline"
-            label="Reminders"
-            value={`${item.reminderDaysBefore} ${item.reminderDaysBefore === 1 ? 'day' : 'days'} before and on expiry day`}
-          />
+          {/*
+           * Tells apart two of the same product bought on different days. It is
+           * set when the item is saved and never edited.
+           */}
+          {addedDate ? (
+            <>
+              <DetailRow icon="time-outline" label="Added" value={addedDate} />
 
-          <View style={styles.divider} />
+              <View style={styles.divider} />
+            </>
+          ) : null}
+
+          {/* A resolved item's reminders were cancelled, so there is nothing to show. */}
+          {item.status === 'active' ? (
+            <>
+              <DetailRow
+                icon="notifications-outline"
+                label="Reminders"
+                value={
+                  /*
+                   * Web never schedules reminders, so "Not set" there would
+                   * send the student to Edit for nothing.
+                   */
+                  Platform.OS === 'web' ? 'Not available on web' : describeReminders(item)
+                }
+              />
+
+              <View style={styles.divider} />
+            </>
+          ) : null}
 
           <DetailRow icon="cube-outline" label="Quantity" value={item.quantity} />
 
@@ -197,12 +233,9 @@ export default function ItemDetailScreen() {
 
         {isConfirmingDelete ? (
           <View style={styles.confirmCard}>
-            <Text style={styles.confirmTitle}>Delete {item.name}?</Text>
+            <Text style={styles.confirmTitle}>{deletion.title}</Text>
 
-            <Text style={styles.confirmText}>
-              This removes the item from your inventory and from the waste summary. It cannot be
-              undone.
-            </Text>
+            <Text style={styles.confirmText}>{deletion.message}</Text>
 
             <View style={styles.confirmButtons}>
               <Pressable

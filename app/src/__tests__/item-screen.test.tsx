@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, render } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { Platform } from 'react-native';
 
 import ItemDetailScreen from '@/app/item/[id]';
 import { InventoryProvider } from '@/context/inventory-context';
@@ -97,6 +98,66 @@ describe('ItemDetailScreen', () => {
     expect(saved.status).toBe(status);
     expect(Date.parse(saved.statusUpdatedAt ?? '')).toBeGreaterThanOrEqual(before);
     expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['active', buildMilk({ createdAt: new Date(2026, 8, 25, 12).toISOString() })],
+    [
+      'eaten',
+      buildMilk({
+        createdAt: new Date(2026, 8, 25, 12).toISOString(),
+        status: 'eaten',
+        statusUpdatedAt: '2026-09-28T00:00:00.000Z',
+      }),
+    ],
+  ])('shows the day an %s item was added', async (_label, item) => {
+    const view = await renderScreen(item);
+
+    expect(view.getByText('Added')).toBeTruthy();
+    expect(view.getByText(/^25 Sept? 2026$/)).toBeTruthy();
+  });
+
+  it('leaves out an added day it cannot read', async () => {
+    const view = await renderScreen(buildMilk({ createdAt: 'someday' }));
+
+    expect(view.queryByText('Added')).toBeNull();
+  });
+
+  it('names the notice when both reminders are scheduled', async () => {
+    const view = await renderScreen(
+      buildMilk({ expiryDate: '2099-01-10', notificationIds: ['advance', 'expiry-day'] }),
+    );
+
+    expect(view.getByText('1 day before and on expiry day')).toBeTruthy();
+  });
+
+  it('says reminders are not set when none were scheduled', async () => {
+    const view = await renderScreen(buildMilk({ expiryDate: '2099-01-10' }));
+
+    expect(
+      view.getByText('Not set. Turn on notifications, then save the item again from Edit'),
+    ).toBeTruthy();
+  });
+
+  it('says reminders are not available on web, where none can be scheduled', async () => {
+    const platform = jest.replaceProperty(Platform, 'OS', 'web');
+
+    try {
+      const view = await renderScreen(buildMilk({ expiryDate: '2099-01-10' }));
+
+      expect(view.getByText('Not available on web')).toBeTruthy();
+      expect(view.queryByText(/^Not set/)).toBeNull();
+    } finally {
+      platform.restore();
+    }
+  });
+
+  it('shows no reminders for food that has already been eaten', async () => {
+    const view = await renderScreen(
+      buildMilk({ status: 'eaten', statusUpdatedAt: '2026-09-28T00:00:00.000Z' }),
+    );
+
+    expect(view.queryByText('Reminders')).toBeNull();
   });
 
   it('does not offer recipes or a donation point for food that has already been eaten', async () => {

@@ -1,8 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { formatExpiryDateInput, parseExpiryDate } from '@/utils/expiry-date';
+import {
+  formatExpiryDateInput,
+  formatWeekdayDate,
+  parseExpiryDate,
+  toExpiryDateString,
+} from '@/utils/expiry-date';
 
 export type ItemFormValues = {
   name: string;
@@ -60,11 +66,15 @@ export function ItemForm({
     String(initialValues.reminderDaysBefore),
   );
   const [notes, setNotes] = useState(initialValues.notes);
+  /* iOS shows its calendar inside the form; Android opens a dialog instead. */
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const [errors, setErrors] = useState<ItemFormErrors>({});
   const [isSaving, setIsSaving] = useState(false);
 
   const isSubmitDisabled = isSaving || blockedReason !== null;
+  /* The calendar picker has no web version, so the web build keeps the typed field. */
+  const typesTheDate = Platform.OS === 'web';
 
   function clearFieldError(field?: keyof ItemFormErrors) {
     setErrors((currentErrors) => ({
@@ -89,6 +99,43 @@ export function ItemForm({
     clearFieldError('expiryDate');
   }
 
+  const pickedDate = parseExpiryDate(expiryDate);
+
+  /* Only called with a picked day; closing the calendar without one changes nothing. */
+  function handleDatePicked(_event: unknown, date: Date) {
+    setExpiryDate(toExpiryDateString(date));
+    clearFieldError('expiryDate');
+  }
+
+  /*
+   * Opens on the date already chosen, such as a scan's estimate or the date
+   * being edited, or on today. There is no earliest date, so food that has
+   * already expired can still be logged.
+   */
+  function openCalendar() {
+    /* The ScrollView keeps the keyboard up for a handled tap, and it would cover the calendar. */
+    Keyboard.dismiss();
+
+    if (Platform.OS === 'android') {
+      DateTimePickerAndroid.open({
+        mode: 'date',
+        value: pickedDate ?? new Date(),
+        onValueChange: handleDatePicked,
+      });
+    } else {
+      /*
+       * iOS shows today as already selected, and tapping the selected day sends
+       * no change, so today is chosen here or it could never be picked.
+       */
+      if (!isCalendarOpen && !pickedDate) {
+        setExpiryDate(toExpiryDateString(new Date()));
+        clearFieldError('expiryDate');
+      }
+
+      setIsCalendarOpen(!isCalendarOpen);
+    }
+  }
+
   function handleReminderDaysChange(value: string) {
     setReminderDaysBefore(value);
     clearFieldError('reminderDaysBefore');
@@ -111,8 +158,9 @@ export function ItemForm({
     }
 
     if (!trimmedExpiryDate) {
-      nextErrors.expiryDate = 'Enter an expiry date.';
+      nextErrors.expiryDate = 'Choose an expiry date.';
     } else if (!parseExpiryDate(trimmedExpiryDate)) {
+      // Only a typed date on web can be malformed; the calendar always gives a real one.
       nextErrors.expiryDate = 'Use a valid date in YYYY-MM-DD format.';
     }
 
@@ -132,6 +180,8 @@ export function ItemForm({
     }
 
     setErrors({});
+    /* Closed while saving, so a day tapped now can't show without being saved. */
+    setIsCalendarOpen(false);
     setIsSaving(true);
 
     try {
@@ -147,6 +197,7 @@ export function ItemForm({
         setName('');
         setQuantity('');
         setExpiryDate('');
+        setIsCalendarOpen(false);
         setReminderDaysBefore('1');
         setNotes('');
       }
@@ -198,24 +249,71 @@ export function ItemForm({
         <View style={styles.field}>
           <Text style={styles.label}>Expiry date *</Text>
 
-          <TextInput
-            accessibilityLabel="Expiry date in year month day format"
-            autoCapitalize="none"
-            editable={!isSaving}
-            inputMode="numeric"
-            maxLength={10}
-            onChangeText={handleExpiryDateChange}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor="#8a938c"
-            style={[styles.input, errors.expiryDate ? styles.inputError : null]}
-            value={expiryDate}
-          />
+          {typesTheDate ? (
+            <TextInput
+              accessibilityLabel="Expiry date in year month day format"
+              autoCapitalize="none"
+              editable={!isSaving}
+              inputMode="numeric"
+              maxLength={10}
+              onChangeText={handleExpiryDateChange}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#8a938c"
+              style={[styles.input, errors.expiryDate ? styles.inputError : null]}
+              value={expiryDate}
+            />
+          ) : (
+            <Pressable
+              accessibilityLabel={`Expiry date, ${pickedDate ? formatWeekdayDate(pickedDate) : 'not chosen'}`}
+              accessibilityRole="button"
+              disabled={isSaving}
+              onPress={openCalendar}
+              style={({ pressed }) => [
+                styles.input,
+                styles.dateButton,
+                errors.expiryDate ? styles.inputError : null,
+                pressed ? styles.pressedButton : null,
+              ]}
+            >
+              <Text style={pickedDate ? styles.dateText : styles.datePlaceholder}>
+                {pickedDate ? formatWeekdayDate(pickedDate) : 'Choose a date'}
+              </Text>
+
+              <Ionicons name="calendar-outline" size={20} color="#2f7d32" />
+            </Pressable>
+          )}
+
+          {isCalendarOpen ? (
+            <View style={styles.calendar}>
+              <DateTimePicker
+                accentColor="#2f7d32"
+                display="inline"
+                mode="date"
+                onValueChange={handleDatePicked}
+                value={pickedDate ?? new Date()}
+              />
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setIsCalendarOpen(false)}
+                style={({ pressed }) => [
+                  styles.calendarDone,
+                  pressed ? styles.pressedButton : null,
+                ]}
+              >
+                <Text style={styles.calendarDoneText}>Done</Text>
+              </Pressable>
+            </View>
+          ) : null}
 
           {errors.expiryDate ? (
             <Text style={styles.errorText}>{errors.expiryDate}</Text>
           ) : (
             <Text style={styles.helpText}>
-              {expiryHelpText ?? 'Type the digits printed on the package, for example 20260920.'}
+              {expiryHelpText ??
+                (typesTheDate
+                  ? 'Type the digits printed on the package, for example 20260920.'
+                  : 'Pick the date printed on the package.')}
             </Text>
           )}
         </View>
@@ -328,6 +426,37 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: '#b83c33',
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  dateText: {
+    color: '#172019',
+    fontSize: 16,
+  },
+  datePlaceholder: {
+    color: '#8a938c',
+    fontSize: 16,
+  },
+  calendar: {
+    borderWidth: 1,
+    borderColor: '#cad4c9',
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    padding: 8,
+  },
+  calendarDone: {
+    alignSelf: 'flex-end',
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+  },
+  calendarDoneText: {
+    color: '#2f7d32',
+    fontSize: 16,
+    fontWeight: '700',
   },
   reminderInputRow: {
     flexDirection: 'row',

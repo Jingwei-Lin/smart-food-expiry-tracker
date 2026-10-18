@@ -1,3 +1,5 @@
+import { toExpiryDateString } from '@/utils/expiry-date';
+
 /*
  * Open Food Facts records what a product is, not how long it keeps: its
  * `expiration_date` is the date printed on whichever package a contributor
@@ -62,10 +64,7 @@ export function estimateShelfLife(categoryTags: string[]): ShelfLifeEstimate | n
  * Turns a shelf life into the YYYY-MM-DD the add form expects.
  */
 export function addDaysToToday(days: number, today = new Date()): string {
-  const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + days);
-
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-
-  return `${date.getFullYear()}-${month}-${day}`;
+  return toExpiryDateString(
+    new Date(today.getFullYear(), today.getMonth(), today.getDate() + days),
+  );
 }
