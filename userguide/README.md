@@ -43,8 +43,8 @@ This is the quickest way to add packaged food.
 1. Tap the round **+** button in the middle of the bottom bar, or **Scan your first item** on an empty Home screen.
 2. The first time, tap **Allow camera** and let the app use your camera.
 3. Point the camera at the barcode on the packet. The app reads it by itself, then shows **Looking this product up...**
-4. The **Add grocery item** form opens with the product's name, size and an estimated expiry date filled in.
-5. **Check the expiry date against the packet.** The app estimates it from the kind of food, so it's only a guess. Change anything that's wrong.
+4. The **Add grocery item** form opens with the product's name and size filled in. When the app recognises the kind of food, it fills in an estimated expiry date too.
+5. **Check the expiry date against the packet.** An estimate is only a guess, and some products get none, so tap **Choose a date** if it's empty. Change anything that's wrong.
 6. Tap **Save item**.
 
 ![Scanning a barcode, then the add form filled in for you](images/02-scan.gif)
@@ -81,7 +81,7 @@ Back on **Home**, your food is sorted into groups, with the most urgent at the t
 
 The line under the title tells you how much you have, for example "5 items · 2 to eat soon". Each row shows when the food expires: "Today", "Tomorrow", a weekday, or a date.
 
-![Home with food in the Eat soon, This week and Later groups](images/05-home-groups.png)
+![Home with food in the Expired, Eat soon, This week and Later groups](images/05-home-groups.png)
 
 **Shortcut:** swipe a row to the left to show **Edit** and **Delete**. Delete always asks you to confirm first.
 
@@ -98,7 +98,7 @@ You then get two reminders for each item, both at 9 am:
 
 Tap a reminder to open that item in the app.
 
-![A "Use Milk soon" reminder on the phone's lock screen](images/07-reminder.png)
+![Two reminders in the notification shade: "Bananas expires today" and "Use Milk soon"](images/07-reminder.png)
 
 If you said no to notifications, you can turn them on later in your phone's settings. Then open the item, tap **Edit item** and save it again to set its reminders.
 
@@ -110,7 +110,7 @@ Tap any item on Home to open it.
 - **Edit item** opens the form again, so you can fix a date or a name. Tap **Save changes** when you're done.
 - **Delete item** removes it completely. The app asks you to confirm, and you can tap **Keep item** to back out.
 
-![The item screen with its details and actions](images/08-item.png)
+![The item screen with the item's details](images/08-item.png)
 
 ## 7. Mark food as eaten, donated or thrown out
 
@@ -119,6 +119,8 @@ When the food is gone, open the item and tap one of these:
 - **Mark as eaten**
 - **Mark as donated**
 - **Mark as thrown out**
+
+![The actions on an item's screen, including Mark as eaten, Mark as thrown out and Mark as donated](images/08-item-actions.png)
 
 The item leaves your Home list, its reminders are cancelled, and it's counted in your weekly summary. Use these instead of **Delete item**: deleting removes the item without counting it.
 
@@ -139,7 +141,7 @@ If you can't finish something in time, someone else might.
 3. You see food banks, soup kitchens and community pantries within 10 km, closest first, with their address and opening hours.
 4. To narrow the list, type in **Search donation points**, for example "pantry".
 
-![Donation points near you, closest first](images/10-donation-points.png)
+![Donation points within 10 km of Surry Hills, closest first, with addresses and opening hours](images/10-donation-points.png)
 
 **Looking somewhere else?** Tap the place name at the top (it has a small arrow), type a suburb and its state, for example "Newtown NSW", and press search on the keyboard. Tap **Use my location** to come back to places near you.
 
@@ -156,7 +158,7 @@ The app can ask an AI model for simple recipes that use the food you pick. You n
 3. Tap **Get a key** to open Google AI Studio, create a key and copy it.
 4. Paste it into the key box and tap **Save and check**. The app checks the key works before saving it. It's kept only in your phone's secure storage.
 
-![Recipe settings with Gemini Flash chosen and a key pasted in](images/11-recipe-settings.png)
+![Recipe settings with Gemini Flash chosen and its key saved, shown only by its last four characters](images/11-recipe-settings.png)
 
 **Get recipes:**
 
