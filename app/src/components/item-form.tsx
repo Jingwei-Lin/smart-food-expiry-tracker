@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import {
   formatExpiryDateInput,
@@ -9,9 +9,6 @@ import {
   parseExpiryDate,
   toExpiryDateString,
 } from '@/utils/expiry-date';
-
-/* The calendar picker has no web version, so the web build keeps the typed field. */
-const TYPES_THE_DATE = Platform.OS === 'web';
 
 export type ItemFormValues = {
   name: string;
@@ -76,6 +73,8 @@ export function ItemForm({
   const [isSaving, setIsSaving] = useState(false);
 
   const isSubmitDisabled = isSaving || blockedReason !== null;
+  /* The calendar picker has no web version, so the web build keeps the typed field. */
+  const typesTheDate = Platform.OS === 'web';
 
   function clearFieldError(field?: keyof ItemFormErrors) {
     setErrors((currentErrors) => ({
@@ -114,6 +113,9 @@ export function ItemForm({
    * already expired can still be logged.
    */
   function openCalendar() {
+    /* The ScrollView keeps the keyboard up for a handled tap, and it would cover the calendar. */
+    Keyboard.dismiss();
+
     if (Platform.OS === 'android') {
       DateTimePickerAndroid.open({
         mode: 'date',
@@ -121,6 +123,15 @@ export function ItemForm({
         onValueChange: handleDatePicked,
       });
     } else {
+      /*
+       * iOS shows today as already selected, and tapping the selected day sends
+       * no change, so today is chosen here or it could never be picked.
+       */
+      if (!isCalendarOpen && !pickedDate) {
+        setExpiryDate(toExpiryDateString(new Date()));
+        clearFieldError('expiryDate');
+      }
+
       setIsCalendarOpen(!isCalendarOpen);
     }
   }
@@ -169,6 +180,8 @@ export function ItemForm({
     }
 
     setErrors({});
+    /* Closed while saving, so a day tapped now can't show without being saved. */
+    setIsCalendarOpen(false);
     setIsSaving(true);
 
     try {
@@ -236,7 +249,7 @@ export function ItemForm({
         <View style={styles.field}>
           <Text style={styles.label}>Expiry date *</Text>
 
-          {TYPES_THE_DATE ? (
+          {typesTheDate ? (
             <TextInput
               accessibilityLabel="Expiry date in year month day format"
               autoCapitalize="none"
@@ -298,7 +311,7 @@ export function ItemForm({
           ) : (
             <Text style={styles.helpText}>
               {expiryHelpText ??
-                (TYPES_THE_DATE
+                (typesTheDate
                   ? 'Type the digits printed on the package, for example 20260920.'
                   : 'Pick the date printed on the package.')}
             </Text>

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import { Platform } from 'react-native';
+import { Keyboard, Platform } from 'react-native';
 
 import { ItemForm, ItemFormValues } from '@/components/item-form';
 
@@ -80,6 +80,55 @@ describe('ItemForm expiry date', () => {
     expect(view.queryByTestId('inline-calendar')).toBeNull();
   });
 
+  it('chooses today when the iOS calendar opens with no date, since its selected day sends no change', async () => {
+    jest.useFakeTimers({ now: new Date(2026, 9, 18, 10, 0), advanceTimers: true });
+
+    try {
+      const onSubmit = jest.fn().mockResolvedValue(undefined);
+      const view = await render(<ItemForm submitLabel="Save item" onSubmit={onSubmit} />);
+
+      await fireEvent.changeText(view.getByLabelText('Item name'), 'Milk');
+      await fireEvent.press(view.getByLabelText('Expiry date, not chosen'));
+
+      expect(view.getByLabelText(/^Expiry date, Sun,? 18 Oct 2026$/)).toBeTruthy();
+
+      await fireEvent.press(view.getByText('Done'));
+      await fireEvent.press(view.getByText('Save item'));
+
+      await waitFor(() =>
+        expect(onSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({ expiryDate: '2026-10-18' }),
+        ),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('puts the keyboard away when the calendar opens', async () => {
+    const dismiss = jest.spyOn(Keyboard, 'dismiss');
+    const view = await render(<ItemForm submitLabel="Save item" onSubmit={jest.fn()} />);
+
+    await fireEvent.press(view.getByLabelText('Expiry date, not chosen'));
+
+    expect(dismiss).toHaveBeenCalled();
+  });
+
+  it('closes the iOS calendar while saving, so a day tapped then is not shown unsaved', async () => {
+    const view = await render(
+      <ItemForm submitLabel="Save item" onSubmit={() => new Promise<void>(() => undefined)} />,
+    );
+
+    await fillRequiredFields(view);
+
+    expect(view.getByTestId('inline-calendar')).toBeTruthy();
+
+    await fireEvent.press(view.getByText('Save item'));
+
+    expect(await view.findByText('Saving...')).toBeTruthy();
+    expect(view.queryByTestId('inline-calendar')).toBeNull();
+  });
+
   it('submits the picked day as YYYY-MM-DD', async () => {
     const onSubmit = jest.fn().mockResolvedValue(undefined);
     const view = await render(<ItemForm submitLabel="Save item" onSubmit={onSubmit} />);
@@ -141,6 +190,45 @@ describe('ItemForm expiry date', () => {
       });
 
       expect(view.getByLabelText(/^Expiry date, Mon,? 5 Oct 2026$/)).toBeTruthy();
+    });
+  });
+
+  describe('on web, where the date is typed', () => {
+    beforeEach(() => {
+      jest.replaceProperty(Platform, 'OS', 'web');
+    });
+
+    it('submits the typed digits as YYYY-MM-DD', async () => {
+      const onSubmit = jest.fn().mockResolvedValue(undefined);
+      const view = await render(<ItemForm submitLabel="Save item" onSubmit={onSubmit} />);
+
+      await fireEvent.changeText(view.getByLabelText('Item name'), 'Milk');
+      await fireEvent.changeText(
+        view.getByLabelText('Expiry date in year month day format'),
+        '20260930',
+      );
+      await fireEvent.press(view.getByText('Save item'));
+
+      await waitFor(() =>
+        expect(onSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({ expiryDate: '2026-09-30' }),
+        ),
+      );
+    });
+
+    it('rejects a day that does not exist', async () => {
+      const onSubmit = jest.fn();
+      const view = await render(<ItemForm submitLabel="Save item" onSubmit={onSubmit} />);
+
+      await fireEvent.changeText(view.getByLabelText('Item name'), 'Milk');
+      await fireEvent.changeText(
+        view.getByLabelText('Expiry date in year month day format'),
+        '20260230',
+      );
+      await fireEvent.press(view.getByText('Save item'));
+
+      expect(await view.findByText('Use a valid date in YYYY-MM-DD format.')).toBeTruthy();
+      expect(onSubmit).not.toHaveBeenCalled();
     });
   });
 
