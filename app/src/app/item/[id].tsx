@@ -1,12 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { ComponentProps, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import { ExpiryBadge } from '@/components/expiry-badge';
 import { useInventory } from '@/context/inventory-context';
 import { returnToInventory } from '@/utils/navigation';
 import { ResolvedFoodItemStatus } from '@/types/food-item';
+import { describeDeletion } from '@/utils/delete-confirm';
 import { describeReminders, formatDayMonthYear, formatExpiryDate } from '@/utils/expiry-date';
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
@@ -120,6 +129,7 @@ export default function ItemDetailScreen() {
 
   const resolvedDate = formatStoredDate(item.statusUpdatedAt);
   const addedDate = formatStoredDate(item.createdAt);
+  const deletion = describeDeletion(item);
 
   return (
     <>
@@ -176,7 +186,13 @@ export default function ItemDetailScreen() {
               <DetailRow
                 icon="notifications-outline"
                 label="Reminders"
-                value={describeReminders(item)}
+                value={
+                  /*
+                   * Web never schedules reminders, so "Not set" there would
+                   * send the student to Edit for nothing.
+                   */
+                  Platform.OS === 'web' ? 'Not available on web' : describeReminders(item)
+                }
               />
 
               <View style={styles.divider} />
@@ -217,12 +233,9 @@ export default function ItemDetailScreen() {
 
         {isConfirmingDelete ? (
           <View style={styles.confirmCard}>
-            <Text style={styles.confirmTitle}>Delete {item.name}?</Text>
+            <Text style={styles.confirmTitle}>{deletion.title}</Text>
 
-            <Text style={styles.confirmText}>
-              This removes the item from your inventory and from the waste summary. It cannot be
-              undone.
-            </Text>
+            <Text style={styles.confirmText}>{deletion.message}</Text>
 
             <View style={styles.confirmButtons}>
               <Pressable

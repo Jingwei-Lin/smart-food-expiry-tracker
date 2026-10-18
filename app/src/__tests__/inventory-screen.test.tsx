@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import { Alert, AlertButton } from 'react-native';
+import { Alert, AlertButton, Platform } from 'react-native';
 
 import InventoryScreen from '@/app/(tabs)/index';
 import { InventoryProvider } from '@/context/inventory-context';
@@ -95,6 +95,7 @@ async function renderScreen(items: FoodItem[]) {
 beforeEach(async () => {
   /* Sunday night, the evening before the milk's expiry day. */
   jest.useFakeTimers({ now: new Date(2026, 9, 18, 23, 0), advanceTimers: true });
+  mockClose.mockClear();
   await AsyncStorage.clear();
 });
 
@@ -126,7 +127,8 @@ describe('deleting from the list', () => {
     const { title, message, buttons } = await swipeDelete(view, 'Milk');
 
     expect(title).toBe('Delete Milk?');
-    expect(message).toMatch(/cannot be undone/);
+    // Food still in the list isn't in the waste summary yet.
+    expect(message).toBe('This removes the item from your inventory. It cannot be undone.');
     expect(buttons.map((button) => button.text)).toEqual(['Keep item', 'Delete']);
     expect(buttons[0].style).toBe('cancel');
     expect(mockClose).toHaveBeenCalled();
@@ -149,6 +151,42 @@ describe('deleting from the list', () => {
     await waitFor(() => expect(view.queryByText('Milk')).toBeNull());
     expect(view.getByText('Rice')).toBeTruthy();
     expect(await storedNames()).toEqual(['Rice']);
+  });
+
+  /* react-native-web's Alert does nothing, so web asks with the browser's dialog. */
+  describe('on web', () => {
+    const confirm = jest.fn<boolean, [string?]>();
+
+    beforeEach(() => {
+      jest.replaceProperty(Platform, 'OS', 'web');
+      confirm.mockReset();
+      window.confirm = confirm;
+    });
+
+    it('removes the item once the browser dialog is confirmed', async () => {
+      confirm.mockReturnValue(true);
+      const view = await renderScreen([
+        buildItem('Milk', '2026-10-19'),
+        buildItem('Rice', '2026-12-01'),
+      ]);
+
+      await fireEvent.press(view.getByLabelText('Delete Milk'));
+
+      expect(confirm).toHaveBeenCalledWith(expect.stringMatching(/^Delete Milk\?\n\n/));
+      await waitFor(() => expect(view.queryByText('Milk')).toBeNull());
+      expect(await storedNames()).toEqual(['Rice']);
+    });
+
+    it('keeps the item when the browser dialog is cancelled', async () => {
+      confirm.mockReturnValue(false);
+      const view = await renderScreen([buildItem('Milk', '2026-10-19')]);
+
+      await fireEvent.press(view.getByLabelText('Delete Milk'));
+
+      expect(confirm).toHaveBeenCalled();
+      expect(view.getByText('Milk')).toBeTruthy();
+      expect(await storedNames()).toEqual(['Milk']);
+    });
   });
 });
 

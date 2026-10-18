@@ -327,7 +327,7 @@ The script is `scripts/update-donation-snapshot.ts`, and it uses `src/utils/over
 All four pass on `v2.0`. Run them from `app/`:
 
 ```bash
-npm test             # 425 unit and screen tests
+npm test             # 435 unit and screen tests
 npm run typecheck    # TypeScript, strict mode
 npm run lint         # ESLint (Expo config)
 npm run format:check # Prettier

@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, render } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { Platform } from 'react-native';
 
 import ItemDetailScreen from '@/app/item/[id]';
 import { InventoryProvider } from '@/context/inventory-context';
@@ -136,6 +137,19 @@ describe('ItemDetailScreen', () => {
     expect(
       view.getByText('Not set. Turn on notifications, then save the item again from Edit'),
     ).toBeTruthy();
+  });
+
+  it('says reminders are not available on web, where none can be scheduled', async () => {
+    const platform = jest.replaceProperty(Platform, 'OS', 'web');
+
+    try {
+      const view = await renderScreen(buildMilk({ expiryDate: '2099-01-10' }));
+
+      expect(view.getByText('Not available on web')).toBeTruthy();
+      expect(view.queryByText(/^Not set/)).toBeNull();
+    } finally {
+      platform.restore();
+    }
   });
 
   it('shows no reminders for food that has already been eaten', async () => {

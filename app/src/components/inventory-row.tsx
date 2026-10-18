@@ -1,12 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable, {
   SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { useInventory } from '@/context/inventory-context';
 import { FoodItem } from '@/types/food-item';
+import { describeDeletion } from '@/utils/delete-confirm';
 import { getExpiryListPresentation, getExpiryPresentation } from '@/utils/expiry-date';
 
 type InventoryRowProps = {
@@ -42,26 +43,40 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
     try {
       await deleteItem(item.id);
     } catch {
-      Alert.alert("Couldn't delete", 'This item could not be deleted. Please try again.');
+      const title = "Couldn't delete";
+      const message = 'This item could not be deleted. Please try again.';
+
+      if (Platform.OS === 'web') {
+        window.alert(`${title}\n\n${message}`);
+      } else {
+        Alert.alert(title, message);
+      }
     }
   }
 
   /*
    * Asks first, with the item screen's wording, so a stray swipe and tap can
    * still be backed out of. A native dialog, because a row has no room for the
-   * item screen's inline confirm card.
+   * item screen's inline confirm card. react-native-web's Alert does nothing,
+   * so the web build asks with the browser's own dialog instead.
    */
   function confirmDelete(swipeable: SwipeableMethods) {
     swipeable.close();
 
-    Alert.alert(
-      `Delete ${item.name}?`,
-      'This removes the item from your inventory and from the waste summary. It cannot be undone.',
-      [
-        { text: 'Keep item', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => void removeItem() },
-      ],
-    );
+    const { title, message } = describeDeletion(item);
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`${title}\n\n${message}`)) {
+        void removeItem();
+      }
+
+      return;
+    }
+
+    Alert.alert(title, message, [
+      { text: 'Keep item', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => void removeItem() },
+    ]);
   }
 
   function renderActions(_progress: unknown, _translation: unknown, swipeable: SwipeableMethods) {
