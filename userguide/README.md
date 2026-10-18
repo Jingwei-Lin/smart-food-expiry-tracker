@@ -89,10 +89,12 @@ The line under the title tells you how much you have, for example "5 items · 2 
 
 When you save your first item, the app asks if it can send you notifications. Tap **Allow**.
 
-You then get two reminders for each item, both at 9 am:
+You then get two reminders for each item, at 9 am:
 
 - one the number of days before expiry that you chose, for example "Use Milk soon";
 - one on the expiry day itself, for example "Milk expires today".
+
+If 9 am on the first reminder's day has already passed when you save the item, that reminder comes a minute after you save instead. Food you add on its expiry day gets only the expiry-day reminder.
 
 Tap a reminder to open that item in the app.
 
@@ -126,7 +128,7 @@ The item leaves your Home list, its reminders are cancelled, and it's counted in
 
 Tap **Summary** in the bottom bar to see what happened to your food this week, last week and the week before. Weeks run from Monday to Sunday.
 
-Each week shows how many items you **Eaten**, **Donated** and **Discarded** (threw out). Aim to keep the Discarded number low!
+Each week shows how many items were **Eaten**, **Donated** and **Discarded** (thrown out). Aim to keep the Discarded number low!
 
 <img src="images/09-summary.png" alt="The Weekly Summary with counts for three weeks" width="250">
 
@@ -178,6 +180,6 @@ If a recipe uses food that has already expired, the card shows a red warning. Ch
 | No reminders arrive | Turn on notifications for Expo Go in your phone's settings, then open the item and save it again from **Edit item** |
 | Donation points says location is off | Allow location in your phone's settings, or tap **Search a suburb** |
 | "Couldn't reach" or "busy" on Recipes | Check your internet connection and tap **Try again**. Free AI models are sometimes busy for a few seconds |
-| "Did not accept this key" in recipe settings | Copy the whole key again and paste it in |
+| "Google did not accept this key" in recipe settings | Copy the whole key again and paste it in |
 
 For how the app works inside, or how to build on it, see the [main README](../README.md).
