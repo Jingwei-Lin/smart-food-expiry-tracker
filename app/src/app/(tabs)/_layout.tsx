@@ -4,9 +4,9 @@ import { BottomTabBarProps, Tabs } from 'expo-router/js-tabs';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 /* Use '#2f7d32' for BUTTON_COLOR if you would rather have the app's green. */
-const BUTTON_COLOR = '#2f7d32';
-const ACTIVE_COLOR = '#172019';
-const INACTIVE_COLOR = '#687269';
+const BUTTON_COLOR = '#A6D45A';
+const ACTIVE_COLOR = '#1E2A16';
+const INACTIVE_COLOR = '#55614D';
 
 const BAR_HEIGHT = 68;
 const BUTTON_SIZE = 66;
@@ -56,10 +56,17 @@ function TabBar({ state, navigation, insets }: BottomTabBarProps) {
         accessibilityRole="tab"
         accessibilityState={{ selected: focused }}
         onPress={() => {
-          if (!focused) {
+          const event = navigation.emit({
+            type: 'tabPress',
+            target: route.key,
+            canPreventDefault: true,
+          });
+
+          if (!focused && !event.defaultPrevented) {
             navigation.navigate(route.name, route.params);
           }
         }}
+        onLongPress={() => navigation.emit({ type: 'tabLongPress', target: route.key })}
         style={styles.tab}
       >
         {focused ? <View style={styles.indicator} /> : null}

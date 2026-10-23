@@ -69,7 +69,7 @@ async function renderScreen(items: FoodItem[]) {
     </InventoryProvider>,
   );
 
-  await view.findByText('This week');
+  await view.findByText(/This week/);
 
   return view;
 }
@@ -111,6 +111,17 @@ describe('WeeklySummaryScreen', () => {
     expect(view.queryByText(/not available yet/)).toBeNull();
   });
 
+  it('hides the day-by-day chart in monthly view', async () => {
+    const view = await renderScreen([
+      buildItem('apple', { status: 'eaten', statusUpdatedAt: new Date(NOW).toISOString() }),
+    ]);
+
+    fireEvent.press(view.UNSAFE_getAllByType(Pressable)[1]);
+
+    expect(view.queryByText('DAY BY DAY')).toBeNull();
+    expect(view.getByText(/This month/)).toBeTruthy();
+  });
+
   it('scrolls, with room under the tab bar, so small screens can reach the last week', async () => {
     const view = await renderScreen([]);
     const scroll = view.getByTestId('summary-scroll');
@@ -133,14 +144,14 @@ describe('WeeklySummaryScreen', () => {
     const eatenIn = (week: string) =>
       within(view.getByText(week).parent!).getAllByText(/^[0-9]+$/)[0].props.children;
 
-    expect(eatenIn('This week')).toBe(1);
+    expect(eatenIn(/This week/)).toBe(1);
 
     jest.setSystemTime(new Date(2026, 9, 19, 0, 30));
     await act(async () => {
       mockFocus.effect?.();
     });
 
-    expect(eatenIn('This week')).toBe(0);
+    expect(eatenIn(/This week/)).toBe(0);
     expect(eatenIn('Last week')).toBe(1);
   });
 
@@ -150,7 +161,7 @@ describe('WeeklySummaryScreen', () => {
 
     await fireEvent.press(view.getByText('Eat milk'));
 
-    expect(view.getByText('This week')).toBeTruthy();
+    expect(view.getByText(/This week/)).toBeTruthy();
     expect(view.queryByText(/could not be loaded/)).toBeNull();
   });
 

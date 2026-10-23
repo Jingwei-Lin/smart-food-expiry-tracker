@@ -1,6 +1,14 @@
+
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Alert,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import ReanimatedSwipeable, {
   SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
@@ -8,35 +16,126 @@ import ReanimatedSwipeable, {
 import { useInventory } from '@/context/inventory-context';
 import { FoodItem } from '@/types/food-item';
 import { describeDeletion } from '@/utils/delete-confirm';
-import { getExpiryListPresentation, getExpiryPresentation } from '@/utils/expiry-date';
+import {
+  daysUntilExpiry,
+  getExpiryListPresentation,
+  getExpiryPresentation,
+} from '@/utils/expiry-date';
 
 type InventoryRowProps = {
   item: FoodItem;
-  /** Passed in so every row on the screen agrees on what day it is. */
   today: Date;
 };
 
-/**
- * One grocery item in the inventory list.
- *
- * The row is deliberately two facts — what it is and when it goes off — with
- * the colour rail repeating the urgency its section heading already states.
- * Tapping opens the item. Swiping left offers two shortcuts past it: Edit,
- * for the common case of correcting a date at the fridge door, and Delete,
- * for food added by mistake.
- */
+const COLORS = {
+  surface: '#FFFFFF',
+  primary: '#1E2A16',
+  secondary: '#55614D',
+  border: '#E4E5D4',
+  divider: '#EEEFE5',
+  accentSoft: '#F0F7DB',
+  urgent: '#A92E26',
+  urgentSoft: '#FBEFF2',
+  warning: '#8B6B1F',
+  warningSoft: '#FFF0D5',
+};
+
+function getExpiryBadgeStyle(item: FoodItem, today: Date) {
+  const days = daysUntilExpiry(item.expiryDate, today);
+
+  if (days < 0) {
+    return {
+      backgroundColor: COLORS.urgentSoft,
+      color: COLORS.urgent,
+    };
+  }
+
+  if (days === 0) {
+    return {
+      backgroundColor: COLORS.accentSoft,
+      color: COLORS.primary,
+    };
+  }
+
+  if (days <= 3) {
+    return {
+      backgroundColor: '#FFF1F5',
+      color: COLORS.urgent,
+    };
+  }
+
+  if (days <= 7) {
+    return {
+      backgroundColor: COLORS.warningSoft,
+      color: COLORS.warning,
+    };
+  }
+
+  return {
+    backgroundColor: '#F3F3E9',
+    color: COLORS.secondary,
+  };
+}
+
+function getFoodIcon(name: string): keyof typeof Ionicons.glyphMap {
+  const value = name.toLowerCase();
+
+  if (/milk|water|juice|drink/.test(value)) {
+    return 'water-outline';
+  }
+
+  if (/spinach|lettuce|leaf|salad|herb|broccoli/.test(value)) {
+    return 'leaf-outline';
+  }
+
+  if (/chicken|meat|beef|pork|fish|salmon/.test(value)) {
+    return 'fast-food-outline';
+  }
+
+  if (/bread|sourdough|toast|bagel/.test(value)) {
+    return 'restaurant-outline';
+  }
+
+  if (/egg/.test(value)) {
+    return 'egg-outline';
+  }
+
+  if (/apple|fruit|orange|banana|berry|berries/.test(value)) {
+    return 'nutrition-outline';
+  }
+
+  if (/cheese|cheddar/.test(value)) {
+    return 'pizza-outline';
+  }
+
+  if (/yoghurt|yogurt|cream|butter/.test(value)) {
+    return 'ice-cream-outline';
+  }
+
+  return 'basket-outline';
+}
+
 export function InventoryRow({ item, today }: InventoryRowProps) {
   const { deleteItem } = useInventory();
-  const { meta, railColor } = getExpiryListPresentation(item.expiryDate, today);
+
+  const { meta } = getExpiryListPresentation(item.expiryDate, today);
+  const expiry = getExpiryPresentation(item.expiryDate, today);
+  const badge = getExpiryBadgeStyle(item, today);
 
   function openItem() {
-    router.push({ pathname: '/item/[id]', params: { id: item.id } });
+    router.push({
+      pathname: '/item/[id]',
+      params: { id: item.id },
+    });
   }
 
   function openEditForm(swipeable: SwipeableMethods) {
     swipeable.close();
 
-    router.push({ pathname: '/item/edit/[id]', params: { id: item.id } });
+    router.push({
+      pathname: '/item/edit/[id]',
+      params: { id: item.id },
+    });
   }
 
   async function removeItem() {
@@ -54,12 +153,6 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
     }
   }
 
-  /*
-   * Asks first, with the item screen's wording, so a stray swipe and tap can
-   * still be backed out of. A native dialog, because a row has no room for the
-   * item screen's inline confirm card. react-native-web's Alert does nothing,
-   * so the web build asks with the browser's own dialog instead.
-   */
   function confirmDelete(swipeable: SwipeableMethods) {
     swipeable.close();
 
@@ -74,39 +167,58 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
     }
 
     Alert.alert(title, message, [
-      { text: 'Keep item', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => void removeItem() },
+      {
+        text: 'Keep item',
+        style: 'cancel',
+      },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => void removeItem(),
+      },
     ]);
   }
 
-  function renderActions(_progress: unknown, _translation: unknown, swipeable: SwipeableMethods) {
+  function renderActions(
+    _progress: unknown,
+    _translation: unknown,
+    swipeable: SwipeableMethods,
+  ) {
     return (
       <View style={styles.actions}>
         <Pressable
-          accessibilityLabel={`Edit ${item.name}`}
           accessibilityRole="button"
+          accessibilityLabel={`Edit ${item.name}`}
           onPress={() => openEditForm(swipeable)}
           style={({ pressed }) => [
             styles.action,
             styles.editAction,
-            pressed ? styles.pressed : null,
+            pressed && styles.actionPressed,
           ]}
         >
-          <Ionicons color="#ffffff" name="create-outline" size={20} />
+          <Ionicons
+            name="create-outline"
+            size={20}
+            color="#FFFFFF"
+          />
           <Text style={styles.actionLabel}>Edit</Text>
         </Pressable>
 
         <Pressable
-          accessibilityLabel={`Delete ${item.name}`}
           accessibilityRole="button"
+          accessibilityLabel={`Delete ${item.name}`}
           onPress={() => confirmDelete(swipeable)}
           style={({ pressed }) => [
             styles.action,
             styles.deleteAction,
-            pressed ? styles.pressed : null,
+            pressed && styles.actionPressed,
           ]}
         >
-          <Ionicons color="#ffffff" name="trash-outline" size={20} />
+          <Ionicons
+            name="trash-outline"
+            size={20}
+            color="#FFFFFF"
+          />
           <Text style={styles.actionLabel}>Delete</Text>
         </Pressable>
       </View>
@@ -116,26 +228,56 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
   return (
     <ReanimatedSwipeable
       friction={2}
-      /* There are no left actions, so dragging the other way must not move the row. */
       overshootLeft={false}
       overshootRight={false}
       renderRightActions={renderActions}
       rightThreshold={36}
     >
       <Pressable
-        accessibilityHint="Opens the item"
-        accessibilityLabel={`${item.name}, ${getExpiryPresentation(item.expiryDate, today).label}`}
         accessibilityRole="button"
+        accessibilityHint="Opens the item"
+        accessibilityLabel={`${item.name}, ${expiry.label}`}
         onPress={openItem}
-        style={({ pressed }) => [styles.row, pressed ? styles.rowPressed : null]}
+        style={({ pressed }) => [
+          styles.row,
+          pressed && styles.rowPressed,
+        ]}
       >
-        <View style={[styles.rail, { backgroundColor: railColor }]} />
+        <View style={styles.iconBox}>
+          <Ionicons
+            name={getFoodIcon(item.name)}
+            size={27}
+            color={COLORS.primary}
+          />
+        </View>
 
-        <Text numberOfLines={1} style={styles.name}>
-          {item.name}
-        </Text>
+        <View style={styles.itemDetails}>
+          <Text numberOfLines={2} style={styles.name}>
+            {item.name}
+          </Text>
 
-        <Text style={styles.meta}>{meta}</Text>
+          {item.quantity.trim() ? (
+            <Text numberOfLines={1} style={styles.quantity}>
+              {item.quantity}
+            </Text>
+          ) : null}
+        </View>
+
+        <View
+          style={[
+            styles.expiryBadge,
+            { backgroundColor: badge.backgroundColor },
+          ]}
+        >
+          <Text
+            style={[
+              styles.expiryText,
+              { color: badge.color },
+            ]}
+          >
+            {meta}
+          </Text>
+        </View>
       </Pressable>
     </ReanimatedSwipeable>
   );
@@ -143,58 +285,93 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
 
 const styles = StyleSheet.create({
   row: {
-    minHeight: 56,
+    minHeight: 76,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingRight: 16,
-    backgroundColor: '#ffffff',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: COLORS.surface,
   },
-  rail: {
-    alignSelf: 'stretch',
-    width: 4,
+
+  iconBox: {
+    width: 46,
+    height: 46,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.accentSoft,
   },
-  name: {
+
+  itemDetails: {
     flex: 1,
-    color: '#172019',
-    fontSize: 17,
-    fontWeight: '600',
+    minWidth: 0,
+    justifyContent: 'center',
+    gap: 3,
   },
-  meta: {
-    color: '#687269',
+
+  name: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 16,
+    lineHeight: 21,
+  },
+
+  quantity: {
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 13,
-    fontWeight: '600',
   },
+
+  expiryBadge: {
+    maxWidth: 105,
+    flexShrink: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+
+  expiryText: {
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+
   actions: {
     flexDirection: 'row',
   },
+
   action: {
     width: 88,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
   },
+
   editAction: {
-    backgroundColor: '#2f7d32',
+    backgroundColor: '#2F7D32',
   },
-  /* The item screen's colour for deleting. */
+
   deleteAction: {
-    backgroundColor: '#9f2420',
+    backgroundColor: '#9F2420',
   },
+
   actionLabel: {
-    color: '#ffffff',
+    color: '#FFFFFF',
     fontSize: 13,
     fontWeight: '700',
   },
-  /*
-   * The swipe actions sit right behind the row and become visible the moment
-   * it moves, while a finger starting a swipe still counts as a press. Fading
-   * the row would let them show through, so a press darkens it instead.
-   */
+
   rowPressed: {
-    backgroundColor: '#eef2ec',
+    backgroundColor: COLORS.accentSoft,
   },
-  pressed: {
-    opacity: 0.72,
+
+  actionPressed: {
+    opacity: 0.75,
   },
 });

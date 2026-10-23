@@ -13,29 +13,37 @@ import { ItemForm, ItemFormValues } from '@/components/item-form';
 import { useInventory } from '@/context/inventory-context';
 import { returnToInventory } from '@/utils/navigation';
 
-/**
- * Edit an item already in the inventory.
- *
- * Lives beside the detail screen rather than inside it so that cancelling an
- * edit is just a back press, with nothing saved.
- */
+const COLORS = {
+  background: '#FFFDF5',
+  surface: '#FFFFFF',
+  primary: '#1E2A16',
+  secondary: '#55614D',
+  border: '#E4E5D4',
+  accent: '#A6D45A',
+};
+
 export default function EditItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { items, isLoading, isStorageReady, storageError, updateItem } = useInventory();
-  const headerHeight = useHeaderHeight();
+  const {
+    items,
+    isLoading,
+    isStorageReady,
+    storageError,
+    updateItem,
+  } = useInventory();
 
+  const headerHeight = useHeaderHeight();
   const item = items.find((candidate) => candidate.id === id);
 
   async function handleSubmit(values: ItemFormValues) {
     await updateItem(id, values);
-
     returnToInventory();
   }
 
   if (isLoading) {
     return (
       <View style={styles.centeredContainer}>
-        <ActivityIndicator size="large" color="#2f7d32" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.centeredText}>Loading item...</Text>
       </View>
     );
@@ -44,6 +52,7 @@ export default function EditItemScreen() {
   if (!item) {
     return (
       <View style={styles.centeredContainer}>
+        <Text style={styles.title}>Item not found</Text>
         <Text style={styles.centeredText}>
           This item may have been removed, so there is nothing to edit.
         </Text>
@@ -52,11 +61,6 @@ export default function EditItemScreen() {
   }
 
   return (
-    /*
-     * Android draws edge to edge, so the window no longer shrinks for the
-     * keyboard and the padding is needed there too. The view measures itself
-     * from below the header, so the header's height is added back.
-     */
     <KeyboardAvoidingView
       behavior="padding"
       keyboardVerticalOffset={headerHeight}
@@ -67,19 +71,22 @@ export default function EditItemScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.eyebrow}>EDIT ITEM</Text>
-        <Text style={styles.title}>{item.name}</Text>
+        <View style={styles.heading}>
+          <Text style={styles.eyebrow}>YOUR INVENTORY</Text>
 
-        <Text style={styles.subtitle}>
-          Correct the details or push the expiry date back after checking the package.
-        </Text>
+          <Text style={styles.title}>Edit item</Text>
+
+          <Text style={styles.subtitle}>
+            Update the details for {item.name}.
+          </Text>
+        </View>
 
         <ItemForm
           blockedReason={
             isStorageReady
               ? null
-              : (storageError ??
-                'Loading your saved inventory. Saving will be enabled in a moment.')
+              : storageError ??
+                'Loading your saved inventory. Saving will be enabled in a moment.'
           }
           initialValues={{
             name: item.name,
@@ -87,6 +94,7 @@ export default function EditItemScreen() {
             expiryDate: item.expiryDate,
             reminderDaysBefore: item.reminderDaysBefore,
             notes: item.notes,
+            storageLocation: item.storageLocation,
           }}
           onSubmit={handleSubmit}
           submitLabel="Save changes"
@@ -99,43 +107,50 @@ export default function EditItemScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f6f8f3',
+    backgroundColor: COLORS.background,
   },
   centeredContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    backgroundColor: '#f6f8f3',
-    padding: 24,
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 24,
+    paddingVertical: 32,
   },
-  centeredText: {
-    color: '#59635b',
-    fontSize: 15,
-    lineHeight: 22,
-    textAlign: 'center',
+  heading: {
+    gap: 6,
+    paddingBottom: 4,
   },
   content: {
     paddingHorizontal: 20,
     paddingTop: 24,
-    paddingBottom: 40,
+    paddingBottom: 32,
   },
   eyebrow: {
-    color: '#2f7d32',
-    fontSize: 12,
-    fontWeight: '800',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 13,
     letterSpacing: 1.2,
   },
   title: {
-    marginTop: 6,
-    color: '#172019',
-    fontSize: 30,
-    fontWeight: '800',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 26,
+    lineHeight: 34,
   },
   subtitle: {
-    marginTop: 7,
-    color: '#59635b',
+    marginTop: 2,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 15,
     lineHeight: 22,
+  },
+  centeredText: {
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
   },
 });
