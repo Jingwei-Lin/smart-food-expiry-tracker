@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import type { ReactNode } from 'react';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 const COLORS = {
   primary: '#1E2A16',
@@ -6,17 +7,26 @@ const COLORS = {
 };
 
 type ScreenHeaderProps = {
-  subtitle: string;
+  subtitle: ReactNode;
   title: string;
+  /** Optional spacing tweaks for one page, e.g. a smaller gap below. */
+  style?: StyleProp<ViewStyle>;
 };
 
-export function ScreenHeader({ subtitle, title }: ScreenHeaderProps) {
+export function ScreenHeader({ subtitle, title, style }: ScreenHeaderProps) {
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, style]}>
       <View style={styles.headingRow}>
         <View style={styles.headingText}>
-          <Text style={styles.subtitle}>{subtitle}</Text>
-          <Text style={styles.title}>{title}</Text>
+          {typeof subtitle === 'string' ? (
+            <Text style={styles.subtitle}>{subtitle}</Text>
+          ) : (
+            subtitle
+          )}
+
+          <Text accessibilityRole="header" style={styles.title}>
+            {title}
+          </Text>
         </View>
       </View>
     </View>

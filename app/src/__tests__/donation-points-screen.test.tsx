@@ -141,8 +141,7 @@ describe('DonationPointsScreen', () => {
     const view = await render(<DonationPointsScreen />);
     await view.findByText('Close Pantry');
 
-    expect(view.getByRole('header', { name: 'Donation Points' })).toBeTruthy();
-    expect(view.getByText('Places near you that take spare food.')).toBeTruthy();
+    expect(view.getByRole('header', { name: 'Give it away' })).toBeTruthy();
   });
 
   it('shows every place in one list, each with its kind', async () => {
@@ -284,18 +283,12 @@ describe('DonationPointsScreen', () => {
   });
 
   describe('going back to the phone after a suburb search', () => {
-    it('only offers "Use my location" once a suburb has been searched', async () => {
+    it('offers "Use my current location" in the suburb panel', async () => {
       const view = await render(<DonationPointsScreen />);
       await view.findByText('Close Pantry');
 
       await fireEvent.press(view.getByLabelText('Change suburb'));
-      expect(view.queryByText('Use my location')).toBeNull();
-
-      await searchSuburb(view, 'Fitzroy VIC');
-      await view.findByText('Fitzroy Pantry');
-      await fireEvent.press(view.getByLabelText('Change suburb'));
-
-      expect(view.getByText('Use my location')).toBeTruthy();
+      expect(view.getByText('Use my current location')).toBeTruthy();
     });
 
     it('lists the places around the phone again', async () => {
@@ -305,13 +298,13 @@ describe('DonationPointsScreen', () => {
       await view.findByText('Fitzroy Pantry');
 
       await fireEvent.press(view.getByLabelText('Change suburb'));
-      await fireEvent.press(view.getByText('Use my location'));
+      await fireEvent.press(view.getByText('Use my current location'));
 
       expect(await view.findByText('Close Pantry')).toBeTruthy();
       expect(view.getByText('CLOSEST TO YOU · 2 PLACES')).toBeTruthy();
       expect(shownPlaces(view)).toEqual(['Close Pantry', 'Soup Hall']);
       expect(location.getLastKnownPositionAsync).toHaveBeenCalledTimes(2);
-      expect(view.queryByText('Use my location')).toBeNull();
+      expect(view.queryByText('Use my current location')).toBeNull();
     });
 
     it('retries near the phone, not the old suburb, after going back', async () => {
@@ -322,7 +315,7 @@ describe('DonationPointsScreen', () => {
 
       location.hasServicesEnabledAsync.mockResolvedValue(false);
       await fireEvent.press(view.getByLabelText('Change suburb'));
-      await fireEvent.press(view.getByText('Use my location'));
+      await fireEvent.press(view.getByText('Use my current location'));
       await view.findByText(/Location services are turned off/);
 
       location.hasServicesEnabledAsync.mockResolvedValue(true);
@@ -375,6 +368,29 @@ describe('DonationPointsScreen', () => {
     });
   });
 
+    it('loads a suggested suburb without asking the geocoder', async () => {
+    const view = await render(<DonationPointsScreen />);
+    await view.findByText('Close Pantry');
+
+    await fireEvent.press(view.getByLabelText('Change suburb'));
+    await fireEvent.changeText(view.getByLabelText('Suburb'), 'Fitzr');
+    await fireEvent.press(view.getByLabelText('Fitzroy, VIC 3065'));
+
+    expect(await view.findByText('Fitzroy Pantry')).toBeTruthy();
+    expect(location.geocodeAsync).not.toHaveBeenCalled();
+    expect(view.getByText('CLOSEST TO FITZROY · 1 PLACE')).toBeTruthy();
+  });
+
+    it('closes the suburb panel when the dimmed area is tapped', async () => {
+      const view = await render(<DonationPointsScreen />);
+      await view.findByText('Close Pantry');
+
+      await fireEvent.press(view.getByLabelText('Change suburb'));
+      await fireEvent.press(view.getByLabelText('Close suburb search'));
+
+      expect(view.queryByLabelText('Suburb')).toBeNull();
+    });
+
   describe('the place named at the top', () => {
     it('says it is finding the location while the phone looks', async () => {
       location.getLastKnownPositionAsync.mockReturnValue(new Promise(() => undefined));
@@ -396,3 +412,4 @@ describe('DonationPointsScreen', () => {
     });
   });
 });
+

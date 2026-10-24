@@ -17,14 +17,33 @@ import bundledSnapshot from '@/data/donation-points-au.json';
 import { parseSnapshot, pointsNear } from '@/utils/donation-snapshot';
 import { formatDayMonthYear } from '@/utils/expiry-date';
 import { type DonationPoint, type PointType, SEARCH_RADIUS_KM } from '@/utils/overpass';
+import { ScreenHeader } from '@/components/screen-header';
+import { findSuburbs, type Suburb } from '@/utils/suburb-search';
+
+const COLORS = {
+  background: '#FFFDF5',
+  surface: '#FFFFFF',
+  primary: '#1E2A16',
+  secondary: '#55614D',
+  border: '#E4E5D4',
+  divider: '#EEEFE5',
+  accent: '#A6D45A',
+  accentSoft: '#F0F7DB',
+  link: '#4E7A1F',      // dark lime, for green text and icons on cream
+  urgent: '#A92E26',
+  urgentSoft: '#FBEFF2',
+  warning: '#8B6B1F',
+  warningSoft: '#FFF0D5',
+  error: '#8B2C25',
+};
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
 /* Each kind of place gets its own tint and icon, in place of a photo. */
 const TYPE_LOOK: Record<PointType, { icon: IconName; tint: string; accent: string }> = {
-  'Food bank': { icon: 'basket-outline', tint: '#e7f4e8', accent: '#2f7d32' },
-  'Soup kitchen': { icon: 'restaurant-outline', tint: '#fbf0dc', accent: '#9a5b12' },
-  'Community pantry': { icon: 'file-tray-stacked-outline', tint: '#e3edf7', accent: '#2b5f8a' },
+  'Food bank': { icon: 'basket-outline', tint: COLORS.accentSoft, accent: COLORS.link },
+  'Soup kitchen': { icon: 'restaurant-outline', tint: COLORS.urgentSoft, accent: COLORS.urgent },
+  'Community pantry': { icon: 'file-tray-stacked-outline', tint: COLORS.warningSoft, accent: COLORS.warning },
 };
 
 /* The phone's geocoder rate-limits, so only the closest places get an address looked up. */
@@ -50,32 +69,29 @@ const DATA_DATE = SNAPSHOT ? formatDayMonthYear(new Date(SNAPSHOT.fetchedAt)) : 
 const RECENT_POSITION_MS = 10 * 60 * 1000;
 const RECENT_POSITION_ACCURACY_M = 500;
 
-function DonationPointRow({ point }: { point: DonationPoint }) {
+function DonationPointRow({ point, isFirst }: { point: DonationPoint; isFirst: boolean }) {
   const look = TYPE_LOOK[point.type];
 
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, isFirst ? null : styles.rowDivider]}>
       <View style={[styles.rowIcon, { backgroundColor: look.tint }]}>
-        <Ionicons name={look.icon} size={24} color={look.accent} />
+        <Ionicons name={look.icon} size={22} color={look.accent} />
       </View>
 
       <View style={styles.rowText}>
-        <View style={styles.rowTop}>
-          <Text numberOfLines={2} style={styles.rowName}>
-            {point.name}
-          </Text>
+        <Text numberOfLines={2} style={styles.rowName}>
+          {point.name}
+        </Text>
 
-          <Text style={styles.distance}>{point.distanceKm.toFixed(1)} km</Text>
-        </View>
-
-        <Text style={[styles.rowType, { color: look.accent }]}>{point.type}</Text>
-
-        <Text numberOfLines={2} style={styles.address}>
-          {point.address}
+        <Text numberOfLines={1} style={styles.rowMeta}>
+          <Text style={styles.rowType}>{point.type}</Text>
+          {` · ${point.address}`}
         </Text>
 
         <Text style={styles.hours}>{point.hours}</Text>
       </View>
+
+      <Text style={styles.distance}>{point.distanceKm.toFixed(1)} km</Text>
     </View>
   );
 }
@@ -120,6 +136,11 @@ export default function DonationPointsScreen() {
   const [isEditingSuburb, setIsEditingSuburb] = useState(false);
   /* The suburb the list is for, or null while it is around the phone. */
   const [searchedSuburb, setSearchedSuburb] = useState<string | null>(null);
+  /* Where the list is centred, so suburb suggestions can put the nearest first. */
+  const [center, setCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+  /* How far down the screen the floating suburb panel starts. */
+  const [panelTop, setPanelTop] = useState(insets.top + 140);
+  const locationRef = useRef<View>(null);
 
   const latestRequest = useRef(0);
 
@@ -210,6 +231,8 @@ export default function DonationPointsScreen() {
       fail("The list of donation points couldn't be read. Please update the app.");
       return;
     }
+
+    setCenter({ latitude, longitude });
 
     void showPoints(
       pointsNear(SNAPSHOT, latitude, longitude, SEARCH_RADIUS_KM),
@@ -311,6 +334,30 @@ export default function DonationPointsScreen() {
     void loadNearPhone();
   }
 
+  /** Opens the suburb panel just under the location line. */
+  function openSuburbPanel() {
+    setIsEditingSuburb(true);
+    locationRef.current?.measureInWindow((_x, y, _width, height) => {
+      if (height > 0) {
+        setPanelTop(y + height + 8);
+      }
+    });
+  }
+
+  function closeSuburbPanel() {
+    setIsEditingSuburb(false);
+    setSuburbQuery('');
+  }
+
+  /** Picking a suggestion: its location is already known, so no geocoder lookup. */
+  function chooseSuburb(suburb: Suburb) {
+    closeSuburbPanel();
+    setSearchedSuburb(`${suburb.name} ${suburb.state}`);
+    setPlaceName(suburb.name);
+    showLoading();
+    showPointsNear(suburb.latitude, suburb.longitude, startRequest());
+  }
+
   /** Repeats whichever load failed: the phone's location or the last suburb. */
   function retry() {
     if (searchedSuburb) {
@@ -369,6 +416,7 @@ export default function DonationPointsScreen() {
   }, [phoneLoads]);
 
   const search = query.trim().toLowerCase();
+  const suburbMatches = findSuburbs(suburbQuery, center);
   const matches = points.filter((point) =>
     `${point.name} ${point.type} ${point.address}`.toLowerCase().includes(search),
   );
@@ -390,8 +438,8 @@ export default function DonationPointsScreen() {
         <Text style={styles.sectionTitle}>{`${title} · ${count}`.toUpperCase()}</Text>
 
         <View style={styles.list} testID="donation-points-list">
-          {sectionPoints.map((point) => (
-            <DonationPointRow key={point.id} point={point} />
+          {sectionPoints.map((point, index) => (
+            <DonationPointRow key={point.id} isFirst={index === 0} point={point} />
           ))}
         </View>
       </View>
@@ -399,80 +447,52 @@ export default function DonationPointsScreen() {
   }
 
   return (
+    <View style={styles.screen}>
     <ScrollView
       contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + 124 }}
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
-      style={styles.screen}
+      style={styles.scroll}
     >
       <View style={styles.header}>
-        <Text accessibilityRole="header" style={styles.title}>
-          Donation Points
-        </Text>
+        <ScreenHeader
+          style={styles.screenHeader}
+          title="Give it away"
+          subtitle={
+            <Pressable
+                ref={locationRef}
+                accessibilityLabel="Change suburb"
+                accessibilityRole="button"
+                onPress={() => (isEditingSuburb ? closeSuburbPanel() : openSuburbPanel())}
+                style={styles.locationLine}
+              >
+              <Ionicons name="navigate" size={16} color={COLORS.link} />
 
-        <Text style={styles.subtitle}>Places near you that take spare food.</Text>
+              <Text style={styles.locationName}>
+                {isLoading && !searchedSuburb ? 'Finding your location…' : placeName}
+              </Text>
 
-        <Pressable
-          accessibilityLabel="Change suburb"
-          accessibilityRole="button"
-          onPress={() => setIsEditingSuburb(!isEditingSuburb)}
-          style={styles.locationLine}
-        >
-          <Ionicons name="navigate" size={16} color="#2f7d32" />
+              <Text style={styles.locationRadius}>· within {SEARCH_RADIUS_KM} km</Text>
 
-          <Text style={styles.locationName}>
-            {isLoading && !searchedSuburb ? 'Finding your location…' : placeName}
-          </Text>
-
-          <Ionicons
-            name={isEditingSuburb ? 'chevron-up' : 'chevron-down'}
-            size={16}
-            color="#2f7d32"
-          />
-        </Pressable>
-
-        <Text style={styles.locationRadius}>within {SEARCH_RADIUS_KM} km</Text>
-
-        {isEditingSuburb ? (
-          <View style={styles.searchBox}>
-            <Ionicons name="location-outline" size={20} color="#687269" />
-
-            <TextInput
-              accessibilityLabel="Suburb"
-              autoFocus
-              onChangeText={setSuburbQuery}
-              onSubmitEditing={() => void searchSuburb(suburbQuery)}
-              placeholder="Enter a suburb and state, e.g. Newtown NSW"
-              placeholderTextColor="#7b857d"
-              returnKeyType="search"
-              style={styles.searchInput}
-              value={suburbQuery}
-            />
-          </View>
-        ) : null}
-
-        {isEditingSuburb && searchedSuburb ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={backToMyLocation}
-            style={({ pressed }) => [styles.myLocationButton, pressed ? styles.pressed : null]}
-          >
-            <Ionicons name="navigate" size={16} color="#2f7d32" />
-
-            <Text style={styles.myLocationText}>Use my location</Text>
-          </Pressable>
-        ) : null}
+              <Ionicons
+                name={isEditingSuburb ? 'chevron-up' : 'chevron-down'}
+                size={16}
+                color={COLORS.link}
+              />
+            </Pressable>
+          }
+        />
 
         <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={20} color="#687269" />
+          <Ionicons name="search-outline" size={20} color={COLORS.secondary} />
 
           <TextInput
             accessibilityLabel="Search donation points"
             autoCorrect={false}
             onChangeText={setQuery}
             placeholder="Search donation points"
-            placeholderTextColor="#7b857d"
+            placeholderTextColor={COLORS.secondary}
             returnKeyType="search"
             style={styles.searchInput}
             value={query}
@@ -485,7 +505,7 @@ export default function DonationPointsScreen() {
               hitSlop={8}
               onPress={() => setQuery('')}
             >
-              <Ionicons name="close-circle" size={18} color="#7b857d" />
+              <Ionicons name="close-circle" size={18} color={COLORS.secondary} />
             </Pressable>
           ) : null}
         </View>
@@ -493,7 +513,7 @@ export default function DonationPointsScreen() {
 
       {renderSection(searchedSuburb ? `Closest to ${placeName}` : 'Closest to you', matches)}
 
-      {isLoading ? <ActivityIndicator color="#2f7d32" size="large" style={styles.spinner} /> : null}
+      {isLoading ? <ActivityIndicator color={COLORS.link} size="large" style={styles.spinner} /> : null}
 
       {error ? (
         <View style={styles.errorBox}>
@@ -510,7 +530,7 @@ export default function DonationPointsScreen() {
 
             <Pressable
               accessibilityRole="button"
-              onPress={() => setIsEditingSuburb(true)}
+              onPress={openSuburbPanel}
               style={({ pressed }) => [styles.secondaryButton, pressed ? styles.pressed : null]}
             >
               <Text style={styles.secondaryButtonText}>Search a suburb</Text>
@@ -522,7 +542,7 @@ export default function DonationPointsScreen() {
       {!isLoading && !error && matches.length === 0 ? (
         <View style={styles.emptyCard}>
           <View style={styles.emptyIcon}>
-            <Ionicons name="search-outline" size={32} color="#2f7d32" />
+            <Ionicons name="search-outline" size={32} color={COLORS.link} />
           </View>
 
           {search ? (
@@ -550,161 +570,301 @@ export default function DonationPointsScreen() {
         <Text style={styles.attribution}>Data © OpenStreetMap contributors, as of {DATA_DATE}</Text>
       ) : null}
     </ScrollView>
+
+    {isEditingSuburb ? (
+      <>
+        {/* Dims the list. Tapping it closes the panel. */}
+        <Pressable
+          accessibilityLabel="Close suburb search"
+          onPress={closeSuburbPanel}
+          style={[styles.scrim, { top: panelTop - 4 }]}
+        />
+
+        <View style={[styles.suburbPanel, { top: panelTop }]}>
+          <View style={[styles.searchBox, styles.suburbBox]}>
+            <Ionicons name="search-outline" size={20} color={COLORS.secondary} />
+
+            <TextInput
+              accessibilityLabel="Suburb"
+              autoCorrect={false}
+              autoFocus
+              onChangeText={setSuburbQuery}
+              onSubmitEditing={() => void searchSuburb(suburbQuery)}
+              placeholder="Search a suburb"
+              placeholderTextColor={COLORS.secondary}
+              returnKeyType="search"
+              style={styles.searchInput}
+              value={suburbQuery}
+            />
+          </View>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={backToMyLocation}
+            style={({ pressed }) => [styles.suburbRow, pressed ? styles.pressed : null]}
+          >
+            <Ionicons name="navigate" size={18} color={COLORS.link} />
+            <Text style={styles.currentLocationText}>Use my current location</Text>
+          </Pressable>
+
+          {suburbMatches.length > 0 ? (
+            <View style={styles.suburbList}>
+              <Text style={styles.sectionTitle}>SUBURBS</Text>
+
+              {suburbMatches.map((suburb) => (
+                <Pressable
+                  key={`${suburb.name}-${suburb.state}`}
+                  accessibilityLabel={`${suburb.name}, ${suburb.state} ${suburb.postcode}`}
+                  accessibilityRole="button"
+                  onPress={() => chooseSuburb(suburb)}
+                  style={({ pressed }) => [styles.suburbRow, pressed ? styles.pressed : null]}
+                >
+                  <Ionicons name="location-outline" size={20} color={COLORS.secondary} />
+
+                  <Text numberOfLines={1} style={styles.suburbName}>
+                    <Text style={styles.suburbNameMatch}>
+                      {suburb.name.slice(0, suburbQuery.trim().length)}
+                    </Text>
+                    {suburb.name.slice(suburbQuery.trim().length)}
+                  </Text>
+
+                  <Text style={styles.suburbPostcode}>
+                    {suburb.state} {suburb.postcode}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : null}
+        </View>
+      </>
+    ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f6f8f3',
+    backgroundColor: COLORS.background,
+  },
+  scroll: {
+    flex: 1,
   },
   header: {
     paddingHorizontal: 20,
   },
-  title: {
-    color: '#172019',
-    fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: -0.4,
-  },
-  subtitle: {
-    marginTop: 5,
-    color: '#59635b',
-    fontSize: 15,
-    lineHeight: 22,
-  },
+
+  /* Location line under the title */
   locationLine: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 18,
+    marginBottom: 6,
   },
   locationName: {
-    color: '#2f7d32',
+    color: COLORS.link,
     fontSize: 16,
-    fontWeight: '800',
+    fontFamily: 'Fredoka_600SemiBold',
   },
   locationRadius: {
-    marginTop: 2,
-    marginLeft: 22,
-    color: '#687269',
+    color: COLORS.link,
     fontSize: 13,
+    fontFamily: 'Fredoka_600SemiBold',
   },
+
+  /* Search boxes */
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     minHeight: 48,
-    marginTop: 16,
+    marginTop: 0,
     borderWidth: 1,
-    borderColor: '#dce4da',
+    borderColor: COLORS.border,
     borderRadius: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 14,
-  },
-  myLocationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 44,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#2f7d32',
-    borderRadius: 12,
-    backgroundColor: '#e7f4e8',
-  },
-  myLocationText: {
-    color: '#1f5a22',
-    fontSize: 15,
-    fontWeight: '700',
   },
   searchInput: {
     flex: 1,
     paddingVertical: 12,
-    color: '#172019',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 15,
   },
+
+  /* Floating suburb panel */
+  scrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(30, 42, 22, 0.28)',
+  },
+  suburbPanel: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    gap: 6,
+    padding: 14,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  suburbBox: {
+    marginTop: 0,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.background,
+  },
+  suburbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 44,
+    paddingHorizontal: 4,
+  },
+  currentLocationText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 15,
+  },
+  suburbList: {
+    marginTop: 4,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.divider,
+  },
+  suburbName: {
+    flex: 1,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 16,
+  },
+  suburbNameMatch: {
+    fontFamily: 'Fredoka_600SemiBold',
+  },
+  suburbPostcode: {
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 13,
+  },
+
+  /* Filter chips (step 6) */
+  chips: {
+    gap: 8,
+    marginTop: 14,
+  },
+  chip: {
+    justifyContent: 'center',
+    minHeight: 40,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+  },
+  chipSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+  },
+  chipText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 14,
+  },
+  chipTextSelected: {
+    color: COLORS.surface,
+  },
+
+  /* The list of places (step 7) */
   section: {
     marginTop: 22,
     paddingHorizontal: 20,
   },
   sectionTitle: {
     marginBottom: 10,
-    color: '#687269',
+    color: COLORS.secondary,
     fontSize: 11,
-    fontWeight: '800',
+    fontFamily: 'Fredoka_500Medium',
     letterSpacing: 0.9,
   },
   list: {
-    gap: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
   },
   row: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
-    borderWidth: 1,
-    borderColor: '#dce4da',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
-    padding: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  rowDivider: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.divider,
   },
   rowIcon: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 14,
   },
   rowText: {
     flex: 1,
-    gap: 3,
-  },
-  rowTop: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 10,
+    gap: 2,
   },
   rowName: {
-    flex: 1,
-    color: '#172019',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
     fontSize: 16,
-    fontWeight: '800',
+  },
+  rowMeta: {
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 13,
   },
   rowType: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  address: {
-    color: '#172019',
-    fontSize: 14,
-    lineHeight: 19,
+    fontFamily: 'Fredoka_500Medium',
   },
   hours: {
-    color: '#687269',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 13,
   },
   distance: {
-    color: '#2f7d32',
+    color: COLORS.link,
     fontSize: 16,
-    fontWeight: '800',
+    fontFamily: 'Fredoka_600SemiBold',
   },
   attribution: {
     marginTop: 10,
     paddingHorizontal: 20,
-    color: '#687269',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 12,
   },
   pressed: {
     opacity: 0.72,
   },
+
+  /* Empty and error states */
   emptyCard: {
     alignItems: 'center',
     marginHorizontal: 20,
     marginTop: 34,
     borderWidth: 1,
-    borderColor: '#dce4da',
-    borderRadius: 18,
-    backgroundColor: '#ffffff',
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 28,
     paddingVertical: 34,
   },
@@ -714,17 +874,18 @@ const styles = StyleSheet.create({
     width: 66,
     height: 66,
     borderRadius: 33,
-    backgroundColor: '#e7f4e8',
+    backgroundColor: COLORS.accentSoft,
   },
   emptyTitle: {
     marginTop: 16,
-    color: '#172019',
+    color: COLORS.primary,
     fontSize: 19,
-    fontWeight: '700',
+    fontFamily: 'Fredoka_600SemiBold',
   },
   emptyText: {
     marginTop: 8,
-    color: '#687269',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
@@ -738,7 +899,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   errorText: {
-    color: '#9f2420',
+    color: COLORS.error,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
@@ -752,27 +914,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 44,
     borderRadius: 999,
-    backgroundColor: '#2f7d32',
+    backgroundColor: COLORS.accent,
     paddingHorizontal: 18,
     paddingVertical: 10,
   },
   primaryButtonText: {
-    color: '#ffffff',
+    color: COLORS.primary,
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: 'Fredoka_600SemiBold',
   },
   secondaryButton: {
     justifyContent: 'center',
     minHeight: 44,
     borderWidth: 1,
-    borderColor: '#2f7d32',
+    borderColor: COLORS.accent,
     borderRadius: 999,
     paddingHorizontal: 18,
     paddingVertical: 10,
   },
   secondaryButtonText: {
-    color: '#2f7d32',
+    color: COLORS.link,
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: 'Fredoka_600SemiBold',
+  },
+  screenHeader: {
+  marginBottom: 4,
   },
 });
