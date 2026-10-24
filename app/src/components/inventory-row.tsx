@@ -14,6 +14,7 @@ import ReanimatedSwipeable, {
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
 import { useInventory } from '@/context/inventory-context';
+import { getFoodIcon } from '@/utils/food-icon';
 import { FoodItem } from '@/types/food-item';
 import { describeDeletion } from '@/utils/delete-confirm';
 import {
@@ -75,44 +76,6 @@ function getExpiryBadgeStyle(item: FoodItem, today: Date) {
     backgroundColor: '#F3F3E9',
     color: COLORS.secondary,
   };
-}
-
-function getFoodIcon(name: string): keyof typeof Ionicons.glyphMap {
-  const value = name.toLowerCase();
-
-  if (/milk|water|juice|drink/.test(value)) {
-    return 'water-outline';
-  }
-
-  if (/spinach|lettuce|leaf|salad|herb|broccoli/.test(value)) {
-    return 'leaf-outline';
-  }
-
-  if (/chicken|meat|beef|pork|fish|salmon/.test(value)) {
-    return 'fast-food-outline';
-  }
-
-  if (/bread|sourdough|toast|bagel/.test(value)) {
-    return 'restaurant-outline';
-  }
-
-  if (/egg/.test(value)) {
-    return 'egg-outline';
-  }
-
-  if (/apple|fruit|orange|banana|berry|berries/.test(value)) {
-    return 'nutrition-outline';
-  }
-
-  if (/cheese|cheddar/.test(value)) {
-    return 'pizza-outline';
-  }
-
-  if (/yoghurt|yogurt|cream|butter/.test(value)) {
-    return 'ice-cream-outline';
-  }
-
-  return 'basket-outline';
 }
 
 export function InventoryRow({ item, today }: InventoryRowProps) {

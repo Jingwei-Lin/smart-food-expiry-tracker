@@ -12,7 +12,7 @@ jest.mock('react-native-safe-area-context', () => ({
 const mockSearchParams: { near?: string } = {};
 
 jest.mock('expo-router', () => ({
-  router: { setParams: jest.fn() },
+  router: { push: jest.fn(), setParams: jest.fn() },
   useLocalSearchParams: () => mockSearchParams,
 }));
 
@@ -142,6 +142,18 @@ describe('DonationPointsScreen', () => {
     await view.findByText('Close Pantry');
 
     expect(view.getByRole('header', { name: 'Give it away' })).toBeTruthy();
+  });
+
+  it('opens a place with its id, distance and address', async () => {
+    const view = await render(<DonationPointsScreen />);
+    await view.findByText(/1 George Street/);
+
+    await fireEvent.press(view.getByText('Close Pantry'));
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/donation-point/[id]',
+      params: { id: 'node-1', distanceKm: '1.0', address: '1 George Street' },
+    });
   });
 
   it('shows every place in one list, each with its kind', async () => {

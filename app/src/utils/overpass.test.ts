@@ -206,6 +206,7 @@ describe('toSnapshot', () => {
             amenity: 'social_facility',
             operator: 'Pantry Inc',
             website: 'https://example.org',
+            phone: '+61 2 9000 0000',
           },
         },
       ],
@@ -218,6 +219,7 @@ describe('toSnapshot', () => {
       social_facility: 'food_bank',
       opening_hours: 'Mo-Fr 09:00-17:00',
       'addr:street': 'George Street',
+      phone: '+61 2 9000 0000',
     });
   });
 

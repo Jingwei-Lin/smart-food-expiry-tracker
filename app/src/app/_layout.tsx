@@ -112,6 +112,11 @@ export default function RootLayout() {
             />
 
             <Stack.Screen
+              name="donation-point/[id]"
+              options={{ headerShown: false }}
+            />
+
+            <Stack.Screen
               name="recipe-settings"
               options={{ title: 'Recipe settings' }}
             />

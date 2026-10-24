@@ -16,8 +16,9 @@ import {
 import bundledSnapshot from '@/data/donation-points-au.json';
 import { parseSnapshot, pointsNear } from '@/utils/donation-snapshot';
 import { formatDayMonthYear } from '@/utils/expiry-date';
-import { type DonationPoint, type PointType, SEARCH_RADIUS_KM } from '@/utils/overpass';
+import { type DonationPoint, SEARCH_RADIUS_KM } from '@/utils/overpass';
 import { ScreenHeader } from '@/components/screen-header';
+import { TYPE_LOOK } from '@/utils/donation-look';
 import { findSuburbs, type Suburb } from '@/utils/suburb-search';
 
 const COLORS = {
@@ -35,15 +36,6 @@ const COLORS = {
   warning: '#8B6B1F',
   warningSoft: '#FFF0D5',
   error: '#8B2C25',
-};
-
-type IconName = keyof typeof Ionicons.glyphMap;
-
-/* Each kind of place gets its own tint and icon, in place of a photo. */
-const TYPE_LOOK: Record<PointType, { icon: IconName; tint: string; accent: string }> = {
-  'Food bank': { icon: 'basket-outline', tint: COLORS.accentSoft, accent: COLORS.link },
-  'Soup kitchen': { icon: 'restaurant-outline', tint: COLORS.urgentSoft, accent: COLORS.urgent },
-  'Community pantry': { icon: 'file-tray-stacked-outline', tint: COLORS.warningSoft, accent: COLORS.warning },
 };
 
 /* The phone's geocoder rate-limits, so only the closest places get an address looked up. */
@@ -72,8 +64,28 @@ const RECENT_POSITION_ACCURACY_M = 500;
 function DonationPointRow({ point, isFirst }: { point: DonationPoint; isFirst: boolean }) {
   const look = TYPE_LOOK[point.type];
 
+  function openDetail() {
+    router.push({
+      pathname: '/donation-point/[id]',
+      params: {
+        id: point.id.replace('/', '-'),
+        distanceKm: point.distanceKm.toFixed(1),
+        address: point.address,
+      },
+    });
+  }
+
   return (
-    <View style={[styles.row, isFirst ? null : styles.rowDivider]}>
+    <Pressable
+      accessibilityHint="Opens the opening hours, directions and what to bring"
+      accessibilityRole="button"
+      onPress={openDetail}
+      style={({ pressed }) => [
+        styles.row,
+        isFirst ? null : styles.rowDivider,
+        pressed ? styles.rowPressed : null,
+      ]}
+    >
       <View style={[styles.rowIcon, { backgroundColor: look.tint }]}>
         <Ionicons name={look.icon} size={22} color={look.accent} />
       </View>
@@ -92,7 +104,7 @@ function DonationPointRow({ point, isFirst }: { point: DonationPoint; isFirst: b
       </View>
 
       <Text style={styles.distance}>{point.distanceKm.toFixed(1)} km</Text>
-    </View>
+    </Pressable>
   );
 }
 
@@ -806,6 +818,9 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  rowPressed: {
+    backgroundColor: COLORS.divider,
   },
   rowDivider: {
     borderTopWidth: 1,
