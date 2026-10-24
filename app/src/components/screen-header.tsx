@@ -11,9 +11,11 @@ type ScreenHeaderProps = {
   title: string;
   /** Optional spacing tweaks for one page, e.g. a smaller gap below. */
   style?: StyleProp<ViewStyle>;
+  /** Optional button on the right of the title, e.g. the Recipes tab's "Saved". */
+  right?: ReactNode;
 };
 
-export function ScreenHeader({ subtitle, title, style }: ScreenHeaderProps) {
+export function ScreenHeader({ subtitle, title, style, right }: ScreenHeaderProps) {
   return (
     <View style={[styles.header, style]}>
       <View style={styles.headingRow}>
@@ -28,6 +30,8 @@ export function ScreenHeader({ subtitle, title, style }: ScreenHeaderProps) {
             {title}
           </Text>
         </View>
+
+        {right}
       </View>
     </View>
   );

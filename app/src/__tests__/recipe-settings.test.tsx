@@ -12,6 +12,9 @@ import {
 import { RECIPE_PROVIDERS } from '@/utils/recipe-providers';
 
 jest.mock('expo-router', () => ({ router: { back: jest.fn() } }));
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
 jest.mock('@/utils/recipe-client', () => ({ checkRecipeKey: jest.fn() }));
 
 const checkRecipeKeyMock = jest.mocked(checkRecipeKey);
@@ -184,5 +187,40 @@ describe('RecipeSettingsScreen', () => {
     await fireEvent.press(view.getByText('Save and check'));
 
     expect(checkRecipeKeyMock).not.toHaveBeenCalled();
+  });
+
+  it('has its own header, and its back button returns to Recipes', async () => {
+    const view = await renderScreen();
+
+    expect(view.getByRole('header', { name: 'Recipe settings' })).toBeTruthy();
+
+    await fireEvent.press(view.getByLabelText('Back'));
+
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks the chosen model, and moves the mark when another is picked', async () => {
+    const view = await renderScreen();
+    const isChosen = (label: string) =>
+      view.getByRole('radio', { name: new RegExp(`^${label}`) }).props.accessibilityState?.checked;
+
+    expect(isChosen('Gemini Flash')).toBe(true);
+    expect(isChosen('DeepSeek Flash')).toBe(false);
+
+    await fireEvent.press(view.getByText('DeepSeek Flash'));
+
+    expect(isChosen('Gemini Flash')).toBe(false);
+    expect(isChosen('DeepSeek Flash')).toBe(true);
+    expect(view.getByLabelText('DeepSeek API key')).toBeTruthy();
+  });
+
+  it('says "Checking…" while a key is being checked', async () => {
+    checkRecipeKeyMock.mockReturnValue(new Promise(() => undefined));
+    const view = await renderScreen();
+
+    await fireEvent.changeText(view.getByLabelText('Google API key'), GEMINI_KEY);
+    await fireEvent.press(view.getByText('Save and check'));
+
+    expect(await view.findByText('Checking…')).toBeTruthy();
   });
 });

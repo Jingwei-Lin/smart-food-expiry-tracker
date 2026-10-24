@@ -117,13 +117,18 @@ export default function RootLayout() {
             />
 
             <Stack.Screen
+              name="recipe/[id]"
+              options={{ headerShown: false }}
+            />
+
+            <Stack.Screen
               name="recipe-settings"
-              options={{ title: 'Recipe settings' }}
+              options={{ headerShown: false }}
             />
 
             <Stack.Screen
               name="saved-recipes"
-              options={{ title: 'Saved recipes' }}
+              options={{ headerShown: false }}
             />
           </Stack>
 

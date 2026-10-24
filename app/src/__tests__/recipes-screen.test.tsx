@@ -118,7 +118,8 @@ async function restart(view: View, items: FoodItem[] = fridge) {
   await view.unmount();
 
   const reopened = await renderScreen(items);
-  await reopened.findByText('Recipes');
+  // Either the food list or, when ideas were restored, the ideas screen.
+  await reopened.findByText(/What can I cook\?|for tonight/);
 
   return reopened;
 }
@@ -146,6 +147,39 @@ beforeEach(async () => {
 });
 
 describe('RecipesScreen before a request', () => {
+  it('says the eat-soon food is ticked for the student, until they change a tick', async () => {
+    const view = await renderScreen(fridge);
+
+    expect(await view.findByText('What can I cook?')).toBeTruthy();
+    expect(view.getByText('Food expiring within 3 days is ticked for you.')).toBeTruthy();
+
+    await fireEvent.press(checkbox(view, 'Eggs'));
+
+    expect(view.getByText('Tick the food you want to cook with.')).toBeTruthy();
+  });
+
+  it('shows how long each food has left', async () => {
+    const view = await renderScreen(fridge);
+    await view.findByText('IN YOUR FRIDGE');
+
+    expect(view.getAllByRole('checkbox').map((row) => row.props.accessibilityLabel)).toEqual([
+      'Cheddar, Expired 2 days ago',
+      'Spinach, Today',
+      'Milk, 1 day',
+      'Eggs, 6 days',
+    ]);
+  });
+
+  it('names the model in use, and opens settings from the whole row', async () => {
+    const view = await renderScreen(fridge);
+
+    expect(await view.findByText('GPT-5.4 mini')).toBeTruthy();
+
+    await fireEvent.press(view.getByLabelText('Recipe settings, using GPT-5.4 mini'));
+
+    expect(router.push).toHaveBeenCalledWith('/recipe-settings');
+  });
+
   it('asks for a key first, and makes no request without one', async () => {
     const view = await renderScreen(fridge, { withKey: false });
 
@@ -166,18 +200,18 @@ describe('RecipesScreen before a request', () => {
 
   it('ticks food that needs eating soon, but never expired food', async () => {
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
     expect(isChecked(view, 'Spinach')).toBe(true);
     expect(isChecked(view, 'Milk')).toBe(true);
     expect(isChecked(view, 'Cheddar')).toBe(false);
     expect(isChecked(view, 'Eggs')).toBe(false);
-    expect(view.getByText('2 of 10')).toBeTruthy();
+    expect(view.getByText('2 of 10 ticked')).toBeTruthy();
   });
 
   it('shows the red warning once expired food is ticked', async () => {
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
     await fireEvent.press(checkbox(view, 'Cheddar'));
 
@@ -193,17 +227,17 @@ describe('RecipesScreen before a request', () => {
       buildFood(`food-${index}`, `Food ${index}`, index + 1),
     );
     const view = await renderScreen(eleven);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
     await fireEvent.press(view.getByText('Select all'));
 
-    expect(view.getByText('10 of 10')).toBeTruthy();
+    expect(view.getByText('10 of 10 ticked')).toBeTruthy();
     expect(checkbox(view, 'Food 10').props.accessibilityState?.disabled).toBe(true);
   });
 
   it('cannot ask for recipes with nothing ticked', async () => {
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
     await fireEvent.press(view.getByText('Clear'));
     await fireEvent.press(view.getByText('Tick at least one food'));
@@ -227,10 +261,10 @@ describe('RecipesScreen asking for recipes', () => {
       ],
     });
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
     await fireEvent.press(checkbox(view, 'Cheddar'));
-    await fireEvent.press(view.getByText('Suggest recipes (3)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
 
     expect(fetchSuggestionsMock).toHaveBeenCalledWith(
       { provider: RECIPE_PROVIDERS.openai, apiKey: API_KEY },
@@ -247,16 +281,16 @@ describe('RecipesScreen asking for recipes', () => {
         'Uses Cheddar, which is past its date. Check it looks and smells fine before cooking with it.',
       ),
     ).toBeTruthy();
-    expect(view.getByText('COOKING WITH')).toBeTruthy();
+    expect(view.getByText('Using up')).toBeTruthy();
     expect(view.getByText('Cheddar · expired')).toBeTruthy();
   });
 
   it('offers to try again when the provider cannot be reached', async () => {
     fetchSuggestionsMock.mockResolvedValue({ outcome: 'unavailable' });
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     expect(await view.findByText("Couldn't reach OpenAI")).toBeTruthy();
 
     await fireEvent.press(view.getByText('Try again'));
@@ -267,9 +301,9 @@ describe('RecipesScreen asking for recipes', () => {
   it('says the provider is busy, not unreachable, and offers to try again', async () => {
     fetchSuggestionsMock.mockResolvedValue({ outcome: 'busy' });
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     expect(await view.findByText('OpenAI is busy right now')).toBeTruthy();
     expect(view.queryByText("Couldn't reach OpenAI")).toBeNull();
 
@@ -281,9 +315,9 @@ describe('RecipesScreen asking for recipes', () => {
   it('says the provider refused the request instead of blaming the connection', async () => {
     fetchSuggestionsMock.mockResolvedValue({ outcome: 'request-refused' });
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
 
     expect(await view.findByText("OpenAI couldn't process the request")).toBeTruthy();
     expect(view.queryByText("Couldn't reach OpenAI")).toBeNull();
@@ -293,9 +327,9 @@ describe('RecipesScreen asking for recipes', () => {
   it('sends the student to settings when the key is rejected', async () => {
     fetchSuggestionsMock.mockResolvedValue({ outcome: 'rejected' });
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     expect(await view.findByText('Your API key was rejected')).toBeTruthy();
 
     await fireEvent.press(view.getByText('Update key'));
@@ -310,9 +344,9 @@ describe('RecipesScreen after the key changes in settings', () => {
   it('drops an out-of-credit card instead of blaming the newly chosen provider', async () => {
     fetchSuggestionsMock.mockResolvedValue({ outcome: 'out-of-credit' });
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     expect(await view.findByText('Your OpenAI account is out of credit')).toBeTruthy();
 
     await saveRecipeCredentials('deepseek', SECOND_KEY);
@@ -320,15 +354,15 @@ describe('RecipesScreen after the key changes in settings', () => {
 
     expect(view.queryByText('Your DeepSeek account is out of credit')).toBeNull();
     expect(view.queryByText('Your OpenAI account is out of credit')).toBeNull();
-    expect(view.getByText('Suggest recipes (2)')).toBeTruthy();
+    expect(view.getByText('Suggest recipes')).toBeTruthy();
   });
 
   it('drops a rejected-key card once a new key for the same model is saved', async () => {
     fetchSuggestionsMock.mockResolvedValue({ outcome: 'rejected' });
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     expect(await view.findByText('Your API key was rejected')).toBeTruthy();
 
     await saveRecipeCredentials('openai', SECOND_KEY);
@@ -351,9 +385,9 @@ describe('RecipesScreen after the key changes in settings', () => {
       ],
     });
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     expect(await view.findByText('Spinach omelette')).toBeTruthy();
 
     await saveRecipeCredentials('deepseek', SECOND_KEY);
@@ -365,9 +399,9 @@ describe('RecipesScreen after the key changes in settings', () => {
   it('keeps an error when the student comes back without changing anything', async () => {
     fetchSuggestionsMock.mockResolvedValue({ outcome: 'unavailable' });
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     expect(await view.findByText("Couldn't reach OpenAI")).toBeTruthy();
 
     await returnFromSettings();
@@ -380,25 +414,25 @@ describe('RecipesScreen states from the hi-fi design', () => {
   it('shows the food that was asked for above an error, and Change reopens the checklist', async () => {
     fetchSuggestionsMock.mockResolvedValue({ outcome: 'unavailable' });
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     expect(await view.findByText("Couldn't reach OpenAI")).toBeTruthy();
 
     expect(view.getByText('COOKING WITH')).toBeTruthy();
-    expect(view.queryByText('YOUR FOOD')).toBeNull();
+    expect(view.queryByText('IN YOUR FRIDGE')).toBeNull();
 
-    await fireEvent.press(view.getByText('Change'));
+    await fireEvent.press(view.getByLabelText('Change the food to cook with'));
 
-    expect(view.getByText('YOUR FOOD')).toBeTruthy();
+    expect(view.getByText('IN YOUR FRIDGE')).toBeTruthy();
   });
 
   it('disables the model button while recipes are being found', async () => {
     fetchSuggestionsMock.mockReturnValue(new Promise(() => undefined));
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     await view.findByText('Finding recipes…');
 
     expect(
@@ -407,9 +441,9 @@ describe('RecipesScreen states from the hi-fi design', () => {
   });
 
   it.each([
-    [1, 'One idea for the food you ticked.'],
-    [2, 'Two ideas for the food you ticked.'],
-  ])('counts %i idea(s) in the subtitle', async (count, subtitle) => {
+    [1, 'One idea for tonight'],
+    [2, '2 ideas for tonight'],
+  ])('counts %i idea(s) in the heading', async (count, subtitle) => {
     fetchSuggestionsMock.mockResolvedValue({
       outcome: 'ok',
       recipes: ['Spinach omelette', 'Creamy spinach pasta'].slice(0, count).map((title) => ({
@@ -421,11 +455,68 @@ describe('RecipesScreen states from the hi-fi design', () => {
       })),
     });
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
 
     expect(await view.findByText(subtitle)).toBeTruthy();
+  });
+});
+
+describe('RecipesScreen ideas view', () => {
+  it('shows each idea as a compact card with what it uses and what else it needs', async () => {
+    fetchSuggestionsMock.mockResolvedValue({
+      outcome: 'ok',
+      recipes: [
+        {
+          title: 'Spinach omelette',
+          minutes: 15,
+          usesIngredients: ['Spinach', 'Milk'],
+          extraIngredients: ['Eggs', 'Butter'],
+          steps: ['Wilt the spinach.'],
+        },
+      ],
+    });
+    const view = await renderScreen(fridge);
+    await view.findByText('IN YOUR FRIDGE');
+
+    await fireEvent.press(view.getByText('Suggest recipes'));
+
+    expect(await view.findByText('One idea for tonight')).toBeTruthy();
+    expect(view.getByText('15 min')).toBeTruthy();
+    expect(view.getByText('Also needs Eggs, Butter')).toBeTruthy();
+    // The steps are on the recipe's own screen, not the card.
+    expect(view.queryByText('Wilt the spinach.')).toBeNull();
+  });
+
+  it('opens a recipe from its card', async () => {
+    fetchSuggestionsMock.mockResolvedValue(recipesReply(['Spinach omelette', 'Milk pudding']));
+    const view = await renderScreen(fridge);
+    await view.findByText('IN YOUR FRIDGE');
+    await fireEvent.press(view.getByText('Suggest recipes'));
+
+    await fireEvent.press(await view.findByText('Milk pudding'));
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/recipe/[id]',
+      params: { id: expect.any(String), tint: '1' },
+    });
+  });
+
+  it('goes back to the food, and back to the same ideas without asking again', async () => {
+    fetchSuggestionsMock.mockResolvedValue(recipesReply(['Spinach omelette', 'Milk pudding']));
+    const view = await renderScreen(fridge);
+    await view.findByText('IN YOUR FRIDGE');
+    await fireEvent.press(view.getByText('Suggest recipes'));
+    await view.findByText('2 ideas for tonight');
+
+    await fireEvent.press(view.getByLabelText('Change the food to cook with'));
+    expect(view.getByText('IN YOUR FRIDGE')).toBeTruthy();
+
+    await fireEvent.press(view.getByText('Back to the last ideas'));
+
+    expect(view.getByText('Milk pudding')).toBeTruthy();
+    expect(fetchSuggestionsMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -436,17 +527,17 @@ describe('RecipesScreen asking for different recipes', () => {
       .mockResolvedValueOnce(recipesReply(['Creamy spinach pasta']))
       .mockResolvedValueOnce(recipesReply(['Spinach fritters']));
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     expect(await view.findByText('Spinach omelette')).toBeTruthy();
     expect(view.getByText("New ideas replace the ones you haven't saved.")).toBeTruthy();
 
-    await fireEvent.press(view.getByText('Suggest different recipes'));
+    await fireEvent.press(view.getByText('More ideas'));
     expect(await view.findByText('Creamy spinach pasta')).toBeTruthy();
     expect(view.queryByText('Spinach omelette')).toBeNull();
 
-    await fireEvent.press(view.getByText('Suggest different recipes'));
+    await fireEvent.press(view.getByText('More ideas'));
     expect(await view.findByText('Spinach fritters')).toBeTruthy();
 
     const [first, second, third] = fetchSuggestionsMock.mock.calls;
@@ -462,11 +553,11 @@ describe('RecipesScreen asking for different recipes', () => {
       .mockResolvedValueOnce({ outcome: 'unavailable' })
       .mockResolvedValueOnce(recipesReply(['Creamy spinach pasta']));
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     await view.findByText('Spinach omelette');
-    await fireEvent.press(view.getByText('Suggest different recipes'));
+    await fireEvent.press(view.getByText('More ideas'));
     await view.findByText("Couldn't reach OpenAI");
 
     await fireEvent.press(view.getByText('Try again'));
@@ -482,15 +573,15 @@ describe('RecipesScreen after the app restarts', () => {
   it('shows the last suggestions again without asking the provider', async () => {
     fetchSuggestionsMock.mockResolvedValue(recipesReply(['Spinach omelette']));
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     await view.findByText('Spinach omelette');
 
     const reopened = await restart(view);
 
     expect(await reopened.findByText('Spinach omelette')).toBeTruthy();
-    expect(reopened.getByText('COOKING WITH')).toBeTruthy();
+    expect(reopened.getByText('Using up')).toBeTruthy();
     expect(fetchSuggestionsMock).toHaveBeenCalledTimes(1);
   });
 
@@ -499,12 +590,12 @@ describe('RecipesScreen after the app restarts', () => {
       .mockResolvedValueOnce(recipesReply(['Spinach omelette']))
       .mockResolvedValueOnce(recipesReply(['Creamy spinach pasta']));
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await view.findByText('IN YOUR FRIDGE');
+    await fireEvent.press(view.getByText('Suggest recipes'));
     await view.findByText('Spinach omelette');
 
     const reopened = await restart(view);
-    await fireEvent.press(await reopened.findByText('Suggest different recipes'));
+    await fireEvent.press(await reopened.findByText('More ideas'));
 
     expect(await reopened.findByText('Creamy spinach pasta')).toBeTruthy();
     expect(fetchSuggestionsMock.mock.calls[1][2]?.avoidTitles).toEqual(['Spinach omelette']);
@@ -513,8 +604,8 @@ describe('RecipesScreen after the app restarts', () => {
   it('warns about food that has expired since the suggestions were made', async () => {
     fetchSuggestionsMock.mockResolvedValue(recipesReply(['Milk pudding'], ['Milk']));
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await view.findByText('IN YOUR FRIDGE');
+    await fireEvent.press(view.getByText('Suggest recipes'));
     await view.findByText('Milk pudding');
 
     /* A day later the milk is past its date. */
@@ -532,40 +623,40 @@ describe('RecipesScreen after the app restarts', () => {
 
   it('keeps the ticks the student chose', async () => {
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
     await fireEvent.press(checkbox(view, 'Eggs'));
 
     const reopened = await restart(view);
-    await reopened.findByText('YOUR FOOD');
+    await reopened.findByText('IN YOUR FRIDGE');
 
     expect(isChecked(reopened, 'Eggs')).toBe(true);
-    expect(reopened.getByText('Suggest recipes (3)')).toBeTruthy();
+    expect(reopened.getByText('3 of 10 ticked')).toBeTruthy();
   });
 
   it('drops ticks for food that has been eaten or deleted since', async () => {
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
     await fireEvent.press(checkbox(view, 'Eggs'));
 
     const reopened = await restart(
       view,
       fridge.filter((item) => item.id !== 'eggs'),
     );
-    await reopened.findByText('YOUR FOOD');
+    await reopened.findByText('IN YOUR FRIDGE');
 
-    expect(reopened.getByText('Suggest recipes (2)')).toBeTruthy();
+    expect(reopened.getByText('Suggest recipes')).toBeTruthy();
   });
 
   it('starts from the checklist after a failed request, not the error', async () => {
     fetchSuggestionsMock.mockResolvedValue({ outcome: 'unavailable' });
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await view.findByText('IN YOUR FRIDGE');
+    await fireEvent.press(view.getByText('Suggest recipes'));
     await view.findByText("Couldn't reach OpenAI");
 
     const reopened = await restart(view);
 
-    expect(await reopened.findByText('YOUR FOOD')).toBeTruthy();
+    expect(await reopened.findByText('IN YOUR FRIDGE')).toBeTruthy();
     expect(reopened.queryByText("Couldn't reach OpenAI")).toBeNull();
   });
 });
@@ -574,8 +665,8 @@ describe('RecipesScreen saving recipes', () => {
   /** Asks for recipes and waits for the first title to show. */
   async function showRecipes(title: string) {
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await view.findByText('IN YOUR FRIDGE');
+    await fireEvent.press(view.getByText('Suggest recipes'));
     await view.findByText(title);
 
     return view;
@@ -621,7 +712,7 @@ describe('RecipesScreen saving recipes', () => {
 
     await fireEvent.press(view.getByLabelText('Save Spinach omelette'));
     await view.findByLabelText('Remove Spinach omelette from saved recipes');
-    await fireEvent.press(view.getByText('Suggest different recipes'));
+    await fireEvent.press(view.getByText('More ideas'));
 
     expect(await view.findByText('Creamy spinach pasta')).toBeTruthy();
     expect(view.queryByText('Spinach omelette')).toBeNull();
@@ -652,11 +743,16 @@ describe('RecipesScreen saved box', () => {
     const view = await renderScreen(fridge);
 
     expect(await view.findByLabelText('Saved recipes, Nothing saved yet')).toBeTruthy();
+    expect(view.getByText('Saved')).toBeTruthy();
 
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await fireEvent.press(view.getByText('Suggest recipes'));
     await view.findByText('Spinach omelette');
     await fireEvent.press(view.getByLabelText('Save Spinach omelette'));
-    await fireEvent.press(await view.findByLabelText('Saved recipes, 1 saved'));
+
+    // The Saved button is on the food list, one step back from the ideas.
+    await fireEvent.press(view.getByLabelText('Change the food to cook with'));
+    expect(await view.findByText('Saved · 1')).toBeTruthy();
+    await fireEvent.press(view.getByLabelText('Saved recipes, 1 saved'));
 
     expect(router.push).toHaveBeenCalledWith('/saved-recipes');
   });
@@ -682,8 +778,8 @@ describe('RecipesScreen saved box', () => {
   it('empties a star once its recipe is removed on the Saved recipes screen', async () => {
     fetchSuggestionsMock.mockResolvedValue(recipesReply(['Spinach omelette']));
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await view.findByText('IN YOUR FRIDGE');
+    await fireEvent.press(view.getByText('Suggest recipes'));
     await view.findByText('Spinach omelette');
     await fireEvent.press(view.getByLabelText('Save Spinach omelette'));
     await view.findByLabelText('Remove Spinach omelette from saved recipes');
@@ -694,6 +790,8 @@ describe('RecipesScreen saved box', () => {
     await returnFromSettings();
 
     expect(await view.findByLabelText('Save Spinach omelette')).toBeTruthy();
+
+    await fireEvent.press(view.getByLabelText('Change the food to cook with'));
     expect(view.getByLabelText('Saved recipes, Nothing saved yet')).toBeTruthy();
   });
 });
@@ -702,28 +800,30 @@ describe('RecipesScreen opened by "Find recipes" on an item', () => {
   it('ticks just that item, clears the param and asks nothing yet', async () => {
     mockSearchParams.select = 'eggs';
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
+    await view.findByText('IN YOUR FRIDGE');
 
     expect(isChecked(view, 'Eggs')).toBe(true);
     expect(isChecked(view, 'Spinach')).toBe(false);
-    expect(view.getByText('Suggest recipes (1)')).toBeTruthy();
+    expect(view.getByText('1 of 10 ticked')).toBeTruthy();
     expect(router.setParams).toHaveBeenCalledWith({ select: undefined });
     expect(fetchSuggestionsMock).not.toHaveBeenCalled();
   });
 
-  it('wins over the restored ticks and opens the checklist above earlier results', async () => {
+  it('wins over the restored ticks and opens the checklist, with the earlier ideas a tap away', async () => {
     fetchSuggestionsMock.mockResolvedValue(recipesReply(['Spinach omelette']));
     const view = await renderScreen(fridge);
-    await view.findByText('YOUR FOOD');
-    await fireEvent.press(view.getByText('Suggest recipes (2)'));
+    await view.findByText('IN YOUR FRIDGE');
+    await fireEvent.press(view.getByText('Suggest recipes'));
     await view.findByText('Spinach omelette');
 
     mockSearchParams.select = 'eggs';
     const reopened = await restart(view);
 
-    expect(await reopened.findByText('YOUR FOOD')).toBeTruthy();
+    expect(await reopened.findByText('IN YOUR FRIDGE')).toBeTruthy();
     expect(isChecked(reopened, 'Eggs')).toBe(true);
     expect(isChecked(reopened, 'Spinach')).toBe(false);
+
+    await fireEvent.press(reopened.getByText('Back to the last idea'));
     expect(reopened.getByText('Spinach omelette')).toBeTruthy();
   });
 });

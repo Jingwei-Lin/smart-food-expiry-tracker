@@ -17,20 +17,37 @@ type RecipeChecklistProps = {
   disabled?: boolean;
 };
 
+const COLORS = {
+  surface: '#FFFFFF',
+  primary: '#1E2A16',
+  secondary: '#55614D',
+  border: '#E4E5D4',
+  divider: '#EEEFE5',
+  accentSoft: '#F0F7DB',
+  pinkSoft: '#F9D3DD',
+  neutralSoft: '#EEF0E2',
+  error: '#8B2C25',
+  errorSoft: '#FDE7E5',
+};
+
 type DaysLeftPresentation = {
   meta: string;
-  railColor: string;
+  /** The badge on the right of the row. */
+  badge: { background: string; border: string; color: string };
   isExpired: boolean;
 };
 
 /*
- * The rail colours match the inventory rows, so a food looks equally urgent
- * on both screens. The wording says how long is left rather than a weekday,
- * because here the student is choosing what to cook now.
+ * The badges follow the design: dark for today, pink for the next few days,
+ * soft grey within a week and just an outline after that. The wording says
+ * how long is left rather than a weekday, because here the student is
+ * choosing what to cook now.
  */
 function describeDaysLeft(daysLeft: number): DaysLeftPresentation {
+  const outline = { background: COLORS.surface, border: COLORS.border, color: COLORS.secondary };
+
   if (!Number.isFinite(daysLeft)) {
-    return { meta: 'No date', railColor: '#c2cbc3', isExpired: false };
+    return { meta: 'No date', badge: outline, isExpired: false };
   }
 
   if (daysLeft < 0) {
@@ -38,24 +55,38 @@ function describeDaysLeft(daysLeft: number): DaysLeftPresentation {
 
     return {
       meta: `Expired ${elapsedDays} ${elapsedDays === 1 ? 'day' : 'days'} ago`,
-      railColor: '#c8352c',
+      badge: { background: COLORS.errorSoft, border: COLORS.errorSoft, color: COLORS.error },
       isExpired: true,
     };
   }
 
   if (daysLeft === 0) {
-    return { meta: 'Today', railColor: '#c8352c', isExpired: false };
+    return {
+      meta: 'Today',
+      badge: { background: COLORS.primary, border: COLORS.primary, color: COLORS.surface },
+      isExpired: false,
+    };
   }
 
-  if (daysLeft === 1) {
-    return { meta: 'Tomorrow', railColor: '#d9922f', isExpired: false };
+  const meta = `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'}`;
+
+  if (daysLeft <= 3) {
+    return {
+      meta,
+      badge: { background: COLORS.pinkSoft, border: COLORS.pinkSoft, color: COLORS.primary },
+      isExpired: false,
+    };
   }
 
-  return {
-    meta: `${daysLeft} days`,
-    railColor: daysLeft <= 3 ? '#d9922f' : '#7fb183',
-    isExpired: false,
-  };
+  if (daysLeft <= 7) {
+    return {
+      meta,
+      badge: { background: COLORS.neutralSoft, border: COLORS.neutralSoft, color: COLORS.primary },
+      isExpired: false,
+    };
+  }
+
+  return { meta, badge: outline, isExpired: false };
 }
 
 /**
@@ -77,7 +108,7 @@ export function RecipeChecklist({
   return (
     <View>
       <View style={[styles.toolbar, disabled ? styles.busy : null]}>
-        <Text style={styles.sectionTitle}>YOUR FOOD</Text>
+        <Text style={styles.sectionTitle}>IN YOUR FRIDGE</Text>
 
         <Pressable
           accessibilityRole="button"
@@ -98,7 +129,7 @@ export function RecipeChecklist({
         </Pressable>
 
         <Text accessibilityLiveRegion="polite" style={styles.counter}>
-          {selectedIds.length} of {MAX_RECIPE_INGREDIENTS}
+          {selectedIds.length} of {MAX_RECIPE_INGREDIENTS} ticked
         </Text>
       </View>
 
@@ -106,7 +137,7 @@ export function RecipeChecklist({
         {candidates.map((candidate, index) => {
           const isChecked = selectedIds.includes(candidate.id);
           const isRowDisabled = disabled || (!isChecked && isAtLimit);
-          const { meta, railColor, isExpired } = describeDaysLeft(candidate.daysLeft);
+          const { meta, badge, isExpired } = describeDaysLeft(candidate.daysLeft);
 
           return (
             <View key={candidate.id}>
@@ -120,21 +151,30 @@ export function RecipeChecklist({
                 onPress={() => onChange(toggleRecipeCandidate(selectedIds, candidate.id))}
                 style={({ pressed }) => [
                   styles.row,
+                  isChecked ? styles.rowChecked : null,
                   isRowDisabled && !disabled ? styles.dimmed : null,
                   pressed ? styles.pressed : null,
                 ]}
               >
-                <View style={[styles.rail, { backgroundColor: railColor }]} />
-
                 <View style={[styles.tickBox, isChecked ? styles.tickBoxChecked : null]}>
-                  {isChecked ? <Ionicons color="#ffffff" name="checkmark" size={17} /> : null}
+                  {isChecked ? (
+                    <Ionicons color={COLORS.surface} name="checkmark" size={17} />
+                  ) : null}
                 </View>
 
                 <Text style={styles.name}>{candidate.name}</Text>
 
-                {isExpired ? <Ionicons color="#9f2420" name="warning-outline" size={16} /> : null}
-
-                <Text style={[styles.meta, isExpired ? styles.expiredMeta : null]}>{meta}</Text>
+                <View
+                  style={[
+                    styles.badge,
+                    { backgroundColor: badge.background, borderColor: badge.border },
+                  ]}
+                >
+                  {isExpired ? (
+                    <Ionicons color={COLORS.error} name="warning-outline" size={13} />
+                  ) : null}
+                  <Text style={[styles.badgeText, { color: badge.color }]}>{meta}</Text>
+                </View>
               </Pressable>
             </View>
           );
@@ -143,7 +183,7 @@ export function RecipeChecklist({
 
       {expiredTickedNames.length > 0 ? (
         <View accessibilityLiveRegion="polite" style={styles.warning}>
-          <Ionicons color="#9f2420" name="warning-outline" size={19} />
+          <Ionicons color={COLORS.error} name="warning-outline" size={19} />
           <Text style={styles.warningText}>{describeExpiredTicked(expiredTickedNames)}</Text>
         </View>
       ) : null}
@@ -159,78 +199,84 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     flex: 1,
-    color: '#687269',
-    fontSize: 11,
-    fontWeight: '800',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 12,
     letterSpacing: 0.9,
   },
   toolbarButton: {
     minHeight: 44,
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
   },
   toolbarButtonText: {
-    color: '#2f7d32',
-    fontSize: 14,
-    fontWeight: '700',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 13,
   },
   counter: {
     minWidth: 52,
-    color: '#59635b',
+    marginLeft: 4,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 13,
-    fontWeight: '600',
     textAlign: 'right',
   },
   card: {
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#dce4da',
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
   },
   divider: {
     height: 1,
-    marginLeft: 16,
-    backgroundColor: '#eef1ed',
+    backgroundColor: COLORS.divider,
   },
   row: {
-    minHeight: 56,
+    minHeight: 58,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingRight: 16,
-    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    backgroundColor: COLORS.surface,
   },
-  rail: {
-    alignSelf: 'stretch',
-    width: 4,
+  /* Ticked food is tinted lime, as in the design. */
+  rowChecked: {
+    backgroundColor: COLORS.accentSoft,
   },
   name: {
     flex: 1,
-    color: '#172019',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 17,
-    fontWeight: '600',
   },
-  meta: {
-    color: '#687269',
+  badge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  badgeText: {
+    fontFamily: 'Fredoka_600SemiBold',
     fontSize: 13,
-    fontWeight: '600',
-  },
-  expiredMeta: {
-    color: '#9f2420',
   },
   warning: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
     marginTop: 14,
-    borderRadius: 12,
-    backgroundColor: '#fde7e5',
+    borderRadius: 14,
+    backgroundColor: COLORS.errorSoft,
     padding: 12,
   },
   warningText: {
     flex: 1,
-    color: '#8b2c25',
+    color: COLORS.error,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 13,
     lineHeight: 18,
   },
@@ -240,14 +286,14 @@ const styles = StyleSheet.create({
     height: 24,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#aab6a9',
+    borderWidth: 1.5,
+    borderColor: '#D5D8C4',
     borderRadius: 7,
-    backgroundColor: '#ffffff',
+    backgroundColor: COLORS.surface,
   },
   tickBoxChecked: {
-    borderColor: '#2f7d32',
-    backgroundColor: '#2f7d32',
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
   },
   /* A row that cannot be ticked because ten already are. */
   dimmed: {
