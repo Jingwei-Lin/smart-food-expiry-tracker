@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   Pressable,
@@ -456,7 +457,20 @@ export default function WeeklySummaryScreen() {
                 <View key={item.id}>
                   {index > 0 && <View style={styles.itemDivider} />}
 
-                  <View style={styles.discardedRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`View details for ${item.name}`}
+                    onPress={() =>
+                      router.push({
+                        pathname: '/item/[id]',
+                        params: { id: item.id },
+                      })
+                    }
+                    style={({ pressed }) => [
+                      styles.discardedRow,
+                      pressed && styles.discardedRowPressed,
+                    ]}
+                  >
                     <View style={styles.discardedIcon}>
                       <Ionicons
                         name="nutrition-outline"
@@ -482,7 +496,13 @@ export default function WeeklySummaryScreen() {
                         {' · '}Marked as thrown out
                       </Text>
                     </View>
-                  </View>
+
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={COLORS.secondary}
+                    />
+                  </Pressable>
                 </View>
               ))}
             </View>
@@ -714,6 +734,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 14,
+  },
+  discardedRowPressed: {
+    opacity: 0.7,
   },
   discardedIcon: {
     width: 44,

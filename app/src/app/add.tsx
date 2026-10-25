@@ -1,6 +1,7 @@
+
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useHeaderHeight } from 'expo-router/react-navigation';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -12,6 +13,7 @@ import {
 
 import { ItemForm, ItemFormValues } from '@/components/item-form';
 import { useInventory } from '@/context/inventory-context';
+import type { FoodCategory } from '@/types/food-item';
 import { returnToInventory } from '@/utils/navigation';
 
 type ScanParams = {
@@ -20,8 +22,34 @@ type ScanParams = {
   quantity?: string;
   expiryDate?: string;
   shelfLifeLabel?: string;
+  category?: string;
   lookupOutcome?: string;
 };
+
+const FOOD_CATEGORIES: FoodCategory[] = [
+  'Veg',
+  'Fruit',
+  'Dairy',
+  'Meat',
+  'Bread',
+  'Seafood',
+  'Others',
+];
+
+/**
+ * Only allow categories that exist in the Add form.
+ * Unknown or missing values fall back to Others.
+ */
+function getValidCategory(category?: string): FoodCategory {
+  if (
+    category &&
+    FOOD_CATEGORIES.includes(category as FoodCategory)
+  ) {
+    return category as FoodCategory;
+  }
+
+  return 'Others';
+}
 
 function describeScan(
   params: ScanParams,
@@ -36,7 +64,10 @@ function describeScan(
     };
   }
 
-  if (params.lookupOutcome === 'unavailable') {
+  if (
+    params.lookupOutcome === 'unavailable' ||
+    params.lookupOutcome === 'error'
+  ) {
     return {
       tone: 'manual',
       title: 'Could not look up this barcode',
@@ -67,13 +98,17 @@ const COLORS = {
 export default function AddItemScreen() {
   const { addItem, isStorageReady, storageError } = useInventory();
   const params = useLocalSearchParams<ScanParams>();
-  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
 
   const scanNotice = describeScan(params);
+  const scannedCategory = params.category
+    ? getValidCategory(params.category)
+    : undefined;
 
   async function handleSubmit(values: ItemFormValues) {
     await addItem({
       ...values,
+      category: getValidCategory(values.category ?? scannedCategory),
       storageLocation: values.storageLocation ?? 'fridge',
       barcode:
         typeof params.barcode === 'string'
@@ -81,8 +116,8 @@ export default function AddItemScreen() {
           : undefined,
     });
 
-  returnToInventory();
-}
+    returnToInventory();
+  }
 
   const topContent = (
     <View>
@@ -155,10 +190,20 @@ export default function AddItemScreen() {
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={headerHeight}
-      style={styles.screen}
+      keyboardVerticalOffset={0}
+      style={[
+        styles.screen,
+        { paddingTop: insets.top + 10 },
+      ]}
     >
       <ItemForm
+        key={JSON.stringify([
+          params.barcode,
+          params.name,
+          params.quantity,
+          params.expiryDate,
+          scannedCategory,
+        ])}
         topContent={topContent}
         blockedReason={
           isStorageReady
@@ -179,6 +224,7 @@ export default function AddItemScreen() {
           reminderDaysBefore: 1,
           notes: '',
           storageLocation: 'fridge',
+          category: scannedCategory ?? 'Others',
         }}
         onSubmit={handleSubmit}
         submitLabel="Add to fridge"

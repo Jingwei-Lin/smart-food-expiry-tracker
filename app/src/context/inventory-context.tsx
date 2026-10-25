@@ -12,6 +12,7 @@ import {
 } from 'react';
 
 import {
+  FoodCategory,
   FoodItem,
   FoodStorageLocation,
   NewFoodItem,
@@ -24,6 +25,31 @@ import {
 } from '@/services/expiry-notifications';
 
 const STORAGE_KEY = '@smart-food-expiry-tracker/inventory-v1';
+function normalizeFoodCategory(value: unknown): FoodCategory {
+  if (typeof value !== 'string') {
+    return 'Others';
+  }
+
+  const normalized = value.trim().toLowerCase();
+
+  const categoryMap: Record<string, FoodCategory> = {
+    veg: 'Veg',
+    vegetable: 'Veg',
+    vegetables: 'Veg',
+    fruit: 'Fruit',
+    fruits: 'Fruit',
+    dairy: 'Dairy',
+    meat: 'Meat',
+    bread: 'Bread',
+    seafood: 'Seafood',
+    fish: 'Seafood',
+    others: 'Others',
+    other: 'Others',
+    pantry: 'Others',
+  };
+
+  return categoryMap[normalized] ?? 'Others';
+}
 
 type InventoryContextValue = {
   items: FoodItem[];
@@ -47,6 +73,16 @@ const VALID_STORAGE_LOCATIONS: FoodStorageLocation[] = [
   'fridge',
   'freezer',
   'pantry',
+];
+
+const VALID_FOOD_CATEGORIES: FoodCategory[] = [
+  'Veg',
+  'Fruit',
+  'Dairy',
+  'Meat',
+  'Bread',
+  'Seafood',
+  'Others',
 ];
 
 /**
@@ -128,6 +164,7 @@ function normalizeFoodItem(value: unknown): FoodItem | null {
     ...(typeof item.barcode === 'string'
       ? { barcode: item.barcode }
       : null),
+    category: normalizeFoodCategory(item.category),
     ...(notificationIds && notificationIds.length > 0
       ? { notificationIds }
       : null),
@@ -411,6 +448,7 @@ export function InventoryProvider({
         createdAt: new Date().toISOString(),
         status: 'active',
         ...(input.barcode ? { barcode: input.barcode } : null),
+        ...(input.category ? { category: input.category } : null),
       };
 
       const reminderResult = await scheduleExpiryReminders(newItem);

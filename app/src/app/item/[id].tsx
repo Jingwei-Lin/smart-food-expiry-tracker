@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { FoodCategoryIcon } from '@/components/food-category-icon';
 import { useInventory } from '@/context/inventory-context';
 import { returnToInventory } from '@/utils/navigation';
 import type {
@@ -276,6 +277,8 @@ export default function ItemDetailScreen() {
   }
 
   const isActive = item.status === 'active';
+  const statusLabel =
+    item.status === 'active' ? null : STATUS_LABELS[item.status];
   const daysLeft = daysUntilExpiry(item.expiryDate);
   const expiry = getExpiryPresentation(item.expiryDate);
   const deletion = describeDeletion(item);
@@ -373,10 +376,11 @@ export default function ItemDetailScreen() {
             ]}
           >
             <View style={styles.foodIcon}>
-              <Ionicons
-                name="nutrition-outline"
-                size={42}
+              <FoodCategoryIcon
+                category={item.category}
+                size={28}
                 color={COLORS.primary}
+                backgroundColor={COLORS.accentSoft}
               />
             </View>
 
@@ -407,7 +411,7 @@ export default function ItemDetailScreen() {
               ) : (
                 <View style={styles.statusBadge}>
                   <Text style={styles.resolvedLabel}>
-                    {STATUS_LABELS[item.status]}
+                    {statusLabel}
                   </Text>
                 </View>
               )}
@@ -628,7 +632,7 @@ export default function ItemDetailScreen() {
               </Text>
 
               <Text style={styles.resolvedDescription}>
-                Status: {STATUS_LABELS[item.status]}
+                Status: {statusLabel}
               </Text>
 
               {item.statusUpdatedAt ? (

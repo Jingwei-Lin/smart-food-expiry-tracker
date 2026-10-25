@@ -237,6 +237,26 @@ describe('upgrading older reminders at launch', () => {
 });
 
 describe('adding an item', () => {
+  it('saves the food category so it is available after reloading inventory', async () => {
+    const first = await renderInventory();
+
+    await act(async () => {
+      await first.result.current.addItem({
+        ...milk,
+        category: 'Dairy',
+      });
+    });
+
+    expect(first.result.current.items[0].category).toBe('Dairy');
+    expect((await readStoredItems())[0].category).toBe('Dairy');
+
+    await first.unmount();
+
+    const second = await renderInventory();
+
+    expect(second.result.current.items[0].category).toBe('Dairy');
+  });
+
   it('saves it and returns it with an id, a created date and an active status', async () => {
     const { result } = await renderInventory();
 

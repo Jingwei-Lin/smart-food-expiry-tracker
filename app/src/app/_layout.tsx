@@ -93,12 +93,12 @@ export default function RootLayout() {
 
             <Stack.Screen
               name="scan"
-              options={{ title: 'Scan barcode' }}
+              options={{ headerShown: false }}
             />
 
             <Stack.Screen
               name="add"
-              options={{ title: 'Add item' }}
+              options={{ headerShown: false }}
             />
 
             <Stack.Screen
@@ -108,7 +108,7 @@ export default function RootLayout() {
 
             <Stack.Screen
               name="item/edit/[id]"
-              options={{ title: 'Edit item' }}
+              options={{ headerShown: false }}
             />
 
             <Stack.Screen

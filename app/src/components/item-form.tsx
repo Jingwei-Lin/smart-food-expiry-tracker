@@ -21,6 +21,9 @@ import {
   toExpiryDateString,
 } from '@/utils/expiry-date';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { FoodCategory } from '@/types/food-item';
+
 export type StorageLocation = 'fridge' | 'freezer' | 'pantry';
 
 export type ItemFormValues = {
@@ -30,6 +33,7 @@ export type ItemFormValues = {
   reminderDaysBefore: number;
   notes: string;
   storageLocation?: StorageLocation;
+  category?: FoodCategory;
 };
 
 type ItemFormErrors = {
@@ -47,6 +51,7 @@ type ItemFormProps = {
   expiryHelpText?: string;
   topContent?: ReactNode;
   bottomContent?: ReactNode;
+  onCategoryChange?: (category: FoodCategory) => void;
   onSubmit: (values: ItemFormValues) => Promise<void>;
 };
 
@@ -59,15 +64,15 @@ const emptyValues: ItemFormValues = {
   storageLocation: 'fridge',
 };
 
-const FOOD_CATEGORIES = [
+const FOOD_CATEGORIES: FoodCategory[] = [
   'Veg',
   'Fruit',
   'Dairy',
   'Meat',
   'Bread',
   'Seafood',
-  'Pantry',
-] as const;
+  'Others',
+];
 
 const STORAGE_OPTIONS: {
   label: string;
@@ -103,6 +108,7 @@ export function ItemForm({
   expiryHelpText,
   topContent,
   bottomContent,
+  onCategoryChange,
   onSubmit,
 }: ItemFormProps) {
   const [name, setName] = useState(initialValues.name);
@@ -114,10 +120,15 @@ export function ItemForm({
   const [notes, setNotes] = useState(initialValues.notes);
   const [storageLocation, setStorageLocation] =
     useState<StorageLocation>(initialValues.storageLocation ?? 'fridge');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<FoodCategory>(
+    initialValues.category ?? 'Others',
+  );
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [errors, setErrors] = useState<ItemFormErrors>({});
   const [isSaving, setIsSaving] = useState(false);
+  const insets = useSafeAreaInsets();
+
+  // Keep your existing state and code below this line.
 
   const isSubmitDisabled = isSaving || blockedReason !== null;
   const typesTheDate = Platform.OS === 'web';
@@ -201,6 +212,7 @@ export function ItemForm({
         reminderDaysBefore,
         notes: notes.trim(),
         storageLocation,
+        category: selectedCategory,
       });
 
       if (clearOnSubmit) {
@@ -210,7 +222,7 @@ export function ItemForm({
         setReminderDaysBefore(1);
         setNotes('');
         setStorageLocation('fridge');
-        setSelectedCategory(null);
+        setSelectedCategory('Others');
         setIsCalendarOpen(false);
       }
     } catch {
@@ -226,7 +238,10 @@ export function ItemForm({
     <View style={styles.screen}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          topContent ? styles.contentWithTopContent : null,
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -253,7 +268,6 @@ export function ItemForm({
             ) : null}
           </View>
 
-          {!initialValues.name && (
             <View style={styles.field}>
               <Text style={styles.label}>What kind of food?</Text>
               <Text style={styles.helpText}>
@@ -268,7 +282,10 @@ export function ItemForm({
                       accessibilityRole="radio"
                       accessibilityState={{ checked: selected }}
                       disabled={isSaving}
-                      onPress={() => setSelectedCategory(category)}
+                      onPress={() => {
+                        setSelectedCategory(category);
+                        onCategoryChange?.(category);
+                      }}
                       style={({ pressed }) => [
                         styles.categoryPill,
                         selected && styles.categoryPillSelected,
@@ -288,8 +305,6 @@ export function ItemForm({
                 })}
               </View>
             </View>
-          )}
-
           <View style={styles.twoColumns}>
             <View style={[styles.field, styles.column]}>
               <Text style={styles.label}>Quantity</Text>
@@ -514,7 +529,10 @@ export function ItemForm({
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[
+        styles.footer,
+        { paddingBottom: Math.max(insets.bottom, 12) },]}
+      >
         <Pressable
           accessibilityRole="button"
           disabled={isSubmitDisabled}
@@ -546,6 +564,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 24,
+  },
+  contentWithTopContent: {
+    paddingTop: 0,
   },
   form: {
     gap: 18,

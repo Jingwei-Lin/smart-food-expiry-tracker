@@ -13,8 +13,8 @@ import ReanimatedSwipeable, {
   SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 
+import { FoodCategoryIcon } from '@/components/food-category-icon';
 import { useInventory } from '@/context/inventory-context';
-import { getFoodIcon } from '@/utils/food-icon';
 import { FoodItem } from '@/types/food-item';
 import { describeDeletion } from '@/utils/delete-confirm';
 import {
@@ -84,6 +84,13 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
   const { meta } = getExpiryListPresentation(item.expiryDate, today);
   const expiry = getExpiryPresentation(item.expiryDate, today);
   const badge = getExpiryBadgeStyle(item, today);
+
+    // TEMPORARY DEBUG: check which category reaches the inventory row
+  console.log(
+    'Inventory category:',
+    item.name,
+    JSON.stringify(item.category),
+  );
 
   function openItem() {
     router.push({
@@ -207,10 +214,11 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
         ]}
       >
         <View style={styles.iconBox}>
-          <Ionicons
-            name={getFoodIcon(item.name)}
-            size={27}
+          <FoodCategoryIcon
+            category={item.category ?? 'Others'}
+            size={18}
             color={COLORS.primary}
+            backgroundColor={COLORS.accentSoft}
           />
         </View>
 

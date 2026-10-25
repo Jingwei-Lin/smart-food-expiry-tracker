@@ -11,6 +11,18 @@ jest.mock('@/services/expiry-notifications', () => ({
   scheduleExpiryReminders: jest.fn().mockResolvedValue({ status: 'not-needed' }),
 }));
 
+jest.mock('@/components/food-category-icon', () => {
+  const { createElement } = jest.requireActual<typeof import('react')>('react');
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+
+  return {
+    FoodCategoryIcon: ({ category }: { category?: string }) =>
+      createElement(Text, {
+        accessibilityLabel: `Food category icon: ${category ?? 'Others'}`,
+      }),
+  };
+});
+
 /* The latest focus effect, so a test can bring the tab back into view. */
 const mockFocus: { effect: (() => void) | null } = { effect: null };
 
@@ -64,17 +76,23 @@ jest.mock('react-native-safe-area-context', () => ({
 
 const STORAGE_KEY = '@smart-food-expiry-tracker/inventory-v1';
 
-function buildItem(id: string, expiryDate: string): FoodItem {
+function buildItem(
+  id: string,
+  expiryDate: string,
+  category?: FoodItem['category'],
+): FoodItem {
   return {
     id,
     name: id,
     quantity: '1 item',
     expiryDate,
+    storageLocation: 'fridge',
     reminderDaysBefore: 1,
     reminderRuleVersion: 2,
     notes: '',
     createdAt: '2026-10-01T00:00:00.000Z',
     status: 'active',
+    category,
   };
 }
 
@@ -87,7 +105,7 @@ async function renderScreen(items: FoodItem[]) {
     </InventoryProvider>,
   );
 
-  await view.findByText('My Food Inventory');
+  await view.findByText("What's in my fridge?");
 
   return view;
 }
@@ -191,6 +209,16 @@ describe('deleting from the list', () => {
 });
 
 describe('InventoryScreen', () => {
+  it('shows the saved food category icon in the inventory list', async () => {
+    const view = await renderScreen([
+      buildItem('Fish', '2026-10-19', 'Seafood'),
+    ]);
+
+    expect(
+      view.getByLabelText('Food category icon: Seafood'),
+    ).toBeTruthy();
+  });
+
   it('groups food by the days it has left', async () => {
     const view = await renderScreen([
       buildItem('Yoghurt', '2026-10-15'),

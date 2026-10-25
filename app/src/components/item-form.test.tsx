@@ -3,6 +3,10 @@ import { Keyboard, Platform } from 'react-native';
 
 import { ItemForm, ItemFormValues } from '@/components/item-form';
 
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+
 type CalendarProps = {
   value: Date;
   onValueChange: (event: unknown, date: Date) => void;
@@ -58,6 +62,43 @@ afterEach(() => {
 });
 
 describe('ItemForm expiry date', () => {
+  it('notifies when the selected food category changes', async () => {
+    const onCategoryChange = jest.fn();
+    const view = await render(
+      <ItemForm
+        submitLabel="Save item"
+        onCategoryChange={onCategoryChange}
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    await fireEvent.press(view.getByRole('radio', { name: 'Seafood' }));
+
+    expect(onCategoryChange).toHaveBeenCalledWith('Seafood');
+  });
+
+  it('selects the category provided by scan data', async () => {
+    const baseValues = {
+      name: '',
+      quantity: '',
+      expiryDate: '',
+      reminderDaysBefore: 1,
+      notes: '',
+    };
+
+    const view = await render(
+      <ItemForm
+        initialValues={{ ...baseValues, category: 'Seafood' }}
+        submitLabel="Save item"
+        onSubmit={jest.fn()}
+      />,
+    );
+
+    expect(
+      view.getByRole('radio', { name: 'Seafood' }).props.accessibilityState,
+    ).toMatchObject({ checked: true });
+  });
+
   it('opens a calendar on today under the field on iOS, and shows the day picked', async () => {
     const view = await render(<ItemForm submitLabel="Save item" onSubmit={jest.fn()} />);
 

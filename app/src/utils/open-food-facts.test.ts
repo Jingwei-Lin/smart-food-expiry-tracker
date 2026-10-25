@@ -26,6 +26,7 @@ describe('parseProductResponse', () => {
         quantity: '2 L',
         expiryDate: '2026-09-24',
         shelfLifeLabel: 'milk',
+        category: 'Dairy',
       },
     });
   });
@@ -56,14 +57,52 @@ describe('parseProductResponse', () => {
     expect(result).toMatchObject({ product: { name: 'Hazelnut spread' } });
   });
 
-  it('leaves the expiry empty when no category matches, rather than guessing', () => {
+  it('uses Others and leaves expiry empty when no category matches', () => {
     const result = parseProductResponse(
       '1',
       { status: 1, product: { product_name: 'Mystery jar', categories_tags: ['en:unicorns'] } },
       today,
     );
 
-    expect(result).toMatchObject({ product: { expiryDate: '', shelfLifeLabel: '' } });
+    expect(result).toMatchObject({
+      product: {
+        expiryDate: '',
+        shelfLifeLabel: '',
+        category: 'Others',
+      },
+    });
+  });
+
+  it('uses Others when Open Food Facts has no category tags', () => {
+    const result = parseProductResponse(
+      '1',
+      { status: 1, product: { product_name: 'Mystery jar' } },
+      today,
+    );
+
+    expect(result).toMatchObject({
+      outcome: 'found',
+      product: { category: 'Others' },
+    });
+  });
+
+  it('maps the Open Food Facts fishes tag to Seafood', () => {
+    const result = parseProductResponse(
+      '1',
+      {
+        status: 1,
+        product: {
+          product_name: 'Fresh fish',
+          categories_tags: ['en:fishes'],
+        },
+      },
+      today,
+    );
+
+    expect(result).toMatchObject({
+      outcome: 'found',
+      product: { category: 'Seafood' },
+    });
   });
 
   it.each([
@@ -94,6 +133,7 @@ describe('lookupProduct', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toContain('/product/3017620422003.json');
+    expect(fetchMock.mock.calls[0][0]).toContain('categories_tags');
     expect(result).toMatchObject({ outcome: 'found' });
   });
 

@@ -6,6 +6,15 @@ export type ResolvedFoodItemStatus = Exclude<FoodItemStatus, 'active'>;
 /** Where the food item is stored in the user's home. */
 export type FoodStorageLocation = 'fridge' | 'freezer' | 'pantry';
 
+export type FoodCategory =
+  | 'Veg'
+  | 'Fruit'
+  | 'Dairy'
+  | 'Meat'
+  | 'Bread'
+  | 'Seafood'
+  | 'Others';
+
 export type FoodItem = {
   id: string;
   name: string;
@@ -31,6 +40,8 @@ export type FoodItem = {
   /** Absent on an item typed in by hand, and on anything saved before scanning existed. */
   barcode?: string;
 
+  category?: FoodCategory;
+
   /** Native identifiers for the advance and expiry-day local reminders. */
   notificationIds?: string[];
 };
@@ -44,4 +55,5 @@ export type NewFoodItem = Pick<
   | 'notes'
   | 'barcode'
   | 'storageLocation'
+  | 'category'
 >;
