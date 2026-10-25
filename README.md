@@ -6,13 +6,15 @@
 
 An app that helps university students waste less food by taking the effort out of tracking groceries. Built with Expo SDK 57 and React Native for Android and iOS.
 
-You scan a product's barcode when you unpack your shopping, and the app fills in the product and estimates when it will go off. It reminds you before the food spoils and suggests recipes for whatever needs using up. For anything you can't finish in time, it points you to a nearby donation point, and a weekly summary shows what you ate, donated and threw away.
+You scan a product's barcode when you unpack your shopping, and the app looks up its name and food category in Open Food Facts. It estimates when the food will go off, and you can check or edit the details before saving. The category is saved with the item and used for its icon in the inventory. If Open Food Facts has no matching category, the app uses **Others**. The app also reminds you before food spoils and suggests recipes for whatever needs using up. For anything you can't finish in time, it points you to a nearby donation point, and a weekly summary shows what you ate, donated and threw away.
 
 **New to the app?** The [user guide](userguide/README.md) shows how to use it, step by step, with screenshots.
 
 **Contents:**
+
 - [Key features](#key-features)
 - [Getting started](#getting-started)
+- [Fonts and icons](#fonts-and-icons)
 - [Demo account and test data](#demo-account-and-test-data)
 - [How the app is built](#how-the-app-is-built)
 - [Data formats](#data-formats)
@@ -29,16 +31,17 @@ You scan a product's barcode when you unpack your shopping, and the app fills in
 
 ## Key features
 
-| Feature | What it does | Status |
-| --- | --- | --- |
-| **Barcode scanning** | Scan a product and the app looks it up in Open Food Facts, filling in the name and an estimated expiry date that you can correct | Working, tested on Android and iOS |
-| **Manual entry** | Add, edit and delete items by hand, for loose produce or anything without a barcode. The expiry date is picked from a calendar. Swipe a row left to edit or delete it straight from the list | Working, tested on Android and iOS |
-| **Expiry reminders** | Choose 1 to 7 days' notice and get a second reminder on the expiry day, at 9 am. Reminders follow every edit, resolve and delete, and tapping one opens the item. The item's screen says which reminders are actually set | Working, tested on Android and iOS |
-| **Donation point finder** | Food banks, soup kitchens and community pantries within 10 km of you, or of any suburb you type, closest first. "Find donation point" on an item opens it, and "Mark as donated" counts the item in the summary | Working, tested on Android and iOS |
-| **Weekly waste summary** | Counts the food you marked eaten, donated or thrown out in each of the last three weeks (Monday to Sunday) | Working, tested on Android and iOS |
-| **Recipe suggestions** | Tick the food you want to cook with (food expiring within 3 days is ticked for you) and get simple recipes from an AI model you choose, using your own API key. Save the ones you like, ask for different ideas, and your last suggestions come back after a restart | Working, tested on Android and iOS with Gemini, Matilda and DeepSeek |
+| Feature                   | What it does                                                                                                                                                                                                                                                         | Status                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **Barcode scanning**      | Scan a product and the app looks up its name and category in Open Food Facts. It estimates an expiry date that you can correct; items without a recognized category use **Others**                                                                                   | Working, tested on Android and iOS                                   |
+| **Manual entry**          | Add, edit and delete items by hand, for loose produce or anything without a barcode. The expiry date is picked from a calendar. Swipe a row left to edit or delete it straight from the list                                                                         | Working, tested on Android and iOS                                   |
+| **Expiry reminders**      | Choose 1 to 7 days' notice and get a second reminder on the expiry day, at 9 am. Reminders follow every edit, resolve and delete, and tapping one opens the item. The item's screen says which reminders are actually set                                            | Working, tested on Android and iOS                                   |
+| **Donation point finder** | Food banks, soup kitchens and community pantries within 10 km of you, or of any suburb you type, closest first. "Find donation point" on an item opens it, and "Mark as donated" counts the item in the summary                                                      | Working, tested on Android and iOS                                   |
+| **Weekly waste summary**  | Counts the food you marked eaten, donated or thrown out in each of the last three weeks (Monday to Sunday)                                                                                                                                                           | Working, tested on Android and iOS                                   |
+| **Recipe suggestions**    | Tick the food you want to cook with (food expiring within 3 days is ticked for you) and get simple recipes from an AI model you choose, using your own API key. Save the ones you like, ask for different ideas, and your last suggestions come back after a restart | Working, tested on Android and iOS with Gemini, Matilda and DeepSeek |
 
 Also worth knowing:
+
 - **Your inventory stays put.** Items are written to the phone's storage before the screen updates, and read back and checked when the app starts.
 - **Nothing crashes when something goes wrong.** If the camera is blocked, the barcode isn't in the database, or there is no internet, you get the manual form with a message saying why.
 - **You can tell two of the same product apart.** Each item's screen shows the day it was added.
@@ -60,7 +63,7 @@ Also worth knowing:
      ```bash
      git clone git@github.sydney.edu.au:COMP5216-2026-S2/COMP5216-2026-GP-23.git
      ```
-2. **Open the app folder.** All the commands below run from `app/`, not the repository root:
+2. **Open the app folder.** Run the following commands from `app/`, not the repository root:
    ```bash
    cd COMP5216-2026-GP-23/app
    ```
@@ -72,7 +75,7 @@ Also worth knowing:
    ```bash
    npm run start
    ```
-   A QR code appears in the terminal.
+   A QR code appears in the terminal. If the QR code does not appear, press `a` or `i` to open an Android emulator or iOS simulator, respectively.
 5. **Open the app on your phone:**
    - **Android:** open Expo Go and tap **Scan QR code**.
    - **iOS:** scan the QR code with the Camera app, then tap the banner to open it in Expo Go.
@@ -85,19 +88,48 @@ Also worth knowing:
 
 ### If it doesn't connect
 
-| Problem | Fix |
-| --- | --- |
-| The phone is on a different network | `npx expo start --tunnel` |
-| Old code keeps showing, or an error mentions a missing function | Stop the server and run `npx expo start -c`, which clears the bundler cache |
-| No phone to hand | `npm run android` (Android emulator) or `npm run ios` (iOS simulator, on a Mac). An emulator has no camera to scan with, so add items by hand |
+| Problem                                                         | Fix                                                                                                                                           |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| The phone is on a different network                             | `npx expo start --tunnel`                                                                                                                     |
+| Old code keeps showing, or an error mentions a missing function | Stop the server and run `npx expo start -c`, which clears the bundler cache                                                                   |
+| No phone to hand                                                | `npm run android` (Android emulator) or `npm run ios` (iOS simulator, on a Mac). An emulator has no camera to scan with, so add items by hand |
 
-The app's own icon and splash screen only show in a development build (`npx expo run:android` or `npx expo run:ios`, which needs Android Studio or Xcode). Expo Go shows its own icon. Everything else works in Expo Go.
+The app's own launcher icon and splash screen only show in a development build (`npx expo run:android` or `npx expo run:ios`, which needs Android Studio or Xcode). Expo Go shows its own icon. The app itself can be run in Expo Go.
+
+## Fonts and icons
+
+The app already includes the Fredoka font, Expo's Ionicons, and Lucide icons. You do not need to install them again to run the app. When adding a different font or icon library, install its packages from `app/` and register/use them in the source:
+
+### Adding a Google font
+
+Install Expo's font loader and the font package. For example, to add Fredoka to a new project:
+
+```bash
+npx expo install expo-font @expo-google-fonts/fredoka
+```
+
+Import the font weights you need in `src/app/_layout.tsx`, add them to the `useFonts` map, and wait for the fonts to load before rendering screens. Then use the corresponding family name in a component's `fontFamily` style. Fredoka is already configured this way in this app.
+
+For another Google font, replace `fredoka` with that font's package name and import the font weights exported by that package.
+
+### Adding icons
+
+- **Ionicons:** `@expo/vector-icons` is already installed. Import `Ionicons` from `@expo/vector-icons` and use an icon name from the Ionicons set.
+- **Lucide:** this project uses `lucide-react-native` for outline icons. For a new project, install it and its native SVG peer dependency:
+  ```bash
+  npm install lucide-react-native
+  npx expo install react-native-svg
+  ```
+  Import the required icon component from `lucide-react-native` and render it with `size` and `color` props. Expo may require a development build to use native modules not included in Expo Go.
+
+After adding native dependencies, restart Expo. If Metro still reports a missing module, clear its cache with `npx expo start -c`.
 
 ## Demo account and test data
 
 **There are no accounts and no login.** Everything is stored on the phone, so a fresh install starts with an empty inventory and you can try every feature straight away.
 
 **A test API key is in our Canvas submission.** Recipe suggestions are the only feature that needs one; the key is for Gemini Flash. To enter it:
+
 1. Open the **Recipes** tab and tap **Set up**.
 2. Choose **Gemini Flash** and paste the key.
 3. Tap **Save and check**.
@@ -105,6 +137,7 @@ The app's own icon and splash screen only show in a development build (`npx expo
 The key is never stored in this repository.
 
 **A quick tour of every feature:**
+
 1. **Scan:** tap the round scan button in the middle of the tab bar and scan any packaged grocery. If Open Food Facts doesn't know it, the add form opens empty with a message saying so.
 2. **Add by hand:** fill in a name and pick an expiry date one or two days away. The item appears under **Eat soon** on Home.
 3. **Reminder:** an item that expires today, saved after 9 am, gets its reminder about a minute later. Tap the reminder to open the item.
@@ -122,18 +155,18 @@ The app is a single Expo project in `app/`, written in TypeScript (strict mode),
 
 Navigation uses [Expo Router](https://docs.expo.dev/router/introduction/): every file in `src/app/` is a route.
 
-| Route | File | What it is |
-| --- | --- | --- |
-| Home | `(tabs)/index.tsx` | The inventory, grouped into Expired, Eat soon and Later |
-| Summary | `(tabs)/summary.tsx` | The weekly waste summary |
-| Donation Points | `(tabs)/donation-points.tsx` | Nearby donation points |
-| Recipes | `(tabs)/recipes.tsx` | Ingredient checklist, suggestions and the saved recipes box |
-| Scanner | `scan.tsx` | The camera, opened by the centre button in the tab bar |
-| Add item | `add.tsx` | The add form, pre-filled from a scan when there is one |
-| Item | `item/[id].tsx` | One item: details, reminders and its actions |
-| Edit item | `item/edit/[id].tsx` | The same form as Add, for an existing item |
-| Recipe settings | `recipe-settings.tsx` | Choose a model and manage API keys |
-| Saved recipes | `saved-recipes.tsx` | Every starred recipe |
+| Route           | File                         | What it is                                                  |
+| --------------- | ---------------------------- | ----------------------------------------------------------- |
+| Home            | `(tabs)/index.tsx`           | The inventory, grouped into Expired, Eat soon and Later     |
+| Summary         | `(tabs)/summary.tsx`         | The weekly waste summary                                    |
+| Donation Points | `(tabs)/donation-points.tsx` | Nearby donation points                                      |
+| Recipes         | `(tabs)/recipes.tsx`         | Ingredient checklist, suggestions and the saved recipes box |
+| Scanner         | `scan.tsx`                   | The camera, opened by the centre button in the tab bar      |
+| Add item        | `add.tsx`                    | The add form, pre-filled from a scan when there is one      |
+| Item            | `item/[id].tsx`              | One item: details, reminders and its actions                |
+| Edit item       | `item/edit/[id].tsx`         | The same form as Add, for an existing item                  |
+| Recipe settings | `recipe-settings.tsx`        | Choose a model and manage API keys                          |
+| Saved recipes   | `saved-recipes.tsx`          | Every starred recipe                                        |
 
 - **Tabs:** `(tabs)/_layout.tsx` draws the custom tab bar.
 - **Root layout:** `_layout.tsx` wraps the app in the inventory provider. It also opens the right item when a reminder is tapped, including when the tap starts the app.
@@ -142,15 +175,15 @@ Navigation uses [Expo Router](https://docs.expo.dev/router/introduction/): every
 
 One React context owns the food items. Screens read and change them only through `useInventory()`:
 
-| Member | Purpose |
-| --- | --- |
-| `items`, `activeItems` | Every item, and those not yet eaten, thrown out or donated |
-| `isLoading`, `isStorageReady`, `storageError` | Loading state. Nothing can be saved until the stored inventory has been read |
-| `addItem(input)` | Saves a new item and schedules its reminders |
-| `updateItem(id, input)` | Saves an edit. Reschedules only if the name, date or notice changed, or the item had none |
-| `resolveItem(id, status)` | Marks it `eaten`, `discarded` or `donated` with the time, and cancels its reminders |
-| `deleteItem(id)` | Removes it and cancels its reminders |
-| `reminderNotice` | A message when reminders could not be set, e.g. notifications are off |
+| Member                                        | Purpose                                                                                   |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `items`, `activeItems`                        | Every item, and those not yet eaten, thrown out or donated                                |
+| `isLoading`, `isStorageReady`, `storageError` | Loading state. Nothing can be saved until the stored inventory has been read              |
+| `addItem(input)`                              | Saves a new item and schedules its reminders                                              |
+| `updateItem(id, input)`                       | Saves an edit. Reschedules only if the name, date or notice changed, or the item had none |
+| `resolveItem(id, status)`                     | Marks it `eaten`, `discarded` or `donated` with the time, and cancels its reminders       |
+| `deleteItem(id)`                              | Removes it and cancels its reminders                                                      |
+| `reminderNotice`                              | A message when reminders could not be set, e.g. notifications are off                     |
 
 Every change is written to storage first and only then shown. The stored list is checked item by item when it loads, so one bad entry can't lose the rest.
 
@@ -158,9 +191,9 @@ Every change is written to storage first and only then shown. The stored list is
 
 - **Scanning.**
   1. `scan.tsx` reads EAN/UPC barcodes with `expo-camera`.
-  2. `utils/open-food-facts.ts` looks the product up.
+  2. `utils/open-food-facts.ts` looks the product up and maps Open Food Facts category tags to the app's food categories. Unknown or missing categories become `Others`.
   3. `utils/shelf-life.ts` estimates how long it keeps from its category tags (Open Food Facts has no shelf-life field).
-  4. The add form opens pre-filled, with the estimate labelled as a guess.
+  4. The add form opens pre-filled with the product name, quantity, category and any expiry estimate. The chosen category is saved with the inventory item and determines its category icon.
 - **Reminders.**
   - `services/expiry-notifications.ts` plans an advance reminder and an expiry-day reminder at 9 am, and schedules them locally. A time that has already passed becomes a reminder one minute from now.
   - It imports `expo-notifications` only through `services/local-notifications.ts`. The package's main entry registers for push tokens, which crashes Expo Go on Android in SDK 57.
@@ -183,11 +216,11 @@ Everything is stored on the phone. There is no database server.
 
 ### AsyncStorage (plain JSON)
 
-| Key | Contents |
-| --- | --- |
-| `@smart-food-expiry-tracker/inventory-v1` | The whole inventory, as an array of food items (below) |
+| Key                                            | Contents                                                                                                                                          |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@smart-food-expiry-tracker/inventory-v1`      | The whole inventory, as an array of food items (below)                                                                                            |
 | `@smart-food-expiry-tracker/recipes-screen-v1` | The Recipes tab's ticks and last suggestions: `{ selectedIds: string[], lastResult: { recipes: SuggestedRecipe[], forNames: string[] } \| null }` |
-| `@smart-food-expiry-tracker/recipes-saved-v1` | Saved recipes: `{ id, savedAt, recipe }[]` |
+| `@smart-food-expiry-tracker/recipes-saved-v1`  | Saved recipes: `{ id, savedAt, recipe }[]`                                                                                                        |
 
 A food item, as stored (`src/types/food-item.ts`):
 
@@ -197,6 +230,7 @@ A food item, as stored (`src/types/food-item.ts`):
   "name": "Greek yoghurt",
   "quantity": "1 tub",
   "expiryDate": "2026-10-24",
+  "category": "Dairy",
   "reminderDaysBefore": 2,
   "reminderRuleVersion": 2,
   "notes": "Opened on Monday",
@@ -207,22 +241,23 @@ A food item, as stored (`src/types/food-item.ts`):
 }
 ```
 
-| Field | Meaning |
-| --- | --- |
-| `status` | `active`, `eaten`, `discarded` or `donated` |
-| `statusUpdatedAt` | Set when an item is resolved; the summary counts by it |
-| `barcode` | Only on scanned items |
-| `notificationIds` | The scheduled reminders, absent when none are set |
-| `reminderRuleVersion` | 1 marks an item saved by `v1.0`, whose reminders are scheduled at the next launch |
+| Field                 | Meaning                                                                                                               |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `status`              | `active`, `eaten`, `discarded` or `donated`                                                                           |
+| `statusUpdatedAt`     | Set when an item is resolved; the summary counts by it                                                                |
+| `barcode`             | Only on scanned items                                                                                                 |
+| `category`            | The food category used for the inventory icon; one of `Veg`, `Fruit`, `Dairy`, `Meat`, `Bread`, `Seafood` or `Others` |
+| `notificationIds`     | The scheduled reminders, absent when none are set                                                                     |
+| `reminderRuleVersion` | 1 marks an item saved by `v1.0`, whose reminders are scheduled at the next launch                                     |
 
 A recipe is `{ title, minutes, usesIngredients: string[], extraIngredients: string[], steps: string[] }`.
 
 ### SecureStore (the phone's Keychain or Keystore)
 
-| Key | Contents |
-| --- | --- |
-| `recipe.provider` | The chosen model: `gemini`, `matilda`, `openai` or `deepseek` |
-| `recipe.key.<provider>` | That provider's API key, e.g. `recipe.key.gemini` |
+| Key                     | Contents                                                      |
+| ----------------------- | ------------------------------------------------------------- |
+| `recipe.provider`       | The chosen model: `gemini`, `matilda`, `openai` or `deepseek` |
+| `recipe.key.<provider>` | That provider's API key, e.g. `recipe.key.gemini`             |
 
 ### The bundled donation points
 
@@ -237,7 +272,11 @@ A recipe is `{ title, minutes, usesIngredients: string[], extraIngredients: stri
       "id": 441159092,
       "lat": -32.9009205,
       "lon": 151.6691067,
-      "tags": { "name": "Food 4 Life", "amenity": "social_facility", "social_facility": "food_bank" }
+      "tags": {
+        "name": "Food 4 Life",
+        "amenity": "social_facility",
+        "social_facility": "food_bank"
+      }
     }
   ]
 }
@@ -251,22 +290,24 @@ Each reminder is a local notification on the `expiry-reminders` Android channel.
 
 There is no backend, no Firebase and nothing to set up on a server. The only configuration is an optional API key for recipes, entered in the app.
 
-| Service | Used for | How | Key |
-| --- | --- | --- | --- |
-| [Open Food Facts](https://world.openfoodfacts.org/data) | Product name and category from a barcode | `GET https://world.openfoodfacts.org/api/v2/product/<barcode>.json?fields=code,product_name,product_name_en,brands,quantity,categories_tags`, with an app User-Agent and an 8-second timeout | None |
-| [OpenStreetMap](https://www.openstreetmap.org) via the Overpass API | The bundled list of donation points | **Only the developer script below** calls it; the app never does | None |
-| Google Gemini (`gemini-3.8-flash`) | Recipe suggestions (free tier, the default) | `POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`, JSON mode | The user's, from [Google AI Studio](https://aistudio.google.com/app/apikey) |
-| Maincode Matilda | Recipe suggestions (free, early access) | `POST https://matilda.maincode.com/api/chat`, a server-sent event stream | The user's, from the [Maincode dashboard](https://maincode.com/dashboard) |
-| OpenAI (`gpt-5.4-mini`) | Recipe suggestions (needs prepaid credit) | `POST https://api.openai.com/v1/chat/completions`, JSON mode | The user's, from [OpenAI](https://platform.openai.com/api-keys) |
-| DeepSeek (`deepseek-flash`) | Recipe suggestions (needs a balance) | `POST https://api.deepseek.com/chat/completions`, JSON mode | The user's, from [DeepSeek](https://platform.deepseek.com/api_keys) |
+| Service                                                             | Used for                                    | How                                                                                                                                                                                          | Key                                                                         |
+| ------------------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| [Open Food Facts](https://world.openfoodfacts.org/data)             | Product name and category from a barcode    | `GET https://world.openfoodfacts.org/api/v2/product/<barcode>.json?fields=code,product_name,product_name_en,brands,quantity,categories_tags`, with an app User-Agent and an 8-second timeout | None                                                                        |
+| [OpenStreetMap](https://www.openstreetmap.org) via the Overpass API | The bundled list of donation points         | **Only the developer script below** calls it; the app never does                                                                                                                             | None                                                                        |
+| Google Gemini (`gemini-3.8-flash`)                                  | Recipe suggestions (free tier, the default) | `POST https://generativelanguage.googleapis.com/v1beta/openai/chat/completions`, JSON mode                                                                                                   | The user's, from [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| Maincode Matilda                                                    | Recipe suggestions (free, early access)     | `POST https://matilda.maincode.com/api/chat`, a server-sent event stream                                                                                                                     | The user's, from the [Maincode dashboard](https://maincode.com/dashboard)   |
+| OpenAI (`gpt-5.4-mini`)                                             | Recipe suggestions (needs prepaid credit)   | `POST https://api.openai.com/v1/chat/completions`, JSON mode                                                                                                                                 | The user's, from [OpenAI](https://platform.openai.com/api-keys)             |
+| DeepSeek (`deepseek-flash`)                                         | Recipe suggestions (needs a balance)        | `POST https://api.deepseek.com/chat/completions`, JSON mode                                                                                                                                  | The user's, from [DeepSeek](https://platform.deepseek.com/api_keys)         |
 
 **Recipe keys:**
+
 - A key is checked with the provider before it is saved (`GET /models`, or a one-line chat for Matilda).
 - It is kept in SecureStore and sent only to that provider.
 - Only the names and dates of the ticked food are sent, and only when **Suggest recipes** is tapped.
 - Never put a key in the code or a `.env` file. An `EXPO_PUBLIC_` variable is built into the app, where anyone could read it.
 
 **App configuration (`app/app.json`):**
+
 - the camera and location permission texts;
 - the config plugins (`expo-router`, `expo-notifications`, `expo-camera`, `expo-location`, `expo-secure-store`, the date picker and the splash screen);
 - the icons;
@@ -275,6 +316,7 @@ There is no backend, no Firebase and nothing to set up on a server. The only con
 ### Refreshing the donation points
 
 The list was taken on 16 Oct 2026: 37 places, © OpenStreetMap contributors under the [ODbL](https://opendatacommons.org/licenses/odbl/). It covers every food bank, soup kitchen and community pantry OpenStreetMap lists in Australia, without:
+
 - shelters, which don't take food from the public;
 - Meals on Wheels, which delivers meals rather than taking food in.
 
@@ -285,28 +327,31 @@ npm run snapshot:donation-points
 ```
 
 The script is `scripts/update-donation-snapshot.ts`, and it uses `src/utils/overpass-download.ts`.
+
 - If every server is busy, wait a couple of minutes and try again.
 - It keeps the current file when a download fails, comes back empty, or has fewer than half the current number of places.
 
 ## Libraries used
 
-| Library | Used for |
-| --- | --- |
-| `expo` (SDK 57), `react-native` 0.86, `react` 19.2 | The app framework |
-| `expo-router` | File-based navigation and the tab bar |
-| `expo-camera` | Barcode scanning |
-| `expo-notifications` | Local expiry reminders |
-| `expo-location` | The phone's position, and geocoding suburbs and addresses |
-| `expo-secure-store` | Recipe API keys |
-| `@react-native-async-storage/async-storage` | The inventory and recipes |
-| `@react-native-community/datetimepicker` | The expiry date calendar |
-| `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets` | Swipe actions on inventory rows |
-| `react-native-safe-area-context`, `react-native-screens` | Safe areas and native screens |
-| `@expo/vector-icons` | Icons (Ionicons) |
-| `expo-splash-screen`, `expo-status-bar`, `expo-system-ui`, `expo-constants`, `expo-font`, `expo-linking` | Standard Expo app plumbing |
-| `react-native-web`, `react-dom` | The best-effort web build |
-| Dev: `jest`, `jest-expo`, `@testing-library/react-native` | Unit and screen tests |
-| Dev: `typescript`, `eslint` (`eslint-config-expo`), `prettier` | Type checking, linting and formatting |
+| Library                                                                                     | Used for                                                  |
+| ------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `expo` (SDK 57), `react-native` 0.86, `react` 19.2                                          | The app framework                                         |
+| `expo-router`                                                                               | File-based navigation and the tab bar                     |
+| `expo-camera`                                                                               | Barcode scanning                                          |
+| `expo-notifications`                                                                        | Local expiry reminders                                    |
+| `expo-location`                                                                             | The phone's position, and geocoding suburbs and addresses |
+| `expo-secure-store`                                                                         | Recipe API keys                                           |
+| `@react-native-async-storage/async-storage`                                                 | The inventory and recipes                                 |
+| `@react-native-community/datetimepicker`                                                    | The expiry date calendar                                  |
+| `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets`          | Swipe actions on inventory rows                           |
+| `react-native-safe-area-context`, `react-native-screens`                                    | Safe areas and native screens                             |
+| `@expo/vector-icons`                                                                        | Ionicons                                                  |
+| `lucide-react-native`, `react-native-svg`                                                   | Lucide outline icons and their SVG rendering              |
+| `@expo-google-fonts/fredoka`, `expo-font`                                                   | Fredoka font files and font loading                       |
+| `expo-splash-screen`, `expo-status-bar`, `expo-system-ui`, `expo-constants`, `expo-linking` | Standard Expo app plumbing                                |
+| `react-native-web`, `react-dom`                                                             | The best-effort web build                                 |
+| Dev: `jest`, `jest-expo`, `@testing-library/react-native`                                   | Unit and screen tests                                     |
+| Dev: `typescript`, `eslint` (`eslint-config-expo`), `prettier`                              | Type checking, linting and formatting                     |
 
 ## Extending the app
 
@@ -314,6 +359,7 @@ The script is `scripts/update-donation-snapshot.ts`, and it uses `src/utils/over
   - Add an entry to `RECIPE_PROVIDERS` in `src/utils/recipe-providers.ts`, with its id, label, model, `baseUrl`, key link and any request options, and add the id to `RecipeProviderId`.
   - An OpenAI-compatible provider with JSON mode needs nothing else. Others need an adapter like `matilda.ts`.
 - **Improve shelf-life estimates.** Add a rule (Open Food Facts category tag, days, label) to `SHELF_LIFE_RULES` in `src/utils/shelf-life.ts`, with a test.
+- **Add a font or icon set.** Follow [Fonts and icons](#fonts-and-icons); use `npx expo install` for Expo/native packages and keep font registration in the root layout.
 - **Add a tab.** Add a file to `src/app/(tabs)/`, and add it to `TABS` in `(tabs)/_layout.tsx`.
 - **Change what an item stores.**
   - Update `FoodItem` in `src/types/food-item.ts` and `normalizeFoodItem` in the inventory context, which validates stored items.
@@ -326,16 +372,17 @@ The script is `scripts/update-donation-snapshot.ts`, and it uses `src/utils/over
 
 ## Tests and checks
 
-All four pass on `v2.0`. Run them from `app/`:
+Run these checks from `app/`:
 
 ```bash
-npm test             # 435 unit and screen tests
+npm test             # Unit and screen tests
 npm run typecheck    # TypeScript, strict mode
 npm run lint         # ESLint (Expo config)
 npm run format:check # Prettier
 ```
 
 The tests cover:
+
 - the storage layer, expiry dates and the date picker on the add and edit form;
 - the reminder scheduling rules and the shelf-life estimates;
 - the Open Food Facts response parsing;
@@ -371,12 +418,12 @@ app/                  Expo project (run every command from here)
 
 ## Mobile technologies
 
-| Technology | Used for | Status |
-| --- | --- | --- |
-| Camera (`expo-camera`) | Scanning product barcodes | Working |
-| Local notifications (`expo-notifications`) | Scheduled expiry reminders | Working |
-| GPS / geolocation (`expo-location`) | Finding donation points near you | Working |
-| Mobile data networks | Open Food Facts lookups and recipe suggestions | Working |
+| Technology                                 | Used for                                       | Status  |
+| ------------------------------------------ | ---------------------------------------------- | ------- |
+| Camera (`expo-camera`)                     | Scanning product barcodes                      | Working |
+| Local notifications (`expo-notifications`) | Scheduled expiry reminders                     | Working |
+| GPS / geolocation (`expo-location`)        | Finding donation points near you               | Working |
+| Mobile data networks                       | Open Food Facts lookups and recipe suggestions | Working |
 
 ## Your data and security
 
@@ -394,14 +441,15 @@ app/                  Expo project (run every command from here)
 
 We ran a Think Aloud study with four students on our paper prototype in Phase 2. These are the changes we made because of it:
 
-| What we heard | What we changed |
-| --- | --- |
-| Picking an exact reminder date is awkward (P1) | You choose how many days before expiry to be reminded, 1 to 7 |
-| It was hard to find where to set the reminder (P3) | The reminder setting is on the add form itself |
-| Two tubs of the same yoghurt are hard to tell apart (P2, P4) | Each item's screen shows the day it was added |
-| A mistakenly added item should be easy to delete (P4) | Swipe a row left to delete it, with a confirmation |
+| What we heard                                                | What we changed                                               |
+| ------------------------------------------------------------ | ------------------------------------------------------------- |
+| Picking an exact reminder date is awkward (P1)               | You choose how many days before expiry to be reminded, 1 to 7 |
+| It was hard to find where to set the reminder (P3)           | The reminder setting is on the add form itself                |
+| Two tubs of the same yoghurt are hard to tell apart (P2, P4) | Each item's screen shows the day it was added                 |
+| A mistakenly added item should be easy to delete (P4)        | Swipe a row left to delete it, with a confirmation            |
 
 Two suggestions were not adopted:
+
 - **A photo of each item (P4).** Photos of two identical products look the same, and the added date answers the same question.
 - **A dietary option (P3).** It is outside our SDG 12 goal.
 
@@ -419,6 +467,7 @@ Two suggestions were not adopted:
 
 ## Team
 
+<!-- prettier-ignore -->
 | Member | Main areas |
 | --- | --- |
 | Hanchen Wang | Barcode scanning, recipe suggestions (first half), donation point data, donated food, the Think Aloud changes |
