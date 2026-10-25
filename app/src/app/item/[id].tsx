@@ -343,9 +343,7 @@ export default function ItemDetailScreen() {
               />
             </Pressable>
 
-            <Text style={styles.headerTitle} numberOfLines={1}>
-              {item.name}
-            </Text>
+            <View style={styles.headerSpacer} />
 
             {isActive ? (
               <Pressable
@@ -357,7 +355,11 @@ export default function ItemDetailScreen() {
                   pressed && styles.pressed,
                 ]}
               >
-                <Text style={styles.editButtonText}>Edit</Text>
+                <Ionicons
+                  name="create-outline"
+                  size={23}
+                  color={COLORS.primary}
+                />
               </Pressable>
             ) : (
               <View style={styles.headerSpacer} />
@@ -797,29 +799,16 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     backgroundColor: COLORS.surface,
   },
-  headerTitle: {
-    flex: 1,
-    color: COLORS.primary,
-    fontFamily: 'Fredoka_600SemiBold',
-    fontSize: 20,
-    textAlign: 'center',
-  },
   headerSpacer: {
-    width: 72,
+    width: 48,
   },
   editButton: {
-    minWidth: 72,
+    width: 48,
     height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 24,
     backgroundColor: COLORS.surface,
-    paddingHorizontal: 16,
-  },
-  editButtonText: {
-    color: COLORS.primary,
-    fontFamily: 'Fredoka_600SemiBold',
-    fontSize: 16,
   },
   summary: {
     flexDirection: 'row',

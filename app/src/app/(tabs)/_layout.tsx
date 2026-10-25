@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { BottomTabBarProps, Tabs } from 'expo-router/js-tabs';
+import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 /* Use '#2f7d32' for BUTTON_COLOR if you would rather have the app's green. */
@@ -37,7 +37,7 @@ const TABS = [
   },
 ];
 
-function TabBar({ state, navigation, insets }: BottomTabBarProps) {
+function TabBar({ state, emitter, navigateToTab, insets }: BottomTabBarProps) {
   const focusedKey = state.routes[state.index].key;
 
   function renderTab(tab: (typeof TABS)[number]) {
@@ -56,17 +56,17 @@ function TabBar({ state, navigation, insets }: BottomTabBarProps) {
         accessibilityRole="tab"
         accessibilityState={{ selected: focused }}
         onPress={() => {
-          const event = navigation.emit({
+          const event = emitter.emit({
             type: 'tabPress',
             target: route.key,
             canPreventDefault: true,
           });
 
           if (!focused && !event.defaultPrevented) {
-            navigation.navigate(route.name, route.params);
+            navigateToTab(route.key);
           }
         }}
-        onLongPress={() => navigation.emit({ type: 'tabLongPress', target: route.key })}
+        onLongPress={() => emitter.emit({ type: 'tabLongPress', target: route.key })}
         style={styles.tab}
       >
         {focused ? <View style={styles.indicator} /> : null}
@@ -113,10 +113,14 @@ export default function TabsLayout() {
   return (
     <Tabs
       backBehavior="initialRoute"
-      initialRouteName="index"
       screenOptions={{ headerShown: false }}
       tabBar={(props) => <TabBar {...props} />}
-    />
+    >
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="summary" />
+      <Tabs.Screen name="donation-points" />
+      <Tabs.Screen name="recipes" />
+    </Tabs>
   );
 }
 

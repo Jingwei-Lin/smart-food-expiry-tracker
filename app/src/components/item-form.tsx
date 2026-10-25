@@ -371,6 +371,7 @@ export function ItemForm({
             <View style={styles.calendar}>
               <DateTimePicker
                 accentColor={COLORS.primary}
+                themeVariant="light"
                 display="inline"
                 mode="date"
                 onValueChange={handleDatePicked}
