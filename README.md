@@ -4,7 +4,7 @@
 
 **SDG Goal 12: Responsible consumption and production**
 
-An app that helps university students waste less food by taking the effort out of tracking groceries. Built with Expo SDK 57 and React Native. The app is currently supported on iOS; Android has not been tested.
+An app that helps university students waste less food by taking the effort out of tracking groceries. Built with Expo SDK 58, React Native 0.88 and React 19.3. The app is currently supported on iOS; Android has not been tested.
 
 You scan a product's barcode when you unpack your shopping, and the app fills in the product and estimates when it will go off. It reminds you before the food spoils and suggests recipes for whatever needs using up. For anything you can't finish in time, it points you to a nearby donation point, and a weekly summary shows what you ate, donated and threw away.
 
@@ -52,7 +52,7 @@ Also worth knowing:
 ### What you need
 
 - A computer with [Node.js](https://nodejs.org) 20 or newer (which includes npm), and [Git](https://git-scm.com) if you clone rather than download.
-- An iPhone with **Expo Go** installed from the [App Store](https://apps.apple.com/app/expo-go/id982107779). It needs the Expo Go release for SDK 57.
+- An iPhone with **Expo Go** installed from the [App Store](https://apps.apple.com/app/expo-go/id982107779). It needs the Expo Go release for SDK 58.
 - The phone and the computer on the same Wi-Fi network. For another network, see "If it doesn't connect" below.
 
 ### Step by step
@@ -331,7 +331,7 @@ The script is `scripts/update-donation-snapshot.ts`, and it uses `src/utils/over
 
 | Library                                                                                     | Used for                                                  |
 | ------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `expo` (SDK 57), `react-native` 0.86, `react` 19.2                                          | The app framework                                         |
+| `expo` (SDK 58), `react-native` 0.88, `react` 19.3                                          | The app framework                                         |
 | `expo-router`                                                                               | File-based navigation and the tab bar                     |
 | `expo-camera`                                                                               | Barcode scanning                                          |
 | `expo-notifications`                                                                        | Local expiry reminders                                    |
