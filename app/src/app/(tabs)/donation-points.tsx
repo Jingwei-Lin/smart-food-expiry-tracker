@@ -152,7 +152,7 @@ export default function DonationPointsScreen() {
   const [center, setCenter] = useState<{ latitude: number; longitude: number } | null>(null);
   /* How far down the screen the floating suburb panel starts. */
   const [panelTop, setPanelTop] = useState(insets.top + 140);
-  const locationRef = useRef<View>(null);
+  const locationRef = useRef<React.ComponentRef<typeof View>>(null);
 
   const latestRequest = useRef(0);
 

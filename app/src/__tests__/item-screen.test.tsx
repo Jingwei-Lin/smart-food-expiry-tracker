@@ -31,6 +31,7 @@ function buildMilk(overrides: Partial<FoodItem> = {}): FoodItem {
     name: 'Milk',
     quantity: '2 L',
     expiryDate: '2026-10-02',
+    storageLocation: 'fridge',
     reminderDaysBefore: 1,
     reminderRuleVersion: 2,
     notes: '',

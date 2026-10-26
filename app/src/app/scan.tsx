@@ -372,7 +372,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   cameraTint: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(30, 42, 22, 0.72)',
   },
   header: {
