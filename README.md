@@ -168,7 +168,7 @@ Every change is written to storage first and only then shown. The stored list is
   3. The add form opens pre-filled, with the estimate labelled as a guess.
 - **Reminders.**
   - `services/expiry-notifications.ts` plans an advance reminder and an expiry-day reminder at 9 am, and schedules them locally. A time that has already passed becomes a reminder one minute from now.
-  - It uses only the local-notification functions of `expo-notifications`; no push token is requested. In Expo Go on Android the package skips its push registration and logs a warning about it, which is expected.
+  - It uses only the local-notification functions of `expo-notifications`, and no push token is requested. They are imported file by file through `services/local-notifications.ts`, never from the package's main entry: that entry also loads push modules Android Expo Go doesn't have, and the app would fail to start there.
 - **Expiry dates.** `utils/expiry-date.ts` reads and writes the stored `YYYY-MM-DD` dates, counts the days left in local calendar days, and produces the badges and labels. Home sorts each storage location by the days left.
 - **Weekly summary.** `utils/weekly-summary.ts` counts resolved items by the day of their `statusUpdatedAt`, for the Monday-to-Sunday week or the calendar month, and is correct in the week the clocks change. `hooks/use-today.ts` moves the tabs on to a new day when they come back into view.
 - **Donation points.**

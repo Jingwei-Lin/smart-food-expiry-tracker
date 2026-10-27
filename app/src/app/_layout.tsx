@@ -14,7 +14,7 @@ import {
 
 import { InventoryProvider } from '@/context/inventory-context';
 import { configureExpiryNotificationHandler } from '@/services/expiry-notifications';
-import * as Notifications from 'expo-notifications';
+import * as Notifications from '@/services/local-notifications';
 
 configureExpiryNotificationHandler();
 

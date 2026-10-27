@@ -6,10 +6,10 @@ import {
   getExpiryReminderPlan,
   scheduleExpiryReminders,
 } from '@/services/expiry-notifications';
-import * as Notifications from 'expo-notifications';
+import * as Notifications from '@/services/local-notifications';
 import { FoodItem } from '@/types/food-item';
 
-jest.mock('expo-notifications', () => ({
+jest.mock('@/services/local-notifications', () => ({
   AndroidImportance: { HIGH: 4 },
   IosAuthorizationStatus: {
     AUTHORIZED: 2,

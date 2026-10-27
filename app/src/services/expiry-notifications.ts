@@ -1,9 +1,7 @@
 import { isRunningInExpoGo } from 'expo';
-import * as Notifications from 'expo-notifications';
-// Named, because the import lint rule cannot see enums the package re-exports with export *.
-import { AndroidImportance, IosAuthorizationStatus } from 'expo-notifications';
 import { Platform } from 'react-native';
 
+import * as Notifications from '@/services/local-notifications';
 import { FoodItem } from '@/types/food-item';
 import { formatExpiryDate, parseExpiryDate } from '@/utils/expiry-date';
 
@@ -107,9 +105,9 @@ function notificationsAreAllowed(settings: Notifications.NotificationPermissions
   const iosStatus = settings.ios?.status;
 
   return (
-    iosStatus === IosAuthorizationStatus.AUTHORIZED ||
-    iosStatus === IosAuthorizationStatus.PROVISIONAL ||
-    iosStatus === IosAuthorizationStatus.EPHEMERAL
+    iosStatus === Notifications.IosAuthorizationStatus.AUTHORIZED ||
+    iosStatus === Notifications.IosAuthorizationStatus.PROVISIONAL ||
+    iosStatus === Notifications.IosAuthorizationStatus.EPHEMERAL
   );
 }
 
@@ -122,7 +120,7 @@ async function prepareAndroidChannel(): Promise<void> {
   await Notifications.setNotificationChannelAsync(EXPIRY_CHANNEL_ID, {
     name: 'Expiry reminders',
     description: 'Reminders for groceries that are close to their expiry date.',
-    importance: AndroidImportance.HIGH,
+    importance: Notifications.AndroidImportance.HIGH,
     sound: 'default',
   });
 }
