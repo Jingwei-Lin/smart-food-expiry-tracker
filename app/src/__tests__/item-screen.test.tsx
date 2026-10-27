@@ -244,12 +244,22 @@ describe('ItemDetailScreen', () => {
     expect(view.getByText('1 day before and on expiry day')).toBeTruthy();
   });
 
-  it('says reminders are not set when none were scheduled', async () => {
-    const view = await renderScreen(buildMilk({ expiryDate: '2099-01-10' }));
+  it('says reminders are not set when none were scheduled, and claims no notice', async () => {
+    const view = await renderScreen(buildMilk({ expiryDate: '2099-01-10', reminderDaysBefore: 3 }));
 
     expect(
       view.getByText('Not set. Turn on notifications, then save the item again from Edit'),
     ).toBeTruthy();
+    expect(view.queryByText(/3 days before/)).toBeNull();
+  });
+
+  it('names the item on the buttons that change it, for screen readers', async () => {
+    const view = await renderScreen(buildMilk({ expiryDate: '2099-01-10' }));
+
+    expect(view.getByRole('header', { name: 'Milk' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Edit Milk' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Change the expiry date of Milk' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Edit reminder settings for Milk' })).toBeTruthy();
   });
 
   it('says reminders are not available on web, where none can be scheduled', async () => {

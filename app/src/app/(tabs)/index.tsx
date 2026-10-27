@@ -113,7 +113,9 @@ export default function InventoryScreen() {
                 })}
               </Text>
 
-              <Text style={styles.title}>What&apos;s in my fridge?</Text>
+              <Text accessibilityRole="header" style={styles.title}>
+                What&apos;s in my {selectedLocation}?
+              </Text>
             </View>
           </View>
 

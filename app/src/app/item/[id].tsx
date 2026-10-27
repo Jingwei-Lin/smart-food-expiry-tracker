@@ -31,7 +31,6 @@ const COLORS = {
   primary: '#1E2A16',
   secondary: '#55614D',
   border: '#E4E5D4',
-  divider: '#EEEFE5',
   accent: '#A6D45A',
   accentSoft: '#F0F7DB',
   urgent: '#A92E26',
@@ -306,7 +305,7 @@ export default function ItemDetailScreen() {
           {isActive ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Edit item"
+              accessibilityLabel={`Edit ${item.name}`}
               onPress={openEdit}
               style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
             >
@@ -339,7 +338,9 @@ export default function ItemDetailScreen() {
               <Text style={styles.storageText}>{STORAGE_LABELS[item.storageLocation]}</Text>
             </View>
 
-            <Text style={styles.itemName}>{item.name}</Text>
+            <Text accessibilityRole="header" style={styles.itemName}>
+              {item.name}
+            </Text>
 
             {itemMeta ? <Text style={styles.itemMeta}>{itemMeta}</Text> : null}
 
@@ -387,8 +388,9 @@ export default function ItemDetailScreen() {
 
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel={`Change the expiry date of ${item.name}`}
                   onPress={openEdit}
-                  style={({ pressed }) => (pressed ? styles.pressed : undefined)}
+                  style={({ pressed }) => [styles.changeDateButton, pressed && styles.pressed]}
                 >
                   <Text style={styles.changeDate}>Change date</Text>
                 </Pressable>
@@ -399,33 +401,23 @@ export default function ItemDetailScreen() {
               <View style={styles.reminderContent}>
                 <Text style={styles.sectionEyebrow}>ALERTS</Text>
 
+                {/*
+                 * Only what is actually scheduled: the chosen notice alone would
+                 * claim a reminder when notifications are off or the day has passed.
+                 */}
                 <View style={styles.reminderRow}>
+                  <Ionicons name="notifications-outline" size={21} color={COLORS.primary} />
+
                   <View style={styles.reminderCopy}>
-                    <Text style={styles.reminderTitle}>Remind me</Text>
+                    <Text style={styles.reminderTitle}>Reminders</Text>
 
-                    <Text style={styles.reminderDescription}>
-                      {item.reminderDaysBefore} {item.reminderDaysBefore === 1 ? 'day' : 'days'}{' '}
-                      before it expires
-                    </Text>
+                    <Text style={styles.reminderDescription}>{reminderDescription}</Text>
                   </View>
-
-                  <View style={styles.reminderValue}>
-                    <Ionicons name="notifications-outline" size={20} color={COLORS.primary} />
-
-                    <Text style={styles.reminderValueText}>{item.reminderDaysBefore}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.reminderStatusRow}>
-                  <Ionicons name="notifications-outline" size={21} color={COLORS.secondary} />
-
-                  <Text style={styles.reminderStatus}>{reminderDescription}</Text>
                 </View>
 
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel={`Edit reminder settings for ${item.name}`}
                   onPress={openEdit}
                   style={({ pressed }) => [styles.reminderEdit, pressed && styles.pressed]}
                 >
@@ -755,6 +747,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
+  changeDateButton: {
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 4,
+  },
   changeDate: {
     color: COLORS.primary,
     fontFamily: 'Fredoka_600SemiBold',
@@ -781,8 +778,7 @@ const styles = StyleSheet.create({
   },
   reminderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     gap: 12,
   },
   reminderCopy: {
@@ -798,40 +794,6 @@ const styles = StyleSheet.create({
     color: COLORS.secondary,
     fontFamily: 'Fredoka_400Regular',
     fontSize: 14,
-    lineHeight: 20,
-  },
-  reminderValue: {
-    minWidth: 54,
-    height: 42,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 21,
-  },
-  reminderValueText: {
-    color: COLORS.primary,
-    fontFamily: 'Fredoka_600SemiBold',
-    fontSize: 16,
-  },
-  divider: {
-    height: 1,
-    marginTop: 14,
-    backgroundColor: COLORS.divider,
-  },
-  reminderStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginTop: 14,
-  },
-  reminderStatus: {
-    flex: 1,
-    color: COLORS.secondary,
-    fontFamily: 'Fredoka_400Regular',
-    fontSize: 13,
     lineHeight: 20,
   },
   reminderEdit: {

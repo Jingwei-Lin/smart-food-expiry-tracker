@@ -245,6 +245,7 @@ describe('InventoryScreen', () => {
 
     expect(listed()).toEqual(['Peas']);
     expect(view.queryByText('3 days over')).toBeNull();
+    expect(view.getByRole('header', { name: "What's in my freezer?" })).toBeTruthy();
   });
 
   it('colours food expiring today at least as urgently as food expiring tomorrow', async () => {
