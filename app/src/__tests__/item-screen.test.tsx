@@ -81,7 +81,7 @@ describe('ItemDetailScreen', () => {
   });
 
   it('opens the Donation Points tab near the phone for food that cannot be finished', async () => {
-    const view = await renderScreen(buildMilk());
+    const view = await renderScreen(buildMilk({ expiryDate: '2099-12-31' }));
 
     await fireEvent.press(view.getByText('Donate it'));
 
@@ -89,6 +89,13 @@ describe('ItemDetailScreen', () => {
       pathname: '/donation-points',
       params: { near: 'phone' },
     });
+  });
+
+  it('does not offer donating expired food, which a donation point cannot take', async () => {
+    const view = await renderScreen(buildMilk({ expiryDate: '2000-01-01' }));
+
+    expect(view.getByText('Find recipes')).toBeTruthy();
+    expect(view.queryByText('Donate it')).toBeNull();
   });
 
   it.each([

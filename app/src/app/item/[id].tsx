@@ -215,6 +215,8 @@ export default function ItemDetailScreen() {
   const daysLeft = daysUntilExpiry(item.expiryDate);
   const expiry = getExpiryPresentation(item.expiryDate);
   const deletion = describeDeletion(item);
+  /* A donation point's page only offers food still in date, so expired food has nowhere to go. */
+  const canDonate = Number.isFinite(daysLeft) && daysLeft >= 0;
   const addedOn = formatStoredDate(item.createdAt);
   const updatedOn = formatStoredDate(item.statusUpdatedAt);
 
@@ -450,20 +452,22 @@ export default function ItemDetailScreen() {
                 <Text style={styles.quickActionText}>Find recipes</Text>
               </Pressable>
 
-              <Pressable
-                accessibilityRole="button"
-                disabled={isWorking}
-                onPress={openDonationPoints}
-                style={({ pressed }) => [
-                  styles.quickActionButton,
-                  pressed && styles.pressed,
-                  isWorking && styles.disabled,
-                ]}
-              >
-                <Ionicons name="location-outline" size={23} color={COLORS.primary} />
+              {canDonate ? (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isWorking}
+                  onPress={openDonationPoints}
+                  style={({ pressed }) => [
+                    styles.quickActionButton,
+                    pressed && styles.pressed,
+                    isWorking && styles.disabled,
+                  ]}
+                >
+                  <Ionicons name="location-outline" size={23} color={COLORS.primary} />
 
-                <Text style={styles.quickActionText}>Donate it</Text>
-              </Pressable>
+                  <Text style={styles.quickActionText}>Donate it</Text>
+                </Pressable>
+              ) : null}
             </View>
 
             {deleteConfirm}
