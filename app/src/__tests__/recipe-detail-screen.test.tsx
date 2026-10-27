@@ -203,7 +203,7 @@ describe('RecipeDetailScreen marking the food', () => {
     const view = await openOmelette();
 
     expect(view.queryByText('Milk · expired')).toBeNull();
-    expect(view.getByRole('button', { name: 'Mark Spinach and Milk as eaten' })).toBeTruthy();
+    expect(view.getByHintText('Marks Spinach and Milk as eaten')).toBeTruthy();
 
     await fireEvent.press(view.getByText('Mark as consumed'));
 

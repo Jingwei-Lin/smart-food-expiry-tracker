@@ -121,7 +121,7 @@ describe('WeeklySummaryScreen', () => {
     expect(totalFor(view, 'Thrown out')).toBe(1);
     expect(view.getByText('of 3 items saved')).toBeTruthy();
 
-    await fireEvent.press(view.getByRole('button', { name: 'Show this month' }));
+    await fireEvent.press(view.getByRole('button', { name: 'Month' }));
 
     /* ...but it is inside this month. */
     expect(totalFor(view, 'Eaten')).toBe(2);
@@ -133,13 +133,13 @@ describe('WeeklySummaryScreen', () => {
       buildItem('apple', { status: 'eaten', statusUpdatedAt: new Date(NOW).toISOString() }),
     ]);
 
-    expect(view.getByRole('button', { name: 'Show this week', selected: true })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Week', selected: true })).toBeTruthy();
     expect(view.getByText('This week · 12 Oct–18 Oct')).toBeTruthy();
     expect(view.getByText('DAY BY DAY')).toBeTruthy();
 
-    await fireEvent.press(view.getByRole('button', { name: 'Show this month' }));
+    await fireEvent.press(view.getByRole('button', { name: 'Month' }));
 
-    expect(view.getByRole('button', { name: 'Show this month', selected: true })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Month', selected: true })).toBeTruthy();
     expect(view.queryByText('DAY BY DAY')).toBeNull();
     expect(view.getByText(/This month · October 2026/)).toBeTruthy();
   });
@@ -208,12 +208,12 @@ describe('WeeklySummaryScreen', () => {
     expect(view.getByLabelText('View details for food-9')).toBeTruthy();
     expect(view.queryByLabelText('View details for food-10')).toBeNull();
 
-    await fireEvent.press(view.getByRole('button', { name: 'Show 2 more thrown out' }));
+    await fireEvent.press(view.getByRole('button', { name: 'Show 2 more' }));
 
     expect(view.getAllByLabelText(/^View details for /)).toHaveLength(12);
     expect(view.getByLabelText('View details for food-11')).toBeTruthy();
 
-    await fireEvent.press(view.getByRole('button', { name: 'Show fewer thrown-out items' }));
+    await fireEvent.press(view.getByRole('button', { name: 'Show fewer' }));
 
     expect(view.getAllByLabelText(/^View details for /)).toHaveLength(10);
   });

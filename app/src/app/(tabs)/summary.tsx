@@ -134,7 +134,7 @@ export default function WeeklySummaryScreen() {
             <Pressable
               key={option}
               accessibilityRole="button"
-              accessibilityLabel={option === 'week' ? 'Show this week' : 'Show this month'}
+              accessibilityHint={option === 'week' ? 'Shows this week' : 'Shows this month'}
               accessibilityState={{ selected }}
               onPress={() => setPeriod(option)}
               style={[styles.periodOption, selected && styles.periodOptionSelected]}
@@ -375,11 +375,6 @@ export default function WeeklySummaryScreen() {
               {extraDiscardedCount > 0 && (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={
-                    showAllDiscarded
-                      ? 'Show fewer thrown-out items'
-                      : `Show ${extraDiscardedCount} more thrown out`
-                  }
                   onPress={() => setShowAllDiscarded((current) => !current)}
                   style={({ pressed }) => [
                     styles.discardedMore,

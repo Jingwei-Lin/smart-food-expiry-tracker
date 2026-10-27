@@ -233,7 +233,7 @@ export default function ItemDetailScreen() {
   const deleteToggle = (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={isConfirmingDelete ? 'Cancel delete' : `Delete ${item.name}`}
+      accessibilityHint={isConfirmingDelete ? undefined : `Asks before deleting ${item.name}`}
       disabled={actionsDisabled}
       onPress={() => setIsConfirmingDelete((current) => !current)}
       style={styles.deleteLink}
@@ -388,7 +388,7 @@ export default function ItemDetailScreen() {
 
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Change the expiry date of ${item.name}`}
+                  accessibilityHint={`Edits the expiry date of ${item.name}`}
                   onPress={openEdit}
                   style={({ pressed }) => [styles.changeDateButton, pressed && styles.pressed]}
                 >
@@ -417,7 +417,7 @@ export default function ItemDetailScreen() {
 
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`Edit reminder settings for ${item.name}`}
+                  accessibilityHint={`Edits the reminders for ${item.name}`}
                   onPress={openEdit}
                   style={({ pressed }) => [styles.reminderEdit, pressed && styles.pressed]}
                 >
@@ -522,7 +522,7 @@ export default function ItemDetailScreen() {
             <Pressable
               accessibilityRole="button"
               disabled={actionsDisabled}
-              accessibilityLabel={`Mark ${item.name} as eaten`}
+              accessibilityHint={`Marks ${item.name} as eaten`}
               accessibilityState={{ busy: pendingStatus === 'eaten' }}
               onPress={() => handleResolve('eaten')}
               style={({ pressed }) => [
@@ -539,7 +539,7 @@ export default function ItemDetailScreen() {
             <Pressable
               accessibilityRole="button"
               disabled={actionsDisabled}
-              accessibilityLabel={`Mark ${item.name} as thrown out`}
+              accessibilityHint={`Marks ${item.name} as thrown out`}
               accessibilityState={{ busy: pendingStatus === 'discarded' }}
               onPress={() => handleResolve('discarded')}
               style={({ pressed }) => [

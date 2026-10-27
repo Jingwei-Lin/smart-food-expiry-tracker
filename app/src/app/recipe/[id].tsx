@@ -354,7 +354,7 @@ export default function RecipeDetailScreen() {
 
             <View style={styles.barButtons}>
               <Pressable
-                accessibilityLabel={`Mark ${usedNames} as thrown out`}
+                accessibilityHint={`Marks ${usedNames} as thrown out`}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: isMarking, busy: markingStatus === 'discarded' }}
                 disabled={isMarking}
@@ -367,7 +367,7 @@ export default function RecipeDetailScreen() {
               </Pressable>
 
               <Pressable
-                accessibilityLabel={`Mark ${usedNames} as eaten`}
+                accessibilityHint={`Marks ${usedNames} as eaten`}
                 accessibilityRole="button"
                 accessibilityState={{ disabled: isMarking, busy: markingStatus === 'eaten' }}
                 disabled={isMarking}
