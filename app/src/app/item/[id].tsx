@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FoodCategoryIcon } from '@/components/food-category-icon';
 import { useInventory } from '@/context/inventory-context';
+import { useToday } from '@/hooks/use-today';
 import { returnToInventory } from '@/utils/navigation';
 import type { FoodStorageLocation, ResolvedFoodItemStatus } from '@/types/food-item';
 import { describeDeletion } from '@/utils/delete-confirm';
@@ -118,6 +119,11 @@ export default function ItemDetailScreen() {
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<ResolvedFoodItemStatus | null>(null);
+  /*
+   * The same day the donation point page uses, so the two agree on what has
+   * expired just after midnight.
+   */
+  const today = useToday();
   const [actionError, setActionError] = useState<string | null>(null);
 
   const item = items.find((candidate) => candidate.id === id);
@@ -211,8 +217,8 @@ export default function ItemDetailScreen() {
 
   const isActive = item.status === 'active';
   const statusLabel = item.status === 'active' ? null : STATUS_LABELS[item.status];
-  const daysLeft = daysUntilExpiry(item.expiryDate);
-  const expiry = getExpiryPresentation(item.expiryDate);
+  const daysLeft = daysUntilExpiry(item.expiryDate, today);
+  const expiry = getExpiryPresentation(item.expiryDate, today);
   const deletion = describeDeletion(item);
   /* A donation point's page only offers food still in date, so expired food has nowhere to go. */
   const canDonate = Number.isFinite(daysLeft) && daysLeft >= 0;
@@ -228,7 +234,7 @@ export default function ItemDetailScreen() {
    * to Edit for nothing.
    */
   const reminderDescription =
-    Platform.OS === 'web' ? 'Not available on web' : describeReminders(item);
+    Platform.OS === 'web' ? 'Not available on web' : describeReminders(item, today);
 
   const deleteToggle = (
     <Pressable

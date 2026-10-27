@@ -21,6 +21,7 @@ jest.mock('expo-router', () => ({
     replace: jest.fn(),
   },
   Stack: { Screen: () => null },
+  useFocusEffect: jest.fn(),
   useLocalSearchParams: () => ({ id: 'milk' }),
 }));
 
