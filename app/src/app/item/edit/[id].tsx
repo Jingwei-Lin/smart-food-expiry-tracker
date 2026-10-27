@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { ArrowLeft } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -19,22 +18,6 @@ import { useInventory } from '@/context/inventory-context';
 import type { FoodCategory } from '@/types/food-item';
 import { returnToInventory } from '@/utils/navigation';
 
-const FOOD_CATEGORIES: FoodCategory[] = [
-  'Veg',
-  'Fruit',
-  'Dairy',
-  'Meat',
-  'Bread',
-  'Seafood',
-  'Others',
-];
-
-function getValidCategory(category?: FoodCategory): FoodCategory {
-  return category && FOOD_CATEGORIES.includes(category)
-    ? category
-    : 'Others';
-}
-
 const COLORS = {
   background: '#FFFDF5',
   surface: '#FFFFFF',
@@ -49,25 +32,14 @@ const COLORS = {
 export default function EditItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const [selectedCategory, setSelectedCategory] =
-    useState<FoodCategory | undefined>();
+  const [selectedCategory, setSelectedCategory] = useState<FoodCategory | undefined>();
 
-  const {
-    items,
-    isLoading,
-    isStorageReady,
-    storageError,
-    updateItem,
-  } = useInventory();
+  const { items, isLoading, isStorageReady, storageError, updateItem } = useInventory();
 
   const item = items.find((candidate) => candidate.id === id);
 
   async function handleSubmit(values: ItemFormValues) {
-    await updateItem(id, {
-      ...values,
-      storageLocation: values.storageLocation ?? item?.storageLocation ?? 'fridge',
-      category: values.category,
-    });
+    await updateItem(id, values);
 
     returnToInventory();
   }
@@ -101,14 +73,9 @@ export default function EditItemScreen() {
         <Pressable
           accessibilityRole="button"
           onPress={returnToInventory}
-          style={({ pressed }) => [
-            styles.returnButton,
-            pressed && styles.pressedButton,
-          ]}
+          style={({ pressed }) => [styles.returnButton, pressed && styles.pressedButton]}
         >
-          <Text style={styles.returnButtonText}>
-            Back to inventory
-          </Text>
+          <Text style={styles.returnButtonText}>Back to inventory</Text>
         </Pressable>
       </View>
     );
@@ -122,37 +89,22 @@ export default function EditItemScreen() {
     >
       <ItemForm
         topContent={
-          <View
-            style={[
-              styles.heading,
-              { paddingTop: insets.top + 10 },
-            ]}
-          >
+          <View style={[styles.heading, { paddingTop: insets.top + 10 }]}>
             <View style={styles.headingRow}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Go back"
                 onPress={handleGoBack}
-                style={({ pressed }) => [
-                  styles.backButton,
-                  pressed && styles.pressedButton,
-                ]}
+                style={({ pressed }) => [styles.backButton, pressed && styles.pressedButton]}
               >
-                <ArrowLeft
-                  size={23}
-                  color={COLORS.primary}
-                  strokeWidth={2}
-                />
+                <ArrowLeft size={23} color={COLORS.primary} strokeWidth={2} />
               </Pressable>
 
               <Text style={styles.title}>Edit item</Text>
             </View>
 
             <View style={styles.itemInfo}>
-              <FoodCategoryIcon
-                category={selectedCategory ?? getValidCategory(item.category)}
-                size={22}
-              />
+              <FoodCategoryIcon category={selectedCategory ?? item.category} size={22} />
 
               <Text style={styles.subtitle} numberOfLines={2}>
                 Update the details for {item.name}.
@@ -163,8 +115,7 @@ export default function EditItemScreen() {
         blockedReason={
           isStorageReady
             ? null
-            : storageError ??
-              'Loading your saved inventory. Saving will be enabled in a moment.'
+            : (storageError ?? 'Loading your saved inventory. Saving will be enabled in a moment.')
         }
         initialValues={{
           name: item.name,
@@ -173,7 +124,7 @@ export default function EditItemScreen() {
           reminderDaysBefore: item.reminderDaysBefore,
           notes: item.notes,
           storageLocation: item.storageLocation,
-          category: getValidCategory(item.category),
+          category: item.category,
         }}
         onSubmit={handleSubmit}
         onCategoryChange={setSelectedCategory}

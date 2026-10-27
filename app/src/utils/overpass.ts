@@ -60,8 +60,6 @@ const SNAPSHOT_TAGS = [
   'addr:street',
   'addr:suburb',
   'addr:city',
-  'phone',
-  'contact:phone',
 ];
 
 export const SEARCH_RADIUS_KM = 10;

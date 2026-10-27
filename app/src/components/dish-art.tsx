@@ -4,15 +4,15 @@ const INK = '#1E2A16';
 const HERB = '#4E7A1F';
 
 type DishArtProps = {
-  /** The bowl's colour. The design uses a warm yellow. */
+  /** The bowl's colour; a warm yellow by default. */
   bowlColor?: string;
 };
 
 /**
- * The bowl drawing from the Recipe details design, built from plain shapes
- * so the app needs no SVG library: two wisps of steam, a scoop of food with
- * herbs on top, and a round-bottomed bowl, all with the app's ink outline.
- * It is decoration only, so screen readers skip it.
+ * A bowl of food drawn from plain Views, so it needs no image asset and takes
+ * its colour from a prop: two wisps of steam, a scoop of food with herbs on
+ * top, and a round-bottomed bowl, all with the app's ink outline. It is
+ * decoration only, so screen readers skip it.
  */
 export function DishArt({ bowlColor = '#F2C97D' }: DishArtProps) {
   return (

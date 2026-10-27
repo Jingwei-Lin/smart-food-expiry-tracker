@@ -1,23 +1,14 @@
-
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { InventoryRow } from '@/components/inventory-row';
 import { useInventory } from '@/context/inventory-context';
 import { useToday } from '@/hooks/use-today';
 import { FoodItem, FoodStorageLocation } from '@/types/food-item';
-import { daysUntilExpiry } from '@/utils/expiry-date';
-import { EAT_SOON_DAYS } from '@/utils/inventory-sections';
+import { daysUntilExpiry, EAT_SOON_DAYS } from '@/utils/expiry-date';
 
 const COLORS = {
   background: '#FFFDF5',
@@ -36,11 +27,7 @@ const COLORS = {
   errorSoft: '#FDE7E5',
 };
 
-const LOCATIONS: FoodStorageLocation[] = [
-  'fridge',
-  'freezer',
-  'pantry',
-];
+const LOCATIONS: FoodStorageLocation[] = ['fridge', 'freezer', 'pantry'];
 
 function getWeekDates(today: Date): Date[] {
   const monday = new Date(today);
@@ -75,28 +62,24 @@ function getLocationLabel(location: FoodStorageLocation): string {
 }
 
 export default function InventoryScreen() {
-  const {
-    activeItems,
-    isLoading,
-    reminderNotice,
-    storageError,
-  } = useInventory();
+  const { activeItems, isLoading, isStorageReady, reminderNotice, storageError } = useInventory();
 
   const insets = useSafeAreaInsets();
   const today = useToday();
 
-  const [selectedLocation, setSelectedLocation] =
-    useState<FoodStorageLocation>('fridge');
+  const [selectedLocation, setSelectedLocation] = useState<FoodStorageLocation>('fridge');
 
   const weekDates = getWeekDates(today);
 
+  /*
+   * With the saved inventory unread, the empty list below would be a guess, and
+   * its prompt to scan an item would invite food that cannot be saved.
+   */
+  const inventoryUnreadable = !isStorageReady;
+
   const locationItems = activeItems
     .filter((item) => item.storageLocation === selectedLocation)
-    .sort(
-      (a, b) =>
-        daysUntilExpiry(a.expiryDate, today) -
-        daysUntilExpiry(b.expiryDate, today),
-    );
+    .sort((a, b) => daysUntilExpiry(a.expiryDate, today) - daysUntilExpiry(b.expiryDate, today));
 
   if (isLoading) {
     return (
@@ -109,7 +92,7 @@ export default function InventoryScreen() {
 
   return (
     <View style={styles.screen}>
-      <FlatList
+      <ScrollView
         contentContainerStyle={[
           styles.listContent,
           {
@@ -117,13 +100,79 @@ export default function InventoryScreen() {
             paddingBottom: insets.bottom + 124,
           },
         ]}
-        data={[selectedLocation]}
-        keyExtractor={(item) => item}
         showsVerticalScrollIndicator={false}
-        renderItem={() => (
+      >
+        <View style={styles.header}>
+          <View style={styles.headingRow}>
+            <View style={styles.headingText}>
+              <Text style={styles.dateHeading}>
+                {today.toLocaleDateString('en-AU', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                })}
+              </Text>
+
+              <Text style={styles.title}>What&apos;s in my fridge?</Text>
+            </View>
+          </View>
+
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={styles.weekStrip}
+          >
+            {weekDates.map((date) => {
+              const isToday = date.toDateString() === today.toDateString();
+
+              return (
+                <View key={date.toISOString()} style={styles.weekDay}>
+                  <Text style={[styles.weekDayLabel, isToday && styles.weekDayLabelToday]}>
+                    {date.toLocaleDateString('en-AU', {
+                      weekday: 'short',
+                    })}
+                  </Text>
+
+                  <View style={[styles.dayCircle, isToday && styles.dayCircleToday]}>
+                    <Text style={[styles.dayNumber, isToday && styles.dayNumberToday]}>
+                      {date.getDate()}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
+          {inventoryUnreadable ? null : (
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryTextRow}>
+                <Ionicons name="checkbox-outline" size={25} color={COLORS.primary} />
+
+                <Text style={styles.subtitle}>{describeInventory(locationItems, today)}</Text>
+              </View>
+            </View>
+          )}
+
+          {storageError ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="warning-outline" size={19} color={COLORS.error} />
+
+              <Text style={styles.errorText}>{storageError}</Text>
+            </View>
+          ) : null}
+
+          {reminderNotice ? (
+            <View style={styles.reminderBanner}>
+              <Ionicons name="notifications-off-outline" size={19} color={COLORS.warning} />
+
+              <Text style={styles.reminderText}>{reminderNotice}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {inventoryUnreadable ? null : (
           <View style={styles.fridgeArea}>
             <View style={styles.fridgeCard}>
-              {/* Location tabs stay inside the fridge frame */}
               <View style={styles.locationTabs}>
                 {LOCATIONS.map((location) => {
                   const selected = selectedLocation === location;
@@ -136,7 +185,7 @@ export default function InventoryScreen() {
                       key={location}
                       accessibilityRole="button"
                       accessibilityState={{ selected }}
-                      accessibilityLabel={`${getLocationLabel(location)}, ${count} items`}
+                      accessibilityLabel={`${getLocationLabel(location)}, ${count} ${count === 1 ? 'item' : 'items'}`}
                       onPress={() => setSelectedLocation(location)}
                       style={({ pressed }) => [
                         styles.locationTab,
@@ -145,19 +194,13 @@ export default function InventoryScreen() {
                       ]}
                     >
                       <Text
-                        style={[
-                          styles.locationTabText,
-                          selected && styles.locationTabTextSelected,
-                        ]}
+                        style={[styles.locationTabText, selected && styles.locationTabTextSelected]}
                       >
                         {getLocationLabel(location)}
                       </Text>
 
                       <Text
-                        style={[
-                          styles.locationCount,
-                          selected && styles.locationTabTextSelected,
-                        ]}
+                        style={[styles.locationCount, selected && styles.locationTabTextSelected]}
                       >
                         {count}
                       </Text>
@@ -168,14 +211,11 @@ export default function InventoryScreen() {
 
               <View style={styles.fridgeDivider} />
 
-              {/* Horizontal food rows */}
               {locationItems.length > 0 ? (
                 <View style={styles.foodList}>
                   {locationItems.map((item, index) => (
                     <View key={item.id}>
-                      {index > 0 ? (
-                        <View style={styles.inventoryDivider} />
-                      ) : null}
+                      {index > 0 ? <View style={styles.inventoryDivider} /> : null}
 
                       <InventoryRow item={item} today={today} />
                     </View>
@@ -184,147 +224,37 @@ export default function InventoryScreen() {
               ) : (
                 <View style={styles.emptyCard}>
                   <View style={styles.emptyIcon}>
-                    <Ionicons
-                      name="basket-outline"
-                      size={34}
-                      color={COLORS.primary}
-                    />
+                    <Ionicons name="basket-outline" size={34} color={COLORS.primary} />
                   </View>
 
-                  <Text style={styles.emptyTitle}>
-                    Nothing in your {selectedLocation}
-                  </Text>
+                  <Text style={styles.emptyTitle}>Nothing in your {selectedLocation}</Text>
 
                   <Text style={styles.emptyText}>
-                    Add food to your {selectedLocation} and the app will keep
-                    an eye on its use-by dates for you.
+                    Add food to your {selectedLocation} and the app will keep an eye on its use-by
+                    dates for you.
                   </Text>
 
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Scan a food item"
                     onPress={() => router.push('/scan')}
-                    style={({ pressed }) => [
-                      styles.emptyButton,
-                      pressed && styles.pressedButton,
-                    ]}
+                    style={({ pressed }) => [styles.emptyButton, pressed && styles.pressedButton]}
                   >
-                    <Ionicons
-                      name="scan-outline"
-                      size={18}
-                      color={COLORS.primary}
-                    />
+                    <Ionicons name="scan-outline" size={18} color={COLORS.primary} />
 
-                    <Text style={styles.emptyButtonText}>
-                      Scan a food item
-                    </Text>
+                    <Text style={styles.emptyButtonText}>Scan a food item</Text>
                   </Pressable>
                 </View>
               )}
             </View>
 
-            {/* Two feet sit below the outer fridge frame */}
             <View pointerEvents="none" style={styles.fridgeFeet}>
               <View style={styles.fridgeFoot} />
               <View style={styles.fridgeFoot} />
             </View>
           </View>
         )}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            {/* Header without a profile button */}
-            <View style={styles.headingRow}>
-              <View style={styles.headingText}>
-                <Text style={styles.dateHeading}>
-                  {today.toLocaleDateString('en-AU', {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                  })}
-                </Text>
-
-                <Text style={styles.title}>What&apos;s in my fridge?</Text>
-              </View>
-            </View>
-
-            <View style={styles.weekStrip}>
-              {weekDates.map((date) => {
-                const isToday =
-                  date.toDateString() === today.toDateString();
-
-                return (
-                  <View key={date.toISOString()} style={styles.weekDay}>
-                    <Text
-                      style={[
-                        styles.weekDayLabel,
-                        isToday && styles.weekDayLabelToday,
-                      ]}
-                    >
-                      {date.toLocaleDateString('en-AU', {
-                        weekday: 'short',
-                      })}
-                    </Text>
-
-                    <View
-                      style={[
-                        styles.dayCircle,
-                        isToday && styles.dayCircleToday,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.dayNumber,
-                          isToday && styles.dayNumberToday,
-                        ]}
-                      >
-                        {date.getDate()}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryTextRow}>
-                <Ionicons
-                  name="checkbox-outline"
-                  size={25}
-                  color={COLORS.primary}
-                />
-
-                <Text style={styles.subtitle}>
-                  {describeInventory(locationItems, today)}
-                </Text>
-              </View>
-            </View>
-
-            {storageError ? (
-              <View style={styles.errorBanner}>
-                <Ionicons
-                  name="warning-outline"
-                  size={19}
-                  color={COLORS.error}
-                />
-
-                <Text style={styles.errorText}>{storageError}</Text>
-              </View>
-            ) : null}
-
-            {reminderNotice ? (
-              <View style={styles.reminderBanner}>
-                <Ionicons
-                  name="notifications-off-outline"
-                  size={19}
-                  color={COLORS.warning}
-                />
-
-                <Text style={styles.reminderText}>{reminderNotice}</Text>
-              </View>
-            ) : null}
-          </View>
-        }
-      />
+      </ScrollView>
     </View>
   );
 }

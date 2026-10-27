@@ -16,7 +16,7 @@ const COLORS = {
   errorSoft: '#FDE7E5',
 };
 
-/* The picture tiles take turns through these, as in the design: tile colour, then bowl colour. */
+/* The picture tiles take turns through these: tile colour, then bowl colour. */
 const TILE_LOOKS = [
   { tint: '#F0F7DB', bowl: '#F2C97D' },
   { tint: '#FBEFF2', bowl: '#F2D2A2' },

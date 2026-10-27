@@ -34,8 +34,7 @@ jest.mock('@/utils/navigation', () => ({
 
 jest.mock('@/components/item-form', () => {
   const React = jest.requireActual<typeof import('react')>('react');
-  const ReactNative =
-    jest.requireActual<typeof import('react-native')>('react-native');
+  const ReactNative = jest.requireActual<typeof import('react-native')>('react-native');
 
   function MockItemForm({
     initialValues,
@@ -99,9 +98,7 @@ beforeEach(() => {
 it('uses the latest scanned category when saving an item', async () => {
   const view = await render(<AddItemScreen />);
 
-  expect(view.getByLabelText('Selected food category').props.children).toBe(
-    'Seafood',
-  );
+  expect(view.getByLabelText('Selected food category').props.children).toBe('Seafood');
 
   mockRouteParams.current = {
     barcode: 'second-barcode',
@@ -110,9 +107,7 @@ it('uses the latest scanned category when saving an item', async () => {
   };
   await view.rerender(<AddItemScreen />);
 
-  expect(view.getByLabelText('Selected food category').props.children).toBe(
-    'Dairy',
-  );
+  expect(view.getByLabelText('Selected food category').props.children).toBe('Dairy');
 
   await fireEvent.press(view.getByLabelText('Submit item'));
 

@@ -65,11 +65,7 @@ describe('ItemForm expiry date', () => {
   it('notifies when the selected food category changes', async () => {
     const onCategoryChange = jest.fn();
     const view = await render(
-      <ItemForm
-        submitLabel="Save item"
-        onCategoryChange={onCategoryChange}
-        onSubmit={jest.fn()}
-      />,
+      <ItemForm submitLabel="Save item" onCategoryChange={onCategoryChange} onSubmit={jest.fn()} />,
     );
 
     await fireEvent.press(view.getByRole('radio', { name: 'Seafood' }));
@@ -94,9 +90,9 @@ describe('ItemForm expiry date', () => {
       />,
     );
 
-    expect(
-      view.getByRole('radio', { name: 'Seafood' }).props.accessibilityState,
-    ).toMatchObject({ checked: true });
+    expect(view.getByRole('radio', { name: 'Seafood' }).props.accessibilityState).toMatchObject({
+      checked: true,
+    });
   });
 
   it('opens a calendar on today under the field on iOS, and shows the day picked', async () => {
@@ -285,47 +281,121 @@ describe('ItemForm expiry date', () => {
   });
 });
 
-describe('ItemForm reminder choice', () => {
-  it('defaults to one day before expiry', async () => {
+describe('ItemForm reminder stepper', () => {
+  const decrease = { name: 'Decrease reminder days' };
+  const increase = { name: 'Increase reminder days' };
+
+  it('defaults to one day before expiry, which cannot be lowered', async () => {
     const view = await render(<ItemForm submitLabel="Save item" onSubmit={jest.fn()} />);
 
-    expect(view.getByLabelText('Number of days before expiry to send a reminder').props.value).toBe(
-      '1',
-    );
+    expect(view.getByLabelText('Days before expiry')).toHaveTextContent('1');
+    expect(view.getByLabelText('Days before expiry').props.accessibilityValue).toEqual({
+      now: 1,
+      min: 1,
+      max: 7,
+      text: '1 day',
+    });
+    expect(view.getByRole('button', { ...decrease, disabled: true })).toBeTruthy();
+    expect(view.getByText('You’ll get a reminder 1 day before expiry.')).toBeTruthy();
   });
 
-  it('rejects a reminder outside the one-to-seven day range', async () => {
-    const onSubmit = jest.fn();
-    const view = await render(<ItemForm submitLabel="Save item" onSubmit={onSubmit} />);
-
-    await fillRequiredFields(view);
-    await fireEvent.changeText(
-      view.getByLabelText('Number of days before expiry to send a reminder'),
-      '8',
+  it('starts from the reminder an item already has', async () => {
+    const view = await render(
+      <ItemForm
+        initialValues={{
+          name: 'Milk',
+          quantity: '2 L',
+          expiryDate: '2026-10-05',
+          reminderDaysBefore: 3,
+          notes: '',
+        }}
+        submitLabel="Save changes"
+        onSubmit={jest.fn()}
+      />,
     );
-    await fireEvent.press(view.getByText('Save item'));
 
-    expect(await view.findByText('Choose a whole number from 1 to 7.')).toBeTruthy();
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(view.getByLabelText('Days before expiry')).toHaveTextContent('3');
+    expect(view.getByText('You’ll get a reminder 3 days before expiry.')).toBeTruthy();
   });
 
-  it('submits a valid custom reminder as a number', async () => {
+  it('steps up and down by one day', async () => {
+    const view = await render(<ItemForm submitLabel="Save item" onSubmit={jest.fn()} />);
+
+    await fireEvent.press(view.getByRole('button', increase));
+    await fireEvent.press(view.getByRole('button', increase));
+
+    expect(view.getByLabelText('Days before expiry')).toHaveTextContent('3');
+    expect(view.getByLabelText('Days before expiry').props.accessibilityValue).toMatchObject({
+      now: 3,
+      text: '3 days',
+    });
+
+    await fireEvent.press(view.getByRole('button', decrease));
+
+    expect(view.getByLabelText('Days before expiry')).toHaveTextContent('2');
+  });
+
+  it('stops at seven days', async () => {
+    const view = await render(<ItemForm submitLabel="Save item" onSubmit={jest.fn()} />);
+
+    for (let press = 0; press < 10; press += 1) {
+      await fireEvent.press(view.getByRole('button', increase));
+    }
+
+    expect(view.getByLabelText('Days before expiry')).toHaveTextContent('7');
+    expect(view.getByRole('button', { ...increase, disabled: true })).toBeTruthy();
+  });
+
+  it('does not go below one day', async () => {
+    const view = await render(<ItemForm submitLabel="Save item" onSubmit={jest.fn()} />);
+
+    await fireEvent.press(view.getByRole('button', increase));
+    await fireEvent.press(view.getByRole('button', decrease));
+    await fireEvent.press(view.getByRole('button', { ...decrease, disabled: true }));
+
+    expect(view.getByLabelText('Days before expiry')).toHaveTextContent('1');
+  });
+
+  it('submits the chosen reminder as a number', async () => {
     const onSubmit = jest.fn().mockResolvedValue(undefined);
     const view = await render(<ItemForm submitLabel="Save item" onSubmit={onSubmit} />);
 
     await fillRequiredFields(view);
-    await fireEvent.changeText(
-      view.getByLabelText('Number of days before expiry to send a reminder'),
-      '5',
-    );
+
+    for (let press = 0; press < 4; press += 1) {
+      await fireEvent.press(view.getByRole('button', increase));
+    }
+
     await fireEvent.press(view.getByText('Save item'));
 
-    await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith(
-        expect.objectContaining({
-          reminderDaysBefore: 5,
-        }),
-      ),
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit.mock.calls[0][0].reminderDaysBefore).toBe(5);
+  });
+});
+
+describe('ItemForm submit button', () => {
+  it('can name the place the food is being added to', async () => {
+    const view = await render(
+      <ItemForm submitLabel={(place) => `Add to ${place}`} onSubmit={jest.fn()} />,
     );
+
+    expect(view.getByText('Add to fridge')).toBeTruthy();
+
+    await fireEvent.press(view.getByRole('radio', { name: 'Freezer' }));
+
+    expect(view.getByText('Add to freezer')).toBeTruthy();
+  });
+});
+
+describe('ItemForm expiry hint', () => {
+  it('names the food type only when a category was chosen', async () => {
+    const view = await render(<ItemForm submitLabel="Save item" onSubmit={jest.fn()} />);
+
+    expect(view.getByText('Check the date printed on the package.')).toBeTruthy();
+
+    await fireEvent.press(view.getByRole('radio', { name: 'Dairy' }));
+
+    expect(view.getByText('Check the package for its use-by date. Food type: Dairy.')).toBeTruthy();
+    expect(view.queryByText(/Food type: Others/)).toBeNull();
   });
 });

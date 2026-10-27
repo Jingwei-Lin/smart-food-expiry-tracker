@@ -2,6 +2,9 @@ import type { FoodItem } from '@/types/food-item';
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
+/* Shared with recipe suggestions, so "eat soon" means the same thing on every screen. */
+export const EAT_SOON_DAYS = 3;
+
 /**
  * Parses a date written as YYYY-MM-DD.
  */

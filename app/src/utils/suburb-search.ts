@@ -15,12 +15,19 @@ type Point = { latitude: number; longitude: number };
 type SuburbTuple = [string, string, string, number, number];
 
 const SUBURBS: Suburb[] = (suburbData.suburbs as unknown as SuburbTuple[]).map(
-  ([name, state, postcode, latitude, longitude]) => ({ name, state, postcode, latitude, longitude }),
+  ([name, state, postcode, latitude, longitude]) => ({
+    name,
+    state,
+    postcode,
+    latitude,
+    longitude,
+  }),
 );
 
 /** Rough distance in km. Only used to put nearer suburbs first, so it needn't be exact. */
 function roughKm(a: Point, b: Point): number {
-  const x = (b.longitude - a.longitude) * Math.cos(((a.latitude + b.latitude) / 2) * (Math.PI / 180));
+  const x =
+    (b.longitude - a.longitude) * Math.cos(((a.latitude + b.latitude) / 2) * (Math.PI / 180));
   const y = b.latitude - a.latitude;
 
   return Math.sqrt(x * x + y * y) * 111.32;

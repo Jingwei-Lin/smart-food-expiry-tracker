@@ -1,6 +1,5 @@
-
-import { addDaysToToday, estimateShelfLife } from '@/utils/shelf-life';
 import type { FoodCategory } from '@/types/food-item';
+import { addDaysToToday, estimateShelfLife, normalizeCategoryTag } from '@/utils/shelf-life';
 
 /*
  * Only the fields the add form can use are requested, which keeps the response
@@ -11,8 +10,7 @@ const FIELDS = 'code,product_name,product_name_en,brands,quantity,categories_tag
 const PRODUCT_URL = 'https://world.openfoodfacts.org/api/v2/product';
 
 /* Open Food Facts asks every client to identify itself. */
-const USER_AGENT =
-  'SmartFoodExpiryTracker/1.0 (COMP5216-2026-GP-23 student project)';
+const USER_AGENT = 'SmartFoodExpiryTracker/1.0 (COMP5216-2026-GP-23 student project)';
 
 const REQUEST_TIMEOUT_MS = 8000;
 
@@ -20,9 +18,9 @@ export type ScannedProduct = {
   barcode: string;
   name: string;
   quantity: string;
-  /** Empty when no shelf-life estimate is available. */
+  /** Empty when no category matched, so the student fills the date in themselves. */
   expiryDate: string;
-  /** Names the category used for the estimate, or empty when unavailable. */
+  /** Names the category the estimate came from, or empty when there was none. */
   shelfLifeLabel: string;
   category: FoodCategory;
 };
@@ -43,135 +41,42 @@ type OpenFoodFactsResponse = {
   };
 };
 
+/*
+ * Open Food Facts tags that put a product in each category, checked in order so
+ * a product tagged as both fish and vegetables is filed as Seafood. Tags are
+ * matched whole: "en:fish-sauces" or "en:milk-chocolates" are condiments and
+ * sweets, and must not be mistaken for fish or dairy just because of a word in
+ * them. The shelf-life estimate uses the same tag names (see shelf-life.ts).
+ */
+const CATEGORY_TAGS: [Exclude<FoodCategory, 'Others'>, string[]][] = [
+  ['Seafood', ['seafood', 'fishes', 'frozen-fishes', 'crustaceans', 'molluscs']],
+  ['Veg', ['fresh-vegetables', 'vegetables', 'salads']],
+  ['Fruit', ['fresh-fruits', 'fruits']],
+  ['Dairy', ['fresh-dairy', 'milks', 'yogurts', 'cheeses', 'butters', 'creams', 'eggs']],
+  ['Meat', ['fresh-meats', 'meats', 'poultries']],
+  ['Bread', ['breads']],
+];
+
 /**
- * Maps Open Food Facts category tags to the categories used by the Add page.
- *
- * Open Food Facts tags can look like:
- *   en:fresh-vegetables
- *   en:fish
- *   en: dairy-products
- *
- * Unknown or missing categories default to Others.
+ * Maps Open Food Facts category tags to the categories used by the add form.
+ * Anything that does not match a tag above exactly is Others.
  */
 function mapFoodCategory(tags: string[]): FoodCategory {
-  const categories = tags.map((tag) =>
-    tag
-      .toLowerCase()
-      .replace(/^en:/, '')
-      .replace(/-/g, ' ')
-      .replace(/_/g, ' ')
-      .trim(),
+  const normalized = tags.map(normalizeCategoryTag);
+
+  const match = CATEGORY_TAGS.find(([, categoryTags]) =>
+    categoryTags.some((categoryTag) => normalized.includes(categoryTag)),
   );
 
-  const hasExactOrChildCategory = (...keywords: string[]) =>
-    categories.some((tag) =>
-      keywords.some(
-        (keyword) =>
-          tag === keyword || tag.startsWith(`${keyword} `),
-      ),
-    );
-
-  // Check seafood before broader food groups.
-  if (
-    hasExactOrChildCategory(
-      'seafood',
-      'fish',
-      'fishes',
-      'shellfish',
-      'crustacean',
-      'crustaceans',
-      'mollusc',
-      'molluscs',
-    )
-  ) {
-    return 'Seafood';
-  }
-
-  if (
-    hasExactOrChildCategory(
-      'vegetable',
-      'vegetables',
-      'fresh vegetable',
-      'fresh vegetables',
-      'leafy green',
-      'leafy greens',
-      'salad',
-      'legume',
-      'legumes',
-    )
-  ) {
-    return 'Veg';
-  }
-
-  if (
-    hasExactOrChildCategory(
-      'fruit',
-      'fruits',
-      'fresh fruit',
-      'fresh fruits',
-    )
-  ) {
-    return 'Fruit';
-  }
-
-  if (
-    hasExactOrChildCategory(
-      'dairy',
-      'dairies',
-      'dairy product',
-      'dairy products',
-      'milk',
-      'cheese',
-      'yogurt',
-      'yoghurts',
-      'yoghurt',
-      'butter',
-      'cream',
-      'egg',
-      'eggs',
-    )
-  ) {
-    return 'Dairy';
-  }
-
-  if (
-    hasExactOrChildCategory(
-      'meat',
-      'meats',
-      'poultry',
-      'chicken',
-      'beef',
-      'pork',
-      'lamb',
-      'turkey',
-      'ham',
-      'bacon',
-      'sausage',
-    )
-  ) {
-    return 'Meat';
-  }
-
-  if (
-    hasExactOrChildCategory(
-      'bread',
-      'breads',
-      'bakery',
-      'baguette',
-      'loaf',
-      'pastry',
-    )
-  ) {
-    return 'Bread';
-  }
-
-  return 'Others';
+  return match ? match[0] : 'Others';
 }
 
 /**
  * Turns an Open Food Facts response into the fields the add form pre-fills.
  *
- * Kept separate from the request so it can be tested without a network.
+ * Kept apart from the request so it can be tested without a network, and
+ * because the API returns plenty of shapes: a missing product, a product with
+ * no name, or a name in the contributor's own language.
  */
 export function parseProductResponse(
   barcode: string,
@@ -202,10 +107,8 @@ export function parseProductResponse(
     outcome: 'found',
     product: {
       barcode,
-      name:
-        brand && !name.toLowerCase().includes(brand.toLowerCase())
-          ? `${brand} ${name}`
-          : name,
+      /* The brand is what is readable on the shelf, so it leads the name. */
+      name: brand && !name.toLowerCase().includes(brand.toLowerCase()) ? `${brand} ${name}` : name,
       quantity: (product.quantity ?? '').trim(),
       expiryDate: estimate ? addDaysToToday(estimate.days, today) : '',
       shelfLifeLabel: estimate ? estimate.label : '',
@@ -217,31 +120,21 @@ export function parseProductResponse(
 /**
  * Looks a scanned barcode up in Open Food Facts.
  *
- * Never throws: with a slow response or a failing API, the caller gets
- * `unavailable` and can continue with manual entry.
+ * Never throws: with no signal, a slow response or a failing API, the caller
+ * gets `unavailable` and sends the student to manual entry instead.
  */
-export async function lookupProduct(
-  barcode: string,
-): Promise<ProductLookupResult> {
+export async function lookupProduct(barcode: string): Promise<ProductLookupResult> {
   const controller = new AbortController();
-  const timeout = setTimeout(
-    () => controller.abort(),
-    REQUEST_TIMEOUT_MS,
-  );
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(
-      `${PRODUCT_URL}/${barcode}.json?fields=${FIELDS}`,
-      {
-        headers: { 'User-Agent': USER_AGENT },
-        signal: controller.signal,
-      },
-    );
+    const response = await fetch(`${PRODUCT_URL}/${barcode}.json?fields=${FIELDS}`, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: controller.signal,
+    });
 
     if (!response.ok) {
-      return response.status === 404
-        ? { outcome: 'not-found' }
-        : { outcome: 'unavailable' };
+      return response.status === 404 ? { outcome: 'not-found' } : { outcome: 'unavailable' };
     }
 
     return parseProductResponse(barcode, await response.json());

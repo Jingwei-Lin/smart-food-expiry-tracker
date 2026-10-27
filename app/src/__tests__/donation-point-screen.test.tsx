@@ -20,8 +20,8 @@ jest.mock('react-native-safe-area-context', () => ({
 
 /*
  * Stands in for the bundled file, with made-up places so a test can't pass by
- * accident on the real data: one with hours, an address and two phone numbers,
- * and one with none of them.
+ * accident on the real data: one with hours, an address and a phone number the
+ * screen must not offer to dial, and one with none of them.
  */
 jest.mock('@/data/donation-points-au.json', () => ({
   fetchedAt: '2026-10-16T12:04:31.816Z',
@@ -37,7 +37,7 @@ jest.mock('@/data/donation-points-au.json', () => ({
         opening_hours: 'Mo-Fr 09:00-15:00',
         'addr:housenumber': '1',
         'addr:street': 'George Street',
-        phone: '+61 2 9000 0000;+61 2 9000 0001',
+        phone: '+61 2 9000 0000',
       },
     },
     {
@@ -66,6 +66,7 @@ function food(id: string, name: string, expiryDate: string): FoodItem {
     quantity: '1',
     expiryDate,
     storageLocation: 'fridge',
+    category: 'Others',
     reminderDaysBefore: 1,
     reminderRuleVersion: 2,
     notes: '',
@@ -96,9 +97,10 @@ beforeEach(() => {
   mockInventory.resolveItem.mockResolvedValue(undefined);
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   jest.spyOn(Share, 'share').mockResolvedValue({
-  action: 'sharedAction',
-  activityType: undefined,
+    action: 'sharedAction',
+    activityType: undefined,
   });
+  setNow(10);
 });
 
 afterEach(() => {
@@ -163,7 +165,7 @@ describe('the top of the screen', () => {
   });
 });
 
-describe('directions and calling', () => {
+describe('directions', () => {
   it('opens directions to the place in the maps app', async () => {
     const view = await renderPlace({ id: 'node-1' });
 
@@ -172,18 +174,11 @@ describe('directions and calling', () => {
     expect(Linking.openURL).toHaveBeenCalledWith(expect.stringContaining('daddr=-33.9,151.18'));
   });
 
-  it('calls the first number listed, without spaces', async () => {
+  it('offers no way to call, even when the data lists a number', async () => {
     const view = await renderPlace({ id: 'node-1' });
 
-    await fireEvent.press(view.getByLabelText('Call Close Pantry'));
-
-    expect(Linking.openURL).toHaveBeenCalledWith('tel:+61290000000');
-  });
-
-  it('offers no call button when there is no number', async () => {
-    const view = await renderPlace({ id: 'way-2' });
-
-    expect(view.queryByLabelText('Call Soup Hall')).toBeNull();
+    expect(view.queryByLabelText(/^Call/)).toBeNull();
+    expect(view.queryByText('Call')).toBeNull();
   });
 });
 

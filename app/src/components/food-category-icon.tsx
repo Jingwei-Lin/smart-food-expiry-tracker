@@ -1,18 +1,10 @@
 import React from 'react';
 import { View } from 'react-native';
-import {
-  Apple,
-  Beef,
-  Fish,
-  Leaf,
-  Milk,
-  Package,
-  Wheat,
-} from 'lucide-react-native';
+import { Apple, Beef, Fish, Leaf, Milk, Package, Wheat } from 'lucide-react-native';
 import type { FoodCategory } from '@/types/food-item';
 
 type FoodCategoryIconProps = {
-  category?: FoodCategory | string;
+  category?: FoodCategory;
   size?: number;
   color?: string;
   backgroundColor?: string;
@@ -37,28 +29,19 @@ export function FoodCategoryIcon({
   color = DEFAULT_COLOR,
   backgroundColor = DEFAULT_BACKGROUND,
 }: FoodCategoryIconProps) {
-  // Support older items that may still use "Pantry".
-  const normalizedCategory =
-    category === 'Pantry' ? 'Others' : category;
+  const Icon = CATEGORY_ICONS[category ?? 'Others'];
 
-  const Icon =
-    CATEGORY_ICONS[
-      normalizedCategory as keyof typeof CATEGORY_ICONS
-    ] ?? Package;
-
+  // The circle grows with the icon but never gets so tight that small icons touch its edge.
   const padding = Math.max(8, Math.round(size * 0.65));
 
   return (
-    <ViewWrapper
-      size={size + padding * 2}
-      backgroundColor={backgroundColor}
-    >
+    <CircleBadge size={size + padding * 2} backgroundColor={backgroundColor}>
       <Icon size={size} color={color} strokeWidth={1.8} />
-    </ViewWrapper>
+    </CircleBadge>
   );
 }
 
-function ViewWrapper({
+function CircleBadge({
   size,
   backgroundColor,
   children,
@@ -82,5 +65,3 @@ function ViewWrapper({
     </View>
   );
 }
-
-export default FoodCategoryIcon;

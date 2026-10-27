@@ -57,7 +57,7 @@ describe('parseProductResponse', () => {
     expect(result).toMatchObject({ product: { name: 'Hazelnut spread' } });
   });
 
-  it('uses Others and leaves expiry empty when no category matches', () => {
+  it('leaves the expiry empty when no category matches, rather than guessing', () => {
     const result = parseProductResponse(
       '1',
       { status: 1, product: { product_name: 'Mystery jar', categories_tags: ['en:unicorns'] } },
@@ -103,6 +103,59 @@ describe('parseProductResponse', () => {
       outcome: 'found',
       product: { category: 'Seafood' },
     });
+  });
+
+  it.each([
+    ['en:fishes', 'Seafood'],
+    ['en:frozen-fishes', 'Seafood'],
+    ['en:fresh-vegetables', 'Veg'],
+    ['en:fresh-fruits', 'Fruit'],
+    ['en:cheeses', 'Dairy'],
+    ['en:fresh-meats', 'Meat'],
+    ['en:breads', 'Bread'],
+  ])('files the whole tag %s under %s', (tag, category) => {
+    const result = parseProductResponse(
+      '1',
+      { status: 1, product: { product_name: 'Item', categories_tags: [tag] } },
+      today,
+    );
+
+    expect(result).toMatchObject({ product: { category } });
+  });
+
+  it.each([
+    'en:canned-vegetables',
+    'en:fruits-and-vegetables-based-foods',
+    'en:egg-noodles',
+    'en:milk-chocolates',
+    'en:fish-sauces',
+    'en:chicken-soups',
+    'en:fruit-juices',
+    'en:salad-dressings',
+  ])('does not file %s by a word that happens to be in it', (tag) => {
+    const result = parseProductResponse(
+      '1',
+      { status: 1, product: { product_name: 'Item', categories_tags: [tag] } },
+      today,
+    );
+
+    expect(result).toMatchObject({ product: { category: 'Others' } });
+  });
+
+  it('files a product under the first category in the list when its tags match two', () => {
+    const result = parseProductResponse(
+      '1',
+      {
+        status: 1,
+        product: {
+          product_name: 'Fish pie',
+          categories_tags: ['en:fresh-vegetables', 'en:fishes'],
+        },
+      },
+      today,
+    );
+
+    expect(result).toMatchObject({ product: { category: 'Seafood' } });
   });
 
   it.each([

@@ -190,7 +190,7 @@ describe('toSnapshot', () => {
     });
   });
 
-  it('keeps only the tags a card reads', () => {
+  it('keeps only the tags a card reads, and never a phone number', () => {
     const { elements } = toSnapshot(
       [
         {
@@ -219,7 +219,6 @@ describe('toSnapshot', () => {
       social_facility: 'food_bank',
       opening_hours: 'Mo-Fr 09:00-17:00',
       'addr:street': 'George Street',
-      phone: '+61 2 9000 0000',
     });
   });
 

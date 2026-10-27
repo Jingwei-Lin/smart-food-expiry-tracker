@@ -1,18 +1,8 @@
-import {
-  BarcodeType,
-  CameraView,
-  useCameraPermissions,
-} from 'expo-camera';
+import { BarcodeType, CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { ScanBarcode, X } from 'lucide-react-native';
 import { useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { lookupProduct } from '@/utils/open-food-facts';
@@ -29,12 +19,7 @@ const COLORS = {
   error: '#8B2C25',
 };
 
-const BARCODE_TYPES: BarcodeType[] = [
-  'ean13',
-  'ean8',
-  'upc_a',
-  'upc_e',
-];
+const BARCODE_TYPES: BarcodeType[] = ['ean13', 'ean8', 'upc_a', 'upc_e'];
 
 type ScanStage = 'scanning' | 'looking-up';
 
@@ -97,9 +82,7 @@ export default function ScanScreen() {
     return (
       <View style={styles.messageScreen}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.messageText}>
-          Checking camera permission...
-        </Text>
+        <Text style={styles.messageText}>Checking camera permission...</Text>
       </View>
     );
   }
@@ -119,10 +102,7 @@ export default function ScanScreen() {
           accessibilityRole="button"
           accessibilityLabel="Close scanner"
           onPress={() => router.back()}
-          style={({ pressed }) => [
-            styles.closeButton,
-            pressed && styles.pressed,
-          ]}
+          style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
         >
           <X size={24} color={COLORS.primary} />
         </Pressable>
@@ -133,9 +113,7 @@ export default function ScanScreen() {
           </View>
 
           <Text style={styles.permissionTitle}>
-            {permission.canAskAgain
-              ? 'Ready to scan?'
-              : 'Camera access is off'}
+            {permission.canAskAgain ? 'Ready to scan?' : 'Camera access is off'}
           </Text>
 
           <Text style={styles.permissionDescription}>
@@ -148,28 +126,18 @@ export default function ScanScreen() {
             <Pressable
               accessibilityRole="button"
               onPress={() => void requestPermission()}
-              style={({ pressed }) => [
-                styles.primaryButton,
-                pressed && styles.pressed,
-              ]}
+              style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
             >
-              <Text style={styles.primaryButtonText}>
-                Allow camera
-              </Text>
+              <Text style={styles.primaryButtonText}>Allow camera</Text>
             </Pressable>
           ) : null}
 
           <Pressable
             accessibilityRole="button"
             onPress={openManualEntry}
-            style={({ pressed }) => [
-              styles.secondaryButton,
-              pressed && styles.pressed,
-            ]}
+            style={({ pressed }) => [styles.secondaryButton, pressed && styles.pressed]}
           >
-            <Text style={styles.secondaryButtonText}>
-              Type it in instead
-            </Text>
+            <Text style={styles.secondaryButtonText}>Type it in instead</Text>
           </Pressable>
         </View>
       </View>
@@ -184,48 +152,29 @@ export default function ScanScreen() {
         }}
         facing="back"
         onBarcodeScanned={
-          stage === 'scanning'
-            ? ({ data }) => void handleBarcodeScanned(data)
-            : undefined
+          stage === 'scanning' ? ({ data }) => void handleBarcodeScanned(data) : undefined
         }
         style={StyleSheet.absoluteFill}
       />
 
-      <View
-        pointerEvents="none"
-        style={styles.cameraTint}
-      />
+      <View pointerEvents="none" style={styles.cameraTint} />
 
-      {/* Header */}
-      <View
-        style={[
-          styles.header,
-          { paddingTop: insets.top + 10 },
-        ]}
-      >
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Close scanner"
           onPress={() => router.back()}
-          style={({ pressed }) => [
-            styles.closeButton,
-            pressed && styles.pressed,
-          ]}
+          style={({ pressed }) => [styles.closeButton, pressed && styles.pressed]}
         >
           <X size={24} color={COLORS.primary} />
         </Pressable>
 
         <View style={styles.heading}>
-          <Text style={styles.title}>
-            Scan the barcode
-          </Text>
-          <Text style={styles.subtitle}>
-            Hold it inside the frame. It scans by itself.
-          </Text>
+          <Text style={styles.title}>Scan the barcode</Text>
+          <Text style={styles.subtitle}>Hold it inside the frame. It scans by itself.</Text>
         </View>
       </View>
 
-      {/* Scanner frame */}
       <View style={styles.scannerArea}>
         <View style={styles.frame}>
           <View style={[styles.corner, styles.topLeft]} />
@@ -235,7 +184,6 @@ export default function ScanScreen() {
         </View>
       </View>
 
-      {/* Bottom card */}
       <View
         style={[
           styles.bottomCard,
@@ -251,18 +199,13 @@ export default function ScanScreen() {
             {stage === 'looking-up' ? (
               <ActivityIndicator color={COLORS.primary} />
             ) : (
-              <ScanBarcode
-                size={28}
-                color={COLORS.primary}
-              />
+              <ScanBarcode size={28} color={COLORS.primary} />
             )}
           </View>
 
           <View style={styles.manualText}>
             <Text style={styles.manualTitle}>
-              {stage === 'looking-up'
-                ? 'Looking up your food...'
-                : 'No barcode?'}
+              {stage === 'looking-up' ? 'Looking up your food...' : 'No barcode?'}
             </Text>
             <Text style={styles.manualSubtitle}>
               {stage === 'looking-up'
@@ -282,9 +225,7 @@ export default function ScanScreen() {
             stage === 'looking-up' && styles.disabledButton,
           ]}
         >
-          <Text style={styles.manualButtonText}>
-            Type it in instead
-          </Text>
+          <Text style={styles.manualButtonText}>Type it in instead</Text>
         </Pressable>
       </View>
     </View>

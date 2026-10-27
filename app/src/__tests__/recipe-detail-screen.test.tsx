@@ -51,6 +51,7 @@ function food(id: string, name: string, daysLeft: number): FoodItem {
     quantity: '1',
     expiryDate: daysFromToday(daysLeft),
     storageLocation: 'fridge',
+    category: 'Others',
     reminderDaysBefore: 1,
     reminderRuleVersion: 2,
     notes: '',

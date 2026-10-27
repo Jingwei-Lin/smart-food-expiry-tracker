@@ -49,7 +49,7 @@ type DetailParams = {
 type Loaded = { recipe: Recipe; saved: SavedRecipe[] } | null | undefined;
 
 /*
- * "From your fridge" chips are dark, as in the design, with two exceptions so
+ * "From your fridge" chips are dark, with two exceptions so
  * nothing is missed: food past its date is light red with a warning icon, and
  * food no longer in the fridge (often the case for a recipe saved a while
  * ago) is just outlined and says so.
@@ -379,7 +379,7 @@ export default function RecipeDetailScreen() {
           <Text style={styles.barNote}>None of this recipe&apos;s food is in your fridge now.</Text>
         ) : (
           <>
-            {/* Just the two buttons, as in the design. A line only appears if saving fails. */}
+            {/* The note above the buttons only appears if saving fails. */}
             {markError ? <Text style={styles.barError}>{markError}</Text> : null}
 
             <View style={styles.barButtons}>

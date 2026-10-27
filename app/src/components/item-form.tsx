@@ -1,7 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker, {
-  DateTimePickerAndroid,
-} from '@react-native-community/datetimepicker';
+import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
 import { ReactNode, useState } from 'react';
 import {
   Keyboard,
@@ -14,6 +12,10 @@ import {
   View,
 } from 'react-native';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { FOOD_CATEGORIES } from '@/types/food-item';
+import type { FoodCategory, FoodStorageLocation } from '@/types/food-item';
 import {
   formatExpiryDateInput,
   formatWeekdayDate,
@@ -21,18 +23,13 @@ import {
   toExpiryDateString,
 } from '@/utils/expiry-date';
 
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import type { FoodCategory } from '@/types/food-item';
-
-export type StorageLocation = 'fridge' | 'freezer' | 'pantry';
-
 export type ItemFormValues = {
   name: string;
   quantity: string;
   expiryDate: string;
   reminderDaysBefore: number;
   notes: string;
-  storageLocation?: StorageLocation;
+  storageLocation?: FoodStorageLocation;
   category?: FoodCategory;
 };
 
@@ -45,7 +42,8 @@ type ItemFormErrors = {
 
 type ItemFormProps = {
   initialValues?: ItemFormValues;
-  submitLabel: string;
+  /** A function lets the label follow the chosen storage location. */
+  submitLabel: string | ((storageLocation: FoodStorageLocation) => string);
   blockedReason?: string | null;
   clearOnSubmit?: boolean;
   expiryHelpText?: string;
@@ -64,19 +62,9 @@ const emptyValues: ItemFormValues = {
   storageLocation: 'fridge',
 };
 
-const FOOD_CATEGORIES: FoodCategory[] = [
-  'Veg',
-  'Fruit',
-  'Dairy',
-  'Meat',
-  'Bread',
-  'Seafood',
-  'Others',
-];
-
 const STORAGE_OPTIONS: {
   label: string;
-  value: StorageLocation;
+  value: FoodStorageLocation;
 }[] = [
   { label: 'Fridge', value: 'fridge' },
   { label: 'Freezer', value: 'freezer' },
@@ -114,12 +102,11 @@ export function ItemForm({
   const [name, setName] = useState(initialValues.name);
   const [quantity, setQuantity] = useState(initialValues.quantity);
   const [expiryDate, setExpiryDate] = useState(initialValues.expiryDate);
-  const [reminderDaysBefore, setReminderDaysBefore] = useState(
-    initialValues.reminderDaysBefore,
-  );
+  const [reminderDaysBefore, setReminderDaysBefore] = useState(initialValues.reminderDaysBefore);
   const [notes, setNotes] = useState(initialValues.notes);
-  const [storageLocation, setStorageLocation] =
-    useState<StorageLocation>(initialValues.storageLocation ?? 'fridge');
+  const [storageLocation, setStorageLocation] = useState<FoodStorageLocation>(
+    initialValues.storageLocation ?? 'fridge',
+  );
   const [selectedCategory, setSelectedCategory] = useState<FoodCategory>(
     initialValues.category ?? 'Others',
   );
@@ -127,8 +114,6 @@ export function ItemForm({
   const [errors, setErrors] = useState<ItemFormErrors>({});
   const [isSaving, setIsSaving] = useState(false);
   const insets = useSafeAreaInsets();
-
-  // Keep your existing state and code below this line.
 
   const isSubmitDisabled = isSaving || blockedReason !== null;
   const typesTheDate = Platform.OS === 'web';
@@ -180,11 +165,7 @@ export function ItemForm({
       next.expiryDate = 'Use a valid date in YYYY-MM-DD format.';
     }
 
-    if (
-      !Number.isInteger(reminderDaysBefore) ||
-      reminderDaysBefore < 1 ||
-      reminderDaysBefore > 7
-    ) {
+    if (!Number.isInteger(reminderDaysBefore) || reminderDaysBefore < 1 || reminderDaysBefore > 7) {
       next.reminderDaysBefore = 'Choose a reminder from 1 to 7 days.';
     }
 
@@ -238,10 +219,7 @@ export function ItemForm({
     <View style={styles.screen}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[
-          styles.content,
-          topContent ? styles.contentWithTopContent : null,
-        ]}
+        contentContainerStyle={[styles.content, topContent ? styles.contentWithTopContent : null]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
@@ -263,48 +241,39 @@ export function ItemForm({
               style={[styles.input, errors.name && styles.inputError]}
               value={name}
             />
-            {errors.name ? (
-              <Text style={styles.errorText}>{errors.name}</Text>
-            ) : null}
+            {errors.name ? <Text style={styles.errorText}>{errors.name}</Text> : null}
           </View>
 
-            <View style={styles.field}>
-              <Text style={styles.label}>What kind of food?</Text>
-              <Text style={styles.helpText}>
-                Choose a category to help identify your food.
-              </Text>
-              <View style={styles.categoryOptions}>
-                {FOOD_CATEGORIES.map((category) => {
-                  const selected = selectedCategory === category;
-                  return (
-                    <Pressable
-                      key={category}
-                      accessibilityRole="radio"
-                      accessibilityState={{ checked: selected }}
-                      disabled={isSaving}
-                      onPress={() => {
-                        setSelectedCategory(category);
-                        onCategoryChange?.(category);
-                      }}
-                      style={({ pressed }) => [
-                        styles.categoryPill,
-                        selected && styles.categoryPillSelected,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.categoryText,
-                          selected && styles.categoryTextSelected,
-                        ]}
-                      >
-                        {category}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+          <View style={styles.field}>
+            <Text style={styles.label}>What kind of food?</Text>
+            <Text style={styles.helpText}>Choose a category to help identify your food.</Text>
+            <View style={styles.categoryOptions}>
+              {FOOD_CATEGORIES.map((category) => {
+                const selected = selectedCategory === category;
+                return (
+                  <Pressable
+                    key={category}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected }}
+                    disabled={isSaving}
+                    onPress={() => {
+                      setSelectedCategory(category);
+                      onCategoryChange?.(category);
+                    }}
+                    style={({ pressed }) => [
+                      styles.categoryPill,
+                      selected && styles.categoryPillSelected,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={[styles.categoryText, selected && styles.categoryTextSelected]}>
+                      {category}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
+          </View>
           <View style={styles.twoColumns}>
             <View style={[styles.field, styles.column]}>
               <Text style={styles.label}>Quantity</Text>
@@ -350,18 +319,10 @@ export function ItemForm({
                     pressed && styles.pressed,
                   ]}
                 >
-                  <Text
-                    style={pickedDate ? styles.dateText : styles.placeholder}
-                  >
-                    {pickedDate
-                      ? formatWeekdayDate(pickedDate)
-                      : 'Choose a date'}
+                  <Text style={pickedDate ? styles.dateText : styles.placeholder}>
+                    {pickedDate ? formatWeekdayDate(pickedDate) : 'Choose a date'}
                   </Text>
-                  <Ionicons
-                    name="calendar-outline"
-                    size={19}
-                    color={COLORS.primary}
-                  />
+                  <Ionicons name="calendar-outline" size={19} color={COLORS.primary} />
                 </Pressable>
               )}
             </View>
@@ -391,14 +352,12 @@ export function ItemForm({
             <Text style={styles.errorText}>{errors.expiryDate}</Text>
           ) : expiryHelpText ? (
             <Text style={styles.helpText}>{expiryHelpText}</Text>
-          ) : selectedCategory ? (
+          ) : selectedCategory !== 'Others' ? (
             <Text style={styles.helpText}>
               Check the package for its use-by date. Food type: {selectedCategory}.
             </Text>
           ) : (
-            <Text style={styles.helpText}>
-              Check the date printed on the package.
-            </Text>
+            <Text style={styles.helpText}>Check the date printed on the package.</Text>
           )}
 
           <View style={styles.field}>
@@ -461,7 +420,18 @@ export function ItemForm({
                   <Ionicons name="remove" size={21} color={COLORS.primary} />
                 </Pressable>
 
-                <Text style={styles.stepperValue}>{reminderDaysBefore}</Text>
+                <Text
+                  accessibilityLabel="Days before expiry"
+                  accessibilityValue={{
+                    now: reminderDaysBefore,
+                    min: 1,
+                    max: 7,
+                    text: `${reminderDaysBefore} ${reminderDaysBefore === 1 ? 'day' : 'days'}`,
+                  }}
+                  style={styles.stepperValue}
+                >
+                  {reminderDaysBefore}
+                </Text>
 
                 <Pressable
                   accessibilityRole="button"
@@ -483,11 +453,7 @@ export function ItemForm({
             </View>
 
             <View style={styles.reminderPreview}>
-              <Ionicons
-                name="notifications-outline"
-                size={19}
-                color={COLORS.primary}
-              />
+              <Ionicons name="notifications-outline" size={19} color={COLORS.primary} />
               <Text style={styles.reminderPreviewText}>
                 You’ll get a reminder {reminderDaysBefore}{' '}
                 {reminderDaysBefore === 1 ? 'day' : 'days'} before expiry.
@@ -530,10 +496,7 @@ export function ItemForm({
         </View>
       </ScrollView>
 
-      <View style={[
-        styles.footer,
-        { paddingBottom: Math.max(insets.bottom, 12) },]}
-      >
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <Pressable
           accessibilityRole="button"
           disabled={isSubmitDisabled}
@@ -545,7 +508,11 @@ export function ItemForm({
           ]}
         >
           <Text style={styles.submitButtonText}>
-            {isSaving ? 'Saving...' : submitLabel}
+            {isSaving
+              ? 'Saving...'
+              : typeof submitLabel === 'function'
+                ? submitLabel(storageLocation)
+                : submitLabel}
           </Text>
         </Pressable>
       </View>
