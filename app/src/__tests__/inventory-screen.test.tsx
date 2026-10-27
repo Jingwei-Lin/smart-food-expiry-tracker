@@ -76,7 +76,11 @@ jest.mock('react-native-safe-area-context', () => ({
 
 const STORAGE_KEY = '@smart-food-expiry-tracker/inventory-v1';
 
-function buildItem(id: string, expiryDate: string, category?: FoodItem['category']): FoodItem {
+function buildItem(
+  id: string,
+  expiryDate: string,
+  category: FoodItem['category'] = 'Others',
+): FoodItem {
   return {
     id,
     name: id,
@@ -260,6 +264,24 @@ describe('InventoryScreen', () => {
 
     expect(view.getByText('Nothing in your pantry')).toBeTruthy();
     expect(view.getByRole('button', { name: 'Scan a food item' })).toBeTruthy();
+  });
+
+  it('shows only the error, not an empty fridge, when the saved inventory could not be read', async () => {
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('unreadable'));
+
+    const view = await renderScreen([buildItem('Milk', '2026-10-19')]);
+
+    expect(view.getByText(/saved inventory could not be loaded/)).toBeTruthy();
+    expect(view.queryByText('Nothing in your fridge')).toBeNull();
+    expect(view.queryByRole('button', { name: 'Scan a food item' })).toBeNull();
+    expect(view.queryByRole('button', { name: /^Fridge/ })).toBeNull();
+  });
+
+  it('hides the decorative week strip from screen readers', async () => {
+    const view = await renderScreen([]);
+
+    expect(view.queryByText('Mon')).toBeNull();
+    expect(view.getByText('Mon', { includeHiddenElements: true })).toBeTruthy();
   });
 
   it('counts only food that has not expired as "to eat soon"', async () => {

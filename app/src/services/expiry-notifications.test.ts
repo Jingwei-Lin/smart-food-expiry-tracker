@@ -6,10 +6,10 @@ import {
   getExpiryReminderPlan,
   scheduleExpiryReminders,
 } from '@/services/expiry-notifications';
-import * as Notifications from '@/services/local-notifications';
+import * as Notifications from 'expo-notifications';
 import { FoodItem } from '@/types/food-item';
 
-jest.mock('@/services/local-notifications', () => ({
+jest.mock('expo-notifications', () => ({
   AndroidImportance: { HIGH: 4 },
   IosAuthorizationStatus: {
     AUTHORIZED: 2,
@@ -36,6 +36,7 @@ const item: FoodItem = {
   quantity: '2 L',
   expiryDate: '2026-09-20',
   storageLocation: 'fridge',
+  category: 'Others',
   reminderDaysBefore: 1,
   reminderRuleVersion: 2,
   notes: '',

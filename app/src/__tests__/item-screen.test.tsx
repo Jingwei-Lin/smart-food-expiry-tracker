@@ -18,6 +18,7 @@ jest.mock('expo-router', () => ({
     canGoBack: jest.fn(() => true),
     dismissTo: jest.fn(),
     push: jest.fn(),
+    replace: jest.fn(),
   },
   Stack: { Screen: () => null },
   useLocalSearchParams: () => ({ id: 'milk' }),
@@ -36,6 +37,7 @@ function buildMilk(overrides: Partial<FoodItem> = {}): FoodItem {
     quantity: '2 L',
     expiryDate: '2026-10-02',
     storageLocation: 'fridge',
+    category: 'Others',
     reminderDaysBefore: 1,
     reminderRuleVersion: 2,
     notes: '',
@@ -62,6 +64,7 @@ async function renderScreen(item: FoodItem) {
 beforeEach(async () => {
   jest.mocked(router.dismissTo).mockReset();
   jest.mocked(router.back).mockReset();
+  jest.mocked(router.replace).mockReset();
   await AsyncStorage.clear();
 });
 
@@ -116,6 +119,75 @@ describe('ItemDetailScreen', () => {
     expect(view.getAllByText('Saving...')).toHaveLength(1);
     expect(view.queryByText(pressed)).toBeNull();
     expect(view.getByText(other)).toBeTruthy();
+  });
+
+  it('names the item on the buttons that resolve it, for screen readers', async () => {
+    const view = await renderScreen(buildMilk());
+
+    expect(view.getByRole('button', { name: 'Mark Milk as eaten' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Mark Milk as thrown out' })).toBeTruthy();
+  });
+
+  it('marks only the pressed button as busy while it saves', async () => {
+    const view = await renderScreen(buildMilk());
+    jest.spyOn(AsyncStorage, 'setItem').mockReturnValueOnce(new Promise(() => undefined));
+
+    await fireEvent.press(view.getByText('Thrown out'));
+
+    expect(
+      view.getByRole('button', { name: 'Mark Milk as thrown out' }).props.accessibilityState,
+    ).toMatchObject({ busy: true, disabled: true });
+    expect(
+      view.getByRole('button', { name: 'Mark Milk as eaten' }).props.accessibilityState,
+    ).toMatchObject({ busy: false, disabled: true });
+  });
+
+  it('goes back one screen, which is not always the inventory', async () => {
+    const view = await renderScreen(buildMilk());
+
+    await fireEvent.press(view.getByLabelText('Go back'));
+
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to the inventory when the screen was opened with nothing to go back to', async () => {
+    const view = await renderScreen(buildMilk());
+    jest.mocked(router.canGoBack).mockReturnValueOnce(false);
+
+    await fireEvent.press(view.getByLabelText('Go back'));
+
+    expect(router.back).not.toHaveBeenCalled();
+    expect(router.replace).toHaveBeenCalledWith('/');
+  });
+
+  it('offers a way back while the inventory is still loading', async () => {
+    jest.spyOn(AsyncStorage, 'getItem').mockReturnValueOnce(new Promise(() => undefined));
+
+    const view = await render(
+      <InventoryProvider>
+        <ItemDetailScreen />
+      </InventoryProvider>,
+    );
+
+    expect(view.getByText('Loading item...')).toBeTruthy();
+
+    await fireEvent.press(view.getByLabelText('Go back'));
+
+    expect(router.back).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers a way back for an item that no longer exists', async () => {
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([]));
+
+    const view = await render(
+      <InventoryProvider>
+        <ItemDetailScreen />
+      </InventoryProvider>,
+    );
+
+    await fireEvent.press(await view.findByText('Back to inventory'));
+
+    expect(router.back).toHaveBeenCalledTimes(1);
   });
 
   it.each([

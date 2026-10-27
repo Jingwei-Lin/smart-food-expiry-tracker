@@ -11,9 +11,9 @@ import {
 } from 'react';
 
 import {
-  FoodCategory,
   FoodItem,
   FoodStorageLocation,
+  getValidCategory,
   NewFoodItem,
   ResolvedFoodItemStatus,
 } from '@/types/food-item';
@@ -24,31 +24,6 @@ import {
 } from '@/services/expiry-notifications';
 
 const STORAGE_KEY = '@smart-food-expiry-tracker/inventory-v1';
-function normalizeFoodCategory(value: unknown): FoodCategory {
-  if (typeof value !== 'string') {
-    return 'Others';
-  }
-
-  const normalized = value.trim().toLowerCase();
-
-  const categoryMap: Record<string, FoodCategory> = {
-    veg: 'Veg',
-    vegetable: 'Veg',
-    vegetables: 'Veg',
-    fruit: 'Fruit',
-    fruits: 'Fruit',
-    dairy: 'Dairy',
-    meat: 'Meat',
-    bread: 'Bread',
-    seafood: 'Seafood',
-    fish: 'Seafood',
-    others: 'Others',
-    other: 'Others',
-    pantry: 'Others',
-  };
-
-  return categoryMap[normalized] ?? 'Others';
-}
 
 type InventoryContextValue = {
   items: FoodItem[];
@@ -143,7 +118,7 @@ function normalizeFoodItem(value: unknown): FoodItem | null {
       ? { statusUpdatedAt: item.statusUpdatedAt }
       : null),
     ...(typeof item.barcode === 'string' ? { barcode: item.barcode } : null),
-    category: normalizeFoodCategory(item.category),
+    category: getValidCategory(item.category),
     ...(notificationIds && notificationIds.length > 0 ? { notificationIds } : null),
   };
 }
@@ -411,13 +386,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         quantity: input.quantity,
         expiryDate: input.expiryDate,
         storageLocation: input.storageLocation ?? 'fridge',
+        category: input.category ?? 'Others',
         reminderDaysBefore: input.reminderDaysBefore,
         reminderRuleVersion: 2,
         notes: input.notes,
         createdAt: new Date().toISOString(),
         status: 'active',
         ...(input.barcode ? { barcode: input.barcode } : null),
-        ...(input.category ? { category: input.category } : null),
       };
 
       const reminderResult = await scheduleExpiryReminders(newItem);
@@ -447,7 +422,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
   /*
    * Apply an edit from the item form. Only the fields the form owns are
-   * replaced, so createdAt and status survive the edit.
+   * replaced, so createdAt and status survive the edit. A category or storage
+   * location the input leaves out keeps its stored value.
    */
   const updateItem = useCallback(
     async (id: string, input: NewFoodItem) => {
@@ -460,6 +436,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       const editedItem: FoodItem = {
         ...currentItem,
         ...input,
+        category: input.category ?? currentItem.category,
         storageLocation: input.storageLocation ?? currentItem.storageLocation,
         reminderRuleVersion: 2,
       };

@@ -18,8 +18,8 @@ export const FOOD_CATEGORIES = [
 
 export type FoodCategory = (typeof FOOD_CATEGORIES)[number];
 
-/** Narrows a loose value, such as a route param, to a category, falling back to Others. */
-export function getValidCategory(category?: string): FoodCategory {
+/** Narrows a loose value, such as a route param or stored text, to a category, else Others. */
+export function getValidCategory(category?: unknown): FoodCategory {
   return FOOD_CATEGORIES.find((valid) => valid === category) ?? 'Others';
 }
 
@@ -48,7 +48,7 @@ export type FoodItem = {
   /** Absent on an item typed in by hand, and on anything saved before scanning existed. */
   barcode?: string;
 
-  category?: FoodCategory;
+  category: FoodCategory;
 
   /** Native identifiers for the advance and expiry-day local reminders. */
   notificationIds?: string[];
@@ -56,8 +56,11 @@ export type FoodItem = {
 
 export type NewFoodItem = Pick<
   FoodItem,
-  'name' | 'quantity' | 'expiryDate' | 'reminderDaysBefore' | 'notes' | 'barcode' | 'category'
+  'name' | 'quantity' | 'expiryDate' | 'reminderDaysBefore' | 'notes' | 'barcode'
 > & {
   /** Left out, the item goes in the fridge. */
   storageLocation?: FoodStorageLocation;
+
+  /** Left out, the item is filed under Others. */
+  category?: FoodCategory;
 };

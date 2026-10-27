@@ -101,13 +101,15 @@ export function sumOutcomes(days: DayOutcomes[]): OutcomeTotals {
   );
 }
 
-/** The items thrown out on any of the given days, so the summary can list them. */
+/** The items thrown out on any of the given days, newest first, so the summary can list them. */
 export function getDiscardedItems(items: FoodItem[], days: DayOutcomes[]): FoodItem[] {
   const keys = new Set(days.map((day) => day.key));
 
-  return items.filter((item) => {
-    const key = getOutcomeDayKey(item);
+  return items
+    .filter((item) => {
+      const key = getOutcomeDayKey(item);
 
-    return item.status === 'discarded' && key !== null && keys.has(key);
-  });
+      return item.status === 'discarded' && key !== null && keys.has(key);
+    })
+    .sort((a, b) => Date.parse(b.statusUpdatedAt!) - Date.parse(a.statusUpdatedAt!));
 }

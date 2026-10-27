@@ -19,6 +19,7 @@ function buildItem(overrides: Partial<FoodItem>): FoodItem {
     quantity: '1 L',
     expiryDate: '2026-10-10',
     storageLocation: 'fridge',
+    category: 'Others',
     reminderDaysBefore: 1,
     reminderRuleVersion: 2,
     notes: '',
@@ -259,5 +260,46 @@ describe('getDiscardedItems', () => {
     ];
 
     expect(getDiscardedItems(items, getSummaryDays(items, NOW, 'week'))).toEqual([inWeek]);
+  });
+
+  it('lists the newest first, whatever order the inventory holds them in', () => {
+    const monday = buildItem({
+      id: 'monday',
+      status: 'discarded',
+      statusUpdatedAt: new Date(2026, 9, 5, 8, 0).toISOString(),
+    });
+    const tuesdayEvening = buildItem({
+      id: 'tuesday-evening',
+      status: 'discarded',
+      statusUpdatedAt: new Date(2026, 9, 6, 20, 0).toISOString(),
+    });
+    const tuesdayMorning = buildItem({
+      id: 'tuesday-morning',
+      status: 'discarded',
+      statusUpdatedAt: new Date(2026, 9, 6, 7, 0).toISOString(),
+    });
+    const items = [monday, tuesdayEvening, tuesdayMorning];
+
+    expect(
+      getDiscardedItems(items, getSummaryDays(items, NOW, 'week')).map((item) => item.id),
+    ).toEqual(['tuesday-evening', 'tuesday-morning', 'monday']);
+  });
+
+  it('leaves the inventory it was given in its original order', () => {
+    const older = buildItem({
+      id: 'older',
+      status: 'discarded',
+      statusUpdatedAt: new Date(2026, 9, 5, 8, 0).toISOString(),
+    });
+    const newer = buildItem({
+      id: 'newer',
+      status: 'discarded',
+      statusUpdatedAt: new Date(2026, 9, 6, 8, 0).toISOString(),
+    });
+    const items = [older, newer];
+
+    getDiscardedItems(items, getSummaryDays(items, NOW, 'week'));
+
+    expect(items).toEqual([older, newer]);
   });
 });

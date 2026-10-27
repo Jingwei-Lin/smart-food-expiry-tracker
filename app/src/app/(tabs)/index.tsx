@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { InventoryRow } from '@/components/inventory-row';
@@ -62,7 +62,7 @@ function getLocationLabel(location: FoodStorageLocation): string {
 }
 
 export default function InventoryScreen() {
-  const { activeItems, isLoading, reminderNotice, storageError } = useInventory();
+  const { activeItems, isLoading, isStorageReady, reminderNotice, storageError } = useInventory();
 
   const insets = useSafeAreaInsets();
   const today = useToday();
@@ -70,6 +70,12 @@ export default function InventoryScreen() {
   const [selectedLocation, setSelectedLocation] = useState<FoodStorageLocation>('fridge');
 
   const weekDates = getWeekDates(today);
+
+  /*
+   * With the saved inventory unread, the empty list below would be a guess, and
+   * its prompt to scan an item would invite food that cannot be saved.
+   */
+  const inventoryUnreadable = !isStorageReady;
 
   const locationItems = activeItems
     .filter((item) => item.storageLocation === selectedLocation)
@@ -86,7 +92,7 @@ export default function InventoryScreen() {
 
   return (
     <View style={styles.screen}>
-      <FlatList
+      <ScrollView
         contentContainerStyle={[
           styles.listContent,
           {
@@ -94,10 +100,77 @@ export default function InventoryScreen() {
             paddingBottom: insets.bottom + 124,
           },
         ]}
-        data={[selectedLocation]}
-        keyExtractor={(item) => item}
         showsVerticalScrollIndicator={false}
-        renderItem={() => (
+      >
+        <View style={styles.header}>
+          <View style={styles.headingRow}>
+            <View style={styles.headingText}>
+              <Text style={styles.dateHeading}>
+                {today.toLocaleDateString('en-AU', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                })}
+              </Text>
+
+              <Text style={styles.title}>What&apos;s in my fridge?</Text>
+            </View>
+          </View>
+
+          <View
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={styles.weekStrip}
+          >
+            {weekDates.map((date) => {
+              const isToday = date.toDateString() === today.toDateString();
+
+              return (
+                <View key={date.toISOString()} style={styles.weekDay}>
+                  <Text style={[styles.weekDayLabel, isToday && styles.weekDayLabelToday]}>
+                    {date.toLocaleDateString('en-AU', {
+                      weekday: 'short',
+                    })}
+                  </Text>
+
+                  <View style={[styles.dayCircle, isToday && styles.dayCircleToday]}>
+                    <Text style={[styles.dayNumber, isToday && styles.dayNumberToday]}>
+                      {date.getDate()}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
+          {inventoryUnreadable ? null : (
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryTextRow}>
+                <Ionicons name="checkbox-outline" size={25} color={COLORS.primary} />
+
+                <Text style={styles.subtitle}>{describeInventory(locationItems, today)}</Text>
+              </View>
+            </View>
+          )}
+
+          {storageError ? (
+            <View style={styles.errorBanner}>
+              <Ionicons name="warning-outline" size={19} color={COLORS.error} />
+
+              <Text style={styles.errorText}>{storageError}</Text>
+            </View>
+          ) : null}
+
+          {reminderNotice ? (
+            <View style={styles.reminderBanner}>
+              <Ionicons name="notifications-off-outline" size={19} color={COLORS.warning} />
+
+              <Text style={styles.reminderText}>{reminderNotice}</Text>
+            </View>
+          ) : null}
+        </View>
+
+        {inventoryUnreadable ? null : (
           <View style={styles.fridgeArea}>
             <View style={styles.fridgeCard}>
               <View style={styles.locationTabs}>
@@ -181,70 +254,7 @@ export default function InventoryScreen() {
             </View>
           </View>
         )}
-        ListHeaderComponent={
-          <View style={styles.header}>
-            <View style={styles.headingRow}>
-              <View style={styles.headingText}>
-                <Text style={styles.dateHeading}>
-                  {today.toLocaleDateString('en-AU', {
-                    weekday: 'short',
-                    day: 'numeric',
-                    month: 'short',
-                  })}
-                </Text>
-
-                <Text style={styles.title}>What&apos;s in my fridge?</Text>
-              </View>
-            </View>
-
-            <View style={styles.weekStrip}>
-              {weekDates.map((date) => {
-                const isToday = date.toDateString() === today.toDateString();
-
-                return (
-                  <View key={date.toISOString()} style={styles.weekDay}>
-                    <Text style={[styles.weekDayLabel, isToday && styles.weekDayLabelToday]}>
-                      {date.toLocaleDateString('en-AU', {
-                        weekday: 'short',
-                      })}
-                    </Text>
-
-                    <View style={[styles.dayCircle, isToday && styles.dayCircleToday]}>
-                      <Text style={[styles.dayNumber, isToday && styles.dayNumberToday]}>
-                        {date.getDate()}
-                      </Text>
-                    </View>
-                  </View>
-                );
-              })}
-            </View>
-
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryTextRow}>
-                <Ionicons name="checkbox-outline" size={25} color={COLORS.primary} />
-
-                <Text style={styles.subtitle}>{describeInventory(locationItems, today)}</Text>
-              </View>
-            </View>
-
-            {storageError ? (
-              <View style={styles.errorBanner}>
-                <Ionicons name="warning-outline" size={19} color={COLORS.error} />
-
-                <Text style={styles.errorText}>{storageError}</Text>
-              </View>
-            ) : null}
-
-            {reminderNotice ? (
-              <View style={styles.reminderBanner}>
-                <Ionicons name="notifications-off-outline" size={19} color={COLORS.warning} />
-
-                <Text style={styles.reminderText}>{reminderNotice}</Text>
-              </View>
-            ) : null}
-          </View>
-        }
-      />
+      </ScrollView>
     </View>
   );
 }

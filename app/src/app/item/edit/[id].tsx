@@ -15,7 +15,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FoodCategoryIcon } from '@/components/food-category-icon';
 import { ItemForm, ItemFormValues } from '@/components/item-form';
 import { useInventory } from '@/context/inventory-context';
-import { getValidCategory } from '@/types/food-item';
 import type { FoodCategory } from '@/types/food-item';
 import { returnToInventory } from '@/utils/navigation';
 
@@ -105,10 +104,7 @@ export default function EditItemScreen() {
             </View>
 
             <View style={styles.itemInfo}>
-              <FoodCategoryIcon
-                category={selectedCategory ?? getValidCategory(item.category)}
-                size={22}
-              />
+              <FoodCategoryIcon category={selectedCategory ?? item.category} size={22} />
 
               <Text style={styles.subtitle} numberOfLines={2}>
                 Update the details for {item.name}.
@@ -128,7 +124,7 @@ export default function EditItemScreen() {
           reminderDaysBefore: item.reminderDaysBefore,
           notes: item.notes,
           storageLocation: item.storageLocation,
-          category: getValidCategory(item.category),
+          category: item.category,
         }}
         onSubmit={handleSubmit}
         onCategoryChange={setSelectedCategory}

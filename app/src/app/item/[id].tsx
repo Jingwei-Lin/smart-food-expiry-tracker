@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
@@ -95,6 +95,20 @@ function getExpiryHint(days: number): string {
   return 'Keep an eye on the expiry date.';
 }
 
+/** Pops one screen. A reminder or a link can open this one with nothing underneath. */
+function BackButton() {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Go back"
+      onPress={returnToInventory}
+      style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
+    >
+      <Ionicons name="chevron-back" size={25} color={COLORS.primary} />
+    </Pressable>
+  );
+}
+
 export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
@@ -165,36 +179,34 @@ export default function ItemDetailScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.centeredContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.centeredText}>Loading item...</Text>
+      <View style={styles.screen}>
+        <View style={[styles.header, styles.loadingHeader, { paddingTop: insets.top + 10 }]}>
+          <BackButton />
+        </View>
+
+        <View style={styles.centeredContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.centeredText}>Loading item...</Text>
+        </View>
       </View>
     );
   }
 
   if (!item) {
     return (
-      <>
-        <Stack.Screen options={{ headerShown: false }} />
+      <View style={[styles.centeredContainer, { paddingTop: insets.top + 24 }]}>
+        <Ionicons name="alert-circle-outline" size={42} color={COLORS.secondary} />
 
-        <View style={[styles.centeredContainer, { paddingTop: insets.top + 24 }]}>
-          <Ionicons name="alert-circle-outline" size={42} color={COLORS.secondary} />
+        <Text style={styles.notFoundTitle}>Item not found</Text>
 
-          <Text style={styles.notFoundTitle}>Item not found</Text>
+        <Text style={styles.centeredText}>
+          This item may have been removed or is no longer available.
+        </Text>
 
-          <Text style={styles.centeredText}>
-            This item may have been removed or is no longer available.
-          </Text>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={returnToInventory}
-            style={styles.backButton}
-          >
-            <Text style={styles.backButtonText}>Back to inventory</Text>
-          </Pressable>
-        </View>
-      </>
+        <Pressable accessibilityRole="button" onPress={returnToInventory} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Back to inventory</Text>
+        </Pressable>
+      </View>
     );
   }
 
@@ -231,326 +243,309 @@ export default function ItemDetailScreen() {
             : '20%';
 
   return (
-    <>
-      <Stack.Screen options={{ headerShown: false }} />
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingBottom: isActive ? 145 + insets.bottom : 24 + insets.bottom,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+          <BackButton />
 
-      <View style={styles.screen}>
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={[
-            styles.content,
-            {
-              paddingBottom: isActive ? 145 + insets.bottom : 24 + insets.bottom,
-            },
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
-          <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Back to inventory"
-              onPress={() => {
-                if (router.canGoBack()) {
-                  router.back();
-                } else {
-                  returnToInventory();
-                }
-              }}
-              style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
-            >
-              <Ionicons name="chevron-back" size={25} color={COLORS.primary} />
-            </Pressable>
-
-            <View style={styles.headerSpacer} />
-
-            {isActive ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Edit item"
-                onPress={openEdit}
-                style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
-              >
-                <Ionicons name="create-outline" size={23} color={COLORS.primary} />
-              </Pressable>
-            ) : (
-              <View style={styles.headerSpacer} />
-            )}
-          </View>
-
-          <View
-            style={[
-              styles.summary,
-              {
-                backgroundColor: isActive ? expiry.background : COLORS.accentSoft,
-              },
-            ]}
-          >
-            <View style={styles.foodIcon}>
-              <FoodCategoryIcon
-                category={item.category}
-                size={28}
-                color={COLORS.primary}
-                backgroundColor={COLORS.accentSoft}
-              />
-            </View>
-
-            <View style={styles.summaryDetails}>
-              <View style={styles.storagePill}>
-                <Text style={styles.storageText}>{STORAGE_LABELS[item.storageLocation]}</Text>
-              </View>
-
-              <Text style={styles.itemName}>{item.name}</Text>
-
-              {itemMeta ? <Text style={styles.itemMeta}>{itemMeta}</Text> : null}
-
-              {isActive ? (
-                <View style={styles.statusBadge}>
-                  <Text style={[styles.statusBadgeText, { color: expiry.foreground }]}>
-                    {getExpiryHeadline(daysLeft)}
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.statusBadge}>
-                  <Text style={styles.resolvedLabel}>{statusLabel}</Text>
-                </View>
-              )}
-            </View>
-          </View>
+          <View style={styles.headerSpacer} />
 
           {isActive ? (
-            <>
-              <View style={[styles.expiryCard, { backgroundColor: expiry.background }]}>
-                <View style={styles.expiryHeading}>
-                  <Ionicons name="warning-outline" size={25} color={expiry.foreground} />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Edit item"
+              onPress={openEdit}
+              style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
+            >
+              <Ionicons name="create-outline" size={23} color={COLORS.primary} />
+            </Pressable>
+          ) : (
+            <View style={styles.headerSpacer} />
+          )}
+        </View>
 
-                  <View style={styles.expiryHeadingDetails}>
-                    <Text style={styles.expiryTitle}>{getExpiryHeadline(daysLeft)}</Text>
+        <View
+          style={[
+            styles.summary,
+            {
+              backgroundColor: isActive ? expiry.background : COLORS.accentSoft,
+            },
+          ]}
+        >
+          <View style={styles.foodIcon}>
+            <FoodCategoryIcon
+              category={item.category}
+              size={28}
+              color={COLORS.primary}
+              backgroundColor={COLORS.accentSoft}
+            />
+          </View>
 
-                    <Text style={styles.expiryDate}>
-                      Use by {formatExpiryDate(item.expiryDate)}
+          <View style={styles.summaryDetails}>
+            <View style={styles.storagePill}>
+              <Text style={styles.storageText}>{STORAGE_LABELS[item.storageLocation]}</Text>
+            </View>
+
+            <Text style={styles.itemName}>{item.name}</Text>
+
+            {itemMeta ? <Text style={styles.itemMeta}>{itemMeta}</Text> : null}
+
+            {isActive ? (
+              <View style={styles.statusBadge}>
+                <Text style={[styles.statusBadgeText, { color: expiry.foreground }]}>
+                  {getExpiryHeadline(daysLeft)}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.statusBadge}>
+                <Text style={styles.resolvedLabel}>{statusLabel}</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {isActive ? (
+          <>
+            <View style={[styles.expiryCard, { backgroundColor: expiry.background }]}>
+              <View style={styles.expiryHeading}>
+                <Ionicons name="warning-outline" size={25} color={expiry.foreground} />
+
+                <View style={styles.expiryHeadingDetails}>
+                  <Text style={styles.expiryTitle}>{getExpiryHeadline(daysLeft)}</Text>
+
+                  <Text style={styles.expiryDate}>Use by {formatExpiryDate(item.expiryDate)}</Text>
+                </View>
+              </View>
+
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: urgencyWidth,
+                      backgroundColor: expiry.foreground,
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.expiryBottom}>
+                <Text style={styles.expiryHint}>{getExpiryHint(daysLeft)}</Text>
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={openEdit}
+                  style={({ pressed }) => (pressed ? styles.pressed : undefined)}
+                >
+                  <Text style={styles.changeDate}>Change date</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.reminderCard}>
+              <View style={styles.reminderContent}>
+                <Text style={styles.sectionEyebrow}>ALERTS</Text>
+
+                <View style={styles.reminderRow}>
+                  <View style={styles.reminderCopy}>
+                    <Text style={styles.reminderTitle}>Remind me</Text>
+
+                    <Text style={styles.reminderDescription}>
+                      {item.reminderDaysBefore} {item.reminderDaysBefore === 1 ? 'day' : 'days'}{' '}
+                      before it expires
                     </Text>
                   </View>
-                </View>
 
-                <View style={styles.progressTrack}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: urgencyWidth,
-                        backgroundColor: expiry.foreground,
-                      },
-                    ]}
-                  />
-                </View>
+                  <View style={styles.reminderValue}>
+                    <Ionicons name="notifications-outline" size={20} color={COLORS.primary} />
 
-                <View style={styles.expiryBottom}>
-                  <Text style={styles.expiryHint}>{getExpiryHint(daysLeft)}</Text>
-
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={openEdit}
-                    style={({ pressed }) => (pressed ? styles.pressed : undefined)}
-                  >
-                    <Text style={styles.changeDate}>Change date</Text>
-                  </Pressable>
-                </View>
-              </View>
-
-              <View style={styles.reminderCard}>
-                <View style={styles.reminderContent}>
-                  <Text style={styles.sectionEyebrow}>ALERTS</Text>
-
-                  <View style={styles.reminderRow}>
-                    <View style={styles.reminderCopy}>
-                      <Text style={styles.reminderTitle}>Remind me</Text>
-
-                      <Text style={styles.reminderDescription}>
-                        {item.reminderDaysBefore} {item.reminderDaysBefore === 1 ? 'day' : 'days'}{' '}
-                        before it expires
-                      </Text>
-                    </View>
-
-                    <View style={styles.reminderValue}>
-                      <Ionicons name="notifications-outline" size={20} color={COLORS.primary} />
-
-                      <Text style={styles.reminderValueText}>{item.reminderDaysBefore}</Text>
-                    </View>
+                    <Text style={styles.reminderValueText}>{item.reminderDaysBefore}</Text>
                   </View>
-
-                  <View style={styles.divider} />
-
-                  <View style={styles.reminderStatusRow}>
-                    <Ionicons name="notifications-outline" size={21} color={COLORS.secondary} />
-
-                    <Text style={styles.reminderStatus}>{reminderDescription}</Text>
-                  </View>
-
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={openEdit}
-                    style={({ pressed }) => [styles.reminderEdit, pressed && styles.pressed]}
-                  >
-                    <Text style={styles.reminderEditText}>Edit reminder settings</Text>
-
-                    <Ionicons name="chevron-forward" size={18} color={COLORS.secondary} />
-                  </Pressable>
                 </View>
-              </View>
 
-              <View style={styles.quickActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={actionsDisabled}
-                  onPress={openRecipes}
-                  style={({ pressed }) => [
-                    styles.quickActionButton,
-                    pressed && styles.pressed,
-                    actionsDisabled && styles.disabled,
-                  ]}
-                >
-                  <Ionicons name="book-outline" size={23} color={COLORS.primary} />
+                <View style={styles.divider} />
 
-                  <Text style={styles.quickActionText}>Find recipes</Text>
-                </Pressable>
+                <View style={styles.reminderStatusRow}>
+                  <Ionicons name="notifications-outline" size={21} color={COLORS.secondary} />
+
+                  <Text style={styles.reminderStatus}>{reminderDescription}</Text>
+                </View>
 
                 <Pressable
                   accessibilityRole="button"
-                  disabled={isWorking}
-                  onPress={openDonationPoints}
-                  style={({ pressed }) => [
-                    styles.quickActionButton,
-                    pressed && styles.pressed,
-                    isWorking && styles.disabled,
-                  ]}
+                  onPress={openEdit}
+                  style={({ pressed }) => [styles.reminderEdit, pressed && styles.pressed]}
                 >
-                  <Ionicons name="location-outline" size={23} color={COLORS.primary} />
+                  <Text style={styles.reminderEditText}>Edit reminder settings</Text>
 
-                  <Text style={styles.quickActionText}>Donate it</Text>
+                  <Ionicons name="chevron-forward" size={18} color={COLORS.secondary} />
                 </Pressable>
               </View>
+            </View>
 
-              {isConfirmingDelete && (
-                <View style={styles.deleteConfirmCard}>
-                  <Text style={styles.deleteConfirmTitle}>{deletion.title}</Text>
+            <View style={styles.quickActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={actionsDisabled}
+                onPress={openRecipes}
+                style={({ pressed }) => [
+                  styles.quickActionButton,
+                  pressed && styles.pressed,
+                  actionsDisabled && styles.disabled,
+                ]}
+              >
+                <Ionicons name="book-outline" size={23} color={COLORS.primary} />
 
-                  <Text style={styles.deleteConfirmText}>{deletion.message}</Text>
+                <Text style={styles.quickActionText}>Find recipes</Text>
+              </Pressable>
 
-                  <View style={styles.confirmButtons}>
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={isWorking}
-                      onPress={() => setIsConfirmingDelete(false)}
-                      style={styles.cancelDeleteButton}
-                    >
-                      <Text style={styles.cancelDeleteText}>Keep item</Text>
-                    </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isWorking}
+                onPress={openDonationPoints}
+                style={({ pressed }) => [
+                  styles.quickActionButton,
+                  pressed && styles.pressed,
+                  isWorking && styles.disabled,
+                ]}
+              >
+                <Ionicons name="location-outline" size={23} color={COLORS.primary} />
 
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={actionsDisabled}
-                      onPress={handleDelete}
-                      style={[styles.confirmDeleteButton, actionsDisabled && styles.disabled]}
-                    >
-                      <Text style={styles.confirmDeleteText}>
-                        {isWorking ? 'Deleting...' : 'Delete'}
-                      </Text>
-                    </Pressable>
-                  </View>
+                <Text style={styles.quickActionText}>Donate it</Text>
+              </Pressable>
+            </View>
+
+            {isConfirmingDelete && (
+              <View style={styles.deleteConfirmCard}>
+                <Text style={styles.deleteConfirmTitle}>{deletion.title}</Text>
+
+                <Text style={styles.deleteConfirmText}>{deletion.message}</Text>
+
+                <View style={styles.confirmButtons}>
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={isWorking}
+                    onPress={() => setIsConfirmingDelete(false)}
+                    style={styles.cancelDeleteButton}
+                  >
+                    <Text style={styles.cancelDeleteText}>Keep item</Text>
+                  </Pressable>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={actionsDisabled}
+                    onPress={handleDelete}
+                    style={[styles.confirmDeleteButton, actionsDisabled && styles.disabled]}
+                  >
+                    <Text style={styles.confirmDeleteText}>
+                      {isWorking ? 'Deleting...' : 'Delete'}
+                    </Text>
+                  </Pressable>
                 </View>
-              )}
-            </>
-          ) : (
-            <View style={styles.resolvedCard}>
-              <Ionicons name="checkmark-circle-outline" size={30} color={COLORS.secondary} />
-
-              <Text style={styles.resolvedTitle}>This item is no longer in your inventory.</Text>
-
-              <Text style={styles.resolvedDescription}>Status: {statusLabel}</Text>
-
-              {updatedOn ? (
-                <Text style={styles.resolvedDescription}>Updated {updatedOn}</Text>
-              ) : null}
-            </View>
-          )}
-
-          {item.notes ? (
-            <>
-              <Text style={styles.sectionTitle}>NOTES</Text>
-
-              <View style={styles.notesCard}>
-                <Text style={styles.notesText}>{item.notes}</Text>
               </View>
-            </>
-          ) : null}
+            )}
+          </>
+        ) : (
+          <View style={styles.resolvedCard}>
+            <Ionicons name="checkmark-circle-outline" size={30} color={COLORS.secondary} />
 
-          {actionError ? (
-            <View style={styles.errorBanner}>
-              <Ionicons name="alert-circle-outline" size={20} color={COLORS.error} />
+            <Text style={styles.resolvedTitle}>This item is no longer in your inventory.</Text>
 
-              <Text style={styles.errorText}>{actionError}</Text>
+            <Text style={styles.resolvedDescription}>Status: {statusLabel}</Text>
+
+            {updatedOn ? <Text style={styles.resolvedDescription}>Updated {updatedOn}</Text> : null}
+          </View>
+        )}
+
+        {item.notes ? (
+          <>
+            <Text style={styles.sectionTitle}>NOTES</Text>
+
+            <View style={styles.notesCard}>
+              <Text style={styles.notesText}>{item.notes}</Text>
             </View>
-          ) : null}
+          </>
+        ) : null}
 
-          {!isStorageReady ? (
-            <View style={styles.storageNotice}>
-              <Ionicons name="hourglass-outline" size={19} color={COLORS.warning} />
+        {actionError ? (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={20} color={COLORS.error} />
 
-              <Text style={styles.storageNoticeText}>
-                {storageError ?? 'Loading your saved inventory. Actions will be enabled shortly.'}
+            <Text style={styles.errorText}>{actionError}</Text>
+          </View>
+        ) : null}
+
+        {!isStorageReady ? (
+          <View style={styles.storageNotice}>
+            <Ionicons name="hourglass-outline" size={19} color={COLORS.warning} />
+
+            <Text style={styles.storageNoticeText}>
+              {storageError ?? 'Loading your saved inventory. Actions will be enabled shortly.'}
+            </Text>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      {isActive && (
+        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <View style={styles.bottomButtons}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={actionsDisabled}
+              accessibilityLabel={`Mark ${item.name} as eaten`}
+              accessibilityState={{ busy: pendingStatus === 'eaten' }}
+              onPress={() => handleResolve('eaten')}
+              style={({ pressed }) => [
+                styles.eatenButton,
+                pressed && styles.pressed,
+                actionsDisabled && styles.disabled,
+              ]}
+            >
+              <Text style={styles.eatenButtonText}>
+                {pendingStatus === 'eaten' ? 'Saving...' : 'Eaten'}
               </Text>
-            </View>
-          ) : null}
-        </ScrollView>
-
-        {isActive && (
-          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
-            <View style={styles.bottomButtons}>
-              <Pressable
-                accessibilityRole="button"
-                disabled={actionsDisabled}
-                onPress={() => handleResolve('eaten')}
-                style={({ pressed }) => [
-                  styles.eatenButton,
-                  pressed && styles.pressed,
-                  actionsDisabled && styles.disabled,
-                ]}
-              >
-                <Text style={styles.eatenButtonText}>
-                  {pendingStatus === 'eaten' ? 'Saving...' : 'Eaten'}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                disabled={actionsDisabled}
-                onPress={() => handleResolve('discarded')}
-                style={({ pressed }) => [
-                  styles.discardButton,
-                  pressed && styles.pressed,
-                  actionsDisabled && styles.disabled,
-                ]}
-              >
-                <Text style={styles.discardButtonText}>
-                  {pendingStatus === 'discarded' ? 'Saving...' : 'Thrown out'}
-                </Text>
-              </Pressable>
-            </View>
+            </Pressable>
 
             <Pressable
               accessibilityRole="button"
               disabled={actionsDisabled}
-              onPress={() => setIsConfirmingDelete((current) => !current)}
-              style={styles.deleteLink}
+              accessibilityLabel={`Mark ${item.name} as thrown out`}
+              accessibilityState={{ busy: pendingStatus === 'discarded' }}
+              onPress={() => handleResolve('discarded')}
+              style={({ pressed }) => [
+                styles.discardButton,
+                pressed && styles.pressed,
+                actionsDisabled && styles.disabled,
+              ]}
             >
-              <Text style={styles.deleteLinkText}>
-                {isConfirmingDelete ? 'Cancel delete' : 'Delete item'}
+              <Text style={styles.discardButtonText}>
+                {pendingStatus === 'discarded' ? 'Saving...' : 'Thrown out'}
               </Text>
             </Pressable>
           </View>
-        )}
-      </View>
-    </>
+
+          <Pressable
+            accessibilityRole="button"
+            disabled={actionsDisabled}
+            onPress={() => setIsConfirmingDelete((current) => !current)}
+            style={styles.deleteLink}
+          >
+            <Text style={styles.deleteLinkText}>
+              {isConfirmingDelete ? 'Cancel delete' : 'Delete item'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -604,6 +599,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 12,
     paddingBottom: 20,
+  },
+  loadingHeader: {
+    paddingHorizontal: 20,
+    paddingBottom: 0,
   },
   headerButton: {
     width: 48,

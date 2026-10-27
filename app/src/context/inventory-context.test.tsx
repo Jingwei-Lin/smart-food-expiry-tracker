@@ -64,6 +64,7 @@ function buildStoredItem(overrides: Partial<FoodItem> = {}): FoodItem {
     quantity: '250 g',
     expiryDate: '2026-09-29',
     storageLocation: 'fridge',
+    category: 'Others',
     reminderDaysBefore: 1,
     reminderRuleVersion: 2,
     notes: '',
@@ -138,6 +139,22 @@ describe('reading the stored inventory', () => {
 
     expect(result.current.items[0].storageLocation).toBe('fridge');
     expect(result.current.items[0].category).toBe('Others');
+  });
+
+  it('files an item under Others when its stored category is not one the app offers', async () => {
+    await storeItems([
+      buildStoredItem({ id: 'valid', category: 'Seafood' }),
+      buildStoredItem({ id: 'unknown', category: 'pantry' as FoodItem['category'] }),
+      buildStoredItem({ id: 'wrong-type', category: 7 as unknown as FoodItem['category'] }),
+    ]);
+
+    const { result } = await renderInventory();
+
+    expect(result.current.items.map((item) => item.category)).toEqual([
+      'Seafood',
+      'Others',
+      'Others',
+    ]);
   });
 
   it('loads an item that was donated', async () => {
@@ -270,6 +287,17 @@ describe('adding an item', () => {
     expect(second.result.current.items[0].category).toBe('Dairy');
   });
 
+  it('files an item under Others when no category is given', async () => {
+    const { result } = await renderInventory();
+
+    await act(async () => {
+      await result.current.addItem(milk);
+    });
+
+    expect(result.current.items[0].category).toBe('Others');
+    expect((await readStoredItems())[0].category).toBe('Others');
+  });
+
   it('saves it and returns it with an id, a created date and an active status', async () => {
     const { result } = await renderInventory();
 
@@ -376,6 +404,56 @@ describe('editing an item', () => {
     expect(edited.status).toBe('active');
 
     expect((await readStoredItems())[0].name).toBe('Full cream milk');
+  });
+
+  it('keeps the stored category and location when the edit leaves them undefined', async () => {
+    const { result } = await renderInventory();
+
+    let added: FoodItem | undefined;
+
+    await act(async () => {
+      added = await result.current.addItem({
+        ...milk,
+        category: 'Dairy',
+        storageLocation: 'freezer',
+      });
+    });
+
+    await act(async () => {
+      await result.current.updateItem(added!.id, {
+        ...milk,
+        name: 'Full cream milk',
+        category: undefined,
+        storageLocation: undefined,
+      });
+    });
+
+    expect(result.current.items[0]).toMatchObject({
+      name: 'Full cream milk',
+      category: 'Dairy',
+      storageLocation: 'freezer',
+    });
+    expect((await readStoredItems())[0]).toMatchObject({ category: 'Dairy' });
+  });
+
+  it('replaces the category and location when the edit gives new ones', async () => {
+    const { result } = await renderInventory();
+
+    let added: FoodItem | undefined;
+
+    await act(async () => {
+      added = await result.current.addItem({ ...milk, category: 'Dairy' });
+    });
+
+    await act(async () => {
+      await result.current.updateItem(added!.id, {
+        ...milk,
+        category: 'Meat',
+        storageLocation: 'pantry',
+      });
+    });
+
+    expect(result.current.items[0]).toMatchObject({ category: 'Meat', storageLocation: 'pantry' });
   });
 
   it('leaves the other items untouched', async () => {

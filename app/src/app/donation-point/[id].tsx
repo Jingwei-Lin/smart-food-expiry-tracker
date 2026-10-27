@@ -56,8 +56,6 @@ type DetailParams = {
 
 type FoundPoint = {
   point: DonationPoint;
-  /** The first phone number OpenStreetMap lists, or null if it has none. */
-  phone: string | null;
   /** The opening hours as OpenStreetMap writes them, e.g. "Mo-Fr 09:00-15:00". */
   openingHours: string | null;
 };
@@ -79,10 +77,7 @@ function findPoint(routeId: string): FoundPoint | null {
     return null;
   }
 
-  // A tag can list several numbers separated by semicolons; the first is enough.
-  const phone = (element.tags?.phone ?? element.tags?.['contact:phone'] ?? '').split(';')[0].trim();
-
-  return { point, phone: phone || null, openingHours: element.tags?.opening_hours ?? null };
+  return { point, openingHours: element.tags?.opening_hours ?? null };
 }
 
 /** Opens the phone's maps app with directions to the place. */
@@ -94,11 +89,6 @@ function openDirections(point: DonationPoint) {
       : `https://www.google.com/maps/dir/?api=1&destination=${destination}`;
 
   void Linking.openURL(url).catch(() => undefined);
-}
-
-/** Starts a call, keeping only the digits and a leading + so the dialler reads the number. */
-function callPlace(phone: string) {
-  void Linking.openURL(`tel:${phone.replace(/[^\d+]/g, '')}`).catch(() => undefined);
 }
 
 /** "Address not listed" and "Looking up address…" are placeholders, not addresses. */
@@ -220,7 +210,7 @@ export default function DonationPointScreen() {
     );
   }
 
-  const { point, phone, openingHours } = found;
+  const { point, openingHours } = found;
   const look = TYPE_LOOK[point.type];
   const address = realAddress(params.address) || point.address;
   const distance = params.distanceKm ? `${params.distanceKm} km away` : null;
@@ -350,7 +340,7 @@ export default function DonationPointScreen() {
           </View>
         </View>
 
-        {/* Directions and, when OpenStreetMap has a number, Call */}
+        {/* Directions */}
         <View style={styles.actions}>
           <Pressable
             accessibilityLabel={`Directions to ${point.name}`}
@@ -361,18 +351,6 @@ export default function DonationPointScreen() {
             <Ionicons color={COLORS.surface} name="navigate" size={18} />
             <Text style={styles.directionsText}>Directions</Text>
           </Pressable>
-
-          {phone ? (
-            <Pressable
-              accessibilityLabel={`Call ${point.name}`}
-              accessibilityRole="button"
-              onPress={() => callPlace(phone)}
-              style={({ pressed }) => [styles.callButton, pressed ? styles.pressed : null]}
-            >
-              <Ionicons color={COLORS.primary} name="call-outline" size={18} />
-              <Text style={styles.callText}>Call</Text>
-            </Pressable>
-          ) : null}
         </View>
 
         {/* Address and opening hours */}
@@ -561,7 +539,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
 
-  /* Directions and Call */
+  /* Directions */
   actions: {
     flexDirection: 'row',
     gap: 10,
@@ -580,23 +558,6 @@ const styles = StyleSheet.create({
   },
   directionsText: {
     color: COLORS.surface,
-    fontFamily: 'Fredoka_600SemiBold',
-    fontSize: 17,
-  },
-  callButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 16,
-    backgroundColor: COLORS.surface,
-  },
-  callText: {
-    color: COLORS.primary,
     fontFamily: 'Fredoka_600SemiBold',
     fontSize: 17,
   },

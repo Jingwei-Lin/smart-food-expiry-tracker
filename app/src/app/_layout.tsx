@@ -1,4 +1,4 @@
-import { router, Stack } from 'expo-router';
+import { router, SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -14,9 +14,12 @@ import {
 
 import { InventoryProvider } from '@/context/inventory-context';
 import { configureExpiryNotificationHandler } from '@/services/expiry-notifications';
-import * as Notifications from '@/services/local-notifications';
+import * as Notifications from 'expo-notifications';
 
 configureExpiryNotificationHandler();
+
+// The layout renders nothing until the fonts are ready, so keep the splash screen up until then.
+void SplashScreen.preventAutoHideAsync();
 
 function openItemFromNotification(notification: Notifications.Notification): boolean {
   const itemId = notification.request.content.data?.itemId;
@@ -65,9 +68,18 @@ export default function RootLayout() {
     Fredoka_700Bold,
   });
 
+  const fontsSettled = fontsLoaded || fontError !== null;
+
   useNotificationNavigation();
 
-  if (!fontsLoaded && !fontError) {
+  useEffect(() => {
+    if (fontsSettled) {
+      // A font that fails to load falls back to the system font, so the app still opens.
+      void SplashScreen.hideAsync();
+    }
+  }, [fontsSettled]);
+
+  if (!fontsSettled) {
     return null;
   }
 
@@ -82,7 +94,7 @@ export default function RootLayout() {
 
             <Stack.Screen name="add" options={{ headerShown: false }} />
 
-            <Stack.Screen name="item/[id]" options={{ title: 'Item' }} />
+            <Stack.Screen name="item/[id]" options={{ headerShown: false }} />
 
             <Stack.Screen name="item/edit/[id]" options={{ headerShown: false }} />
 

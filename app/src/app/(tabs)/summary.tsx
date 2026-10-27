@@ -32,6 +32,9 @@ const COLORS = {
   error: '#8B2C25',
 };
 
+/** A month can hold many thrown-out items, and the list sits above the end of the screen. */
+const MAX_DISCARDED_SHOWN = 10;
+
 function describeDay(day: DayOutcomes, dayName: string): string {
   const { eaten, donated, discarded } = day;
 
@@ -97,6 +100,8 @@ export default function WeeklySummaryScreen() {
   const maxBarValue = Math.max(1, ...days.map((day) => day.eaten + day.donated + day.discarded));
 
   const discardedItems = getDiscardedItems(items, days);
+  const shownDiscardedItems = discardedItems.slice(0, MAX_DISCARDED_SHOWN);
+  const hiddenDiscardedCount = discardedItems.length - shownDiscardedItems.length;
 
   return (
     <ScrollView
@@ -322,7 +327,7 @@ export default function WeeklySummaryScreen() {
             </View>
           ) : (
             <View style={styles.discardedCard}>
-              {discardedItems.map((item, index) => (
+              {shownDiscardedItems.map((item, index) => (
                 <View key={item.id}>
                   {index > 0 && <View style={styles.itemDivider} />}
 
@@ -361,6 +366,15 @@ export default function WeeklySummaryScreen() {
                   </Pressable>
                 </View>
               ))}
+
+              {hiddenDiscardedCount > 0 && (
+                <Text
+                  accessibilityLabel={`${hiddenDiscardedCount} more thrown out, not shown`}
+                  style={styles.discardedMore}
+                >
+                  +{hiddenDiscardedCount} more
+                </Text>
+              )}
             </View>
           )}
 
@@ -618,6 +632,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Fredoka_400Regular',
     fontSize: 13,
     lineHeight: 19,
+  },
+  discardedMore: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.divider,
+    paddingVertical: 12,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 14,
+    textAlign: 'center',
   },
   itemDivider: {
     height: 1,

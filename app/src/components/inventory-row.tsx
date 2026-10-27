@@ -178,7 +178,7 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
       >
         <View style={styles.iconBox}>
           <FoodCategoryIcon
-            category={item.category ?? 'Others'}
+            category={item.category}
             size={18}
             color={COLORS.primary}
             backgroundColor={COLORS.accentSoft}

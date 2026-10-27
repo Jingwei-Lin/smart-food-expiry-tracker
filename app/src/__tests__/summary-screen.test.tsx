@@ -40,6 +40,7 @@ function buildItem(id: string, overrides: Partial<FoodItem> = {}): FoodItem {
     quantity: '1 item',
     expiryDate: '2026-12-31',
     storageLocation: 'fridge',
+    category: 'Others',
     reminderDaysBefore: 1,
     reminderRuleVersion: 2,
     notes: '',
@@ -170,6 +171,53 @@ describe('WeeklySummaryScreen', () => {
 
     expect(view.getByLabelText('View details for bread')).toBeTruthy();
     expect(view.queryByText('No food thrown out')).toBeNull();
+  });
+
+  it('lists the newest thrown-out food first', async () => {
+    const view = await renderScreen([
+      buildItem('older', {
+        status: 'discarded',
+        statusUpdatedAt: new Date(NOW.getTime() - DAY).toISOString(),
+      }),
+      buildItem('newer', { status: 'discarded', statusUpdatedAt: new Date(NOW).toISOString() }),
+    ]);
+
+    const names = view
+      .getAllByLabelText(/^View details for /)
+      .map((row) => row.props.accessibilityLabel);
+
+    expect(names).toEqual(['View details for newer', 'View details for older']);
+  });
+
+  it('shows the 10 newest thrown-out items and counts the rest', async () => {
+    const view = await renderScreen(
+      Array.from({ length: 12 }, (_, index) =>
+        buildItem(`food-${index}`, {
+          status: 'discarded',
+          statusUpdatedAt: new Date(NOW.getTime() - index * 60 * 1000).toISOString(),
+        }),
+      ),
+    );
+
+    expect(view.getAllByLabelText(/^View details for /)).toHaveLength(10);
+    expect(view.getByLabelText('View details for food-9')).toBeTruthy();
+    expect(view.queryByLabelText('View details for food-10')).toBeNull();
+    expect(view.getByLabelText('2 more thrown out, not shown')).toBeTruthy();
+    expect(view.getByText('+2 more')).toBeTruthy();
+  });
+
+  it('shows no count of more items when all of them fit', async () => {
+    const view = await renderScreen(
+      Array.from({ length: 10 }, (_, index) =>
+        buildItem(`food-${index}`, {
+          status: 'discarded',
+          statusUpdatedAt: new Date(NOW.getTime() - index * 60 * 1000).toISOString(),
+        }),
+      ),
+    );
+
+    expect(view.getAllByLabelText(/^View details for /)).toHaveLength(10);
+    expect(view.queryByText(/more$/)).toBeNull();
   });
 
   it('scrolls, with room under the tab bar, so small screens can reach the last section', async () => {
