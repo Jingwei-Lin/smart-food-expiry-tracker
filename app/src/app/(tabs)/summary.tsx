@@ -1,19 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ScreenHeader } from '@/components/screen-header';
 import { useInventory } from '@/context/inventory-context';
 import { useToday } from '@/hooks/use-today';
-import { FoodItem } from '@/types/food-item';
+import { toExpiryDateString } from '@/utils/expiry-date';
+import {
+  DayOutcomes,
+  getDiscardedItems,
+  getStartOfWeek,
+  getSummaryDays,
+  SummaryPeriod,
+  sumOutcomes,
+} from '@/utils/weekly-summary';
 
 const COLORS = {
   background: '#FFFDF5',
@@ -30,104 +32,22 @@ const COLORS = {
   error: '#8B2C25',
 };
 
-type Period = 'week' | 'month';
+function describeDay(day: DayOutcomes, dayName: string): string {
+  const { eaten, donated, discarded } = day;
 
-type DayStats = {
-  key: string;
-  label: string;
-  date: Date;
-  eaten: number;
-  donated: number;
-  discarded: number;
-};
-
-function startOfDay(date: Date): Date {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-  return result;
-}
-
-function dateKey(date: Date): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-
-  return `${year}-${month}-${day}`;
-}
-
-function startOfWeek(date: Date): Date {
-  const result = startOfDay(date);
-  const day = result.getDay();
-
-  result.setDate(result.getDate() - (day === 0 ? 6 : day - 1));
-
-  return result;
-}
-
-function getDays(
-  items: FoodItem[],
-  today: Date,
-  period: Period,
-): DayStats[] {
-  const firstDay =
-    period === 'week'
-      ? startOfWeek(today)
-      : new Date(today.getFullYear(), today.getMonth(), 1);
-
-  const count =
-    period === 'week'
-      ? 7
-      : new Date(
-          today.getFullYear(),
-          today.getMonth() + 1,
-          0,
-        ).getDate();
-
-  const days: DayStats[] = Array.from({ length: count }, (_, index) => {
-    const date = new Date(firstDay);
-    date.setDate(firstDay.getDate() + index);
-
-    return {
-      key: dateKey(date),
-      label:
-        period === 'week'
-          ? date.toLocaleDateString('en-AU', { weekday: 'short' })
-          : String(date.getDate()),
-      date,
-      eaten: 0,
-      donated: 0,
-      discarded: 0,
-    };
-  });
-
-  const byDate = new Map(days.map((day) => [day.key, day]));
-
-  for (const item of items) {
-    if (item.status === 'active' || !item.statusUpdatedAt) {
-      continue;
-    }
-
-    const updatedDate = new Date(item.statusUpdatedAt);
-
-    if (Number.isNaN(updatedDate.getTime())) {
-      continue;
-    }
-
-    const day = byDate.get(dateKey(updatedDate));
-
-    if (!day) {
-      continue;
-    }
-
-    if (item.status === 'eaten') day.eaten += 1;
-    if (item.status === 'donated') day.donated += 1;
-    if (item.status === 'discarded') day.discarded += 1;
+  if (eaten + donated + discarded === 0) {
+    return `${dayName}, nothing recorded`;
   }
 
-  return days;
+  const counts = [`${eaten} eaten`];
+
+  if (donated > 0) counts.push(`${donated} donated`);
+  counts.push(`${discarded} thrown out`);
+
+  return `${dayName}, ${counts.join(', ')}`;
 }
 
-function getPeriodLabel(today: Date, period: Period): string {
+function getPeriodLabel(today: Date, period: SummaryPeriod): string {
   if (period === 'month') {
     return today.toLocaleDateString('en-AU', {
       month: 'long',
@@ -135,7 +55,7 @@ function getPeriodLabel(today: Date, period: Period): string {
     });
   }
 
-  const monday = startOfWeek(today);
+  const monday = getStartOfWeek(today);
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
 
@@ -152,13 +72,7 @@ function getPeriodLabel(today: Date, period: Period): string {
   return `${startLabel}–${endLabel}`;
 }
 
-function LegendItem({
-  color,
-  label,
-}: {
-  color: string;
-  label: string;
-}) {
+function LegendItem({ color, label }: { color: string; label: string }) {
   return (
     <View style={styles.legendItem}>
       <View style={[styles.legendDot, { backgroundColor: color }]} />
@@ -171,42 +85,18 @@ export default function WeeklySummaryScreen() {
   const insets = useSafeAreaInsets();
   const { items, isLoading, isStorageReady } = useInventory();
   const today = useToday();
-  const [period, setPeriod] = useState<Period>('week');
+  const [period, setPeriod] = useState<SummaryPeriod>('week');
 
-  const days = getDays(items, today, period);
-  const todayKey = dateKey(today);
-
-  const totals = days.reduce(
-    (result, day) => ({
-      eaten: result.eaten + day.eaten,
-      donated: result.donated + day.donated,
-      discarded: result.discarded + day.discarded,
-    }),
-    { eaten: 0, donated: 0, discarded: 0 },
-  );
+  const days = getSummaryDays(items, today, period);
+  const todayKey = toExpiryDateString(today);
+  const totals = sumOutcomes(days);
 
   const saved = totals.eaten + totals.donated;
   const resolved = saved + totals.discarded;
 
-  const maxBarValue = Math.max(
-    1,
-    ...days.map(
-      (day) => day.eaten + day.donated + day.discarded,
-    ),
-  );
+  const maxBarValue = Math.max(1, ...days.map((day) => day.eaten + day.donated + day.discarded));
 
-  const discardedItems = items.filter((item) => {
-    if (item.status !== 'discarded' || !item.statusUpdatedAt) {
-      return false;
-    }
-
-    const updatedDate = new Date(item.statusUpdatedAt);
-
-    return (
-      !Number.isNaN(updatedDate.getTime()) &&
-      days.some((day) => day.key === dateKey(updatedDate))
-    );
-  });
+  const discardedItems = getDiscardedItems(items, days);
 
   return (
     <ScrollView
@@ -233,19 +123,12 @@ export default function WeeklySummaryScreen() {
             <Pressable
               key={option}
               accessibilityRole="button"
+              accessibilityLabel={option === 'week' ? 'Show this week' : 'Show this month'}
               accessibilityState={{ selected }}
               onPress={() => setPeriod(option)}
-              style={[
-                styles.periodOption,
-                selected && styles.periodOptionSelected,
-              ]}
+              style={[styles.periodOption, selected && styles.periodOptionSelected]}
             >
-              <Text
-                style={[
-                  styles.periodOptionText,
-                  selected && styles.periodOptionTextSelected,
-                ]}
-              >
+              <Text style={[styles.periodOptionText, selected && styles.periodOptionTextSelected]}>
                 {option === 'week' ? 'Week' : 'Month'}
               </Text>
             </Pressable>
@@ -255,17 +138,11 @@ export default function WeeklySummaryScreen() {
 
       {isLoading ? (
         <View style={styles.messageCard}>
-          <Text style={styles.messageText}>
-            Loading your food statistics...
-          </Text>
+          <Text style={styles.messageText}>Loading your food statistics...</Text>
         </View>
       ) : !isStorageReady ? (
         <View style={styles.messageCard}>
-          <Ionicons
-            name="alert-circle-outline"
-            size={26}
-            color={COLORS.error}
-          />
+          <Ionicons name="alert-circle-outline" size={26} color={COLORS.error} />
           <Text style={styles.messageText}>
             Your saved inventory could not be loaded. Please try again later.
           </Text>
@@ -275,12 +152,14 @@ export default function WeeklySummaryScreen() {
           <View style={styles.overviewCard}>
             <View style={styles.savedHeading}>
               <Text style={styles.savedNumber}>{saved}</Text>
-              <Text style={styles.savedDescription}>
-                of {resolved} items saved
-              </Text>
+              <Text style={styles.savedDescription}>of {resolved} items saved</Text>
             </View>
 
-            <View style={styles.progressTrack}>
+            <View
+              accessibilityElementsHidden
+              importantForAccessibility="no-hide-descendants"
+              style={styles.progressTrack}
+            >
               {resolved > 0 ? (
                 <>
                   {totals.eaten > 0 && (
@@ -336,13 +215,8 @@ export default function WeeklySummaryScreen() {
               </View>
 
               <View style={styles.totalColumn}>
-                <LegendItem
-                  color={COLORS.discarded}
-                  label="Thrown out"
-                />
-                <Text style={styles.totalNumber}>
-                  {totals.discarded}
-                </Text>
+                <LegendItem color={COLORS.discarded} label="Thrown out" />
+                <Text style={styles.totalNumber}>{totals.discarded}</Text>
               </View>
             </View>
           </View>
@@ -355,21 +229,22 @@ export default function WeeklySummaryScreen() {
                 <View style={styles.chart}>
                   {days.map((day) => {
                     const isToday = day.key === todayKey;
-                    const total =
-                      day.eaten + day.donated + day.discarded;
+                    const dayName = day.date.toLocaleDateString('en-AU', { weekday: 'short' });
+                    const total = day.eaten + day.donated + day.discarded;
 
-                    const chartHeight =
-                      total === 0
-                        ? 2
-                        : Math.max(8, (total / maxBarValue) * 112);
+                    const chartHeight = total === 0 ? 2 : Math.max(8, (total / maxBarValue) * 112);
 
                     return (
-                      <View key={day.key} style={styles.chartColumn}>
+                      <View
+                        key={day.key}
+                        accessible
+                        accessibilityLabel={describeDay(day, dayName)}
+                        style={styles.chartColumn}
+                      >
                         <View
-                          style={[
-                            styles.barStack,
-                            { height: chartHeight },
-                          ]}
+                          accessibilityElementsHidden
+                          importantForAccessibility="no-hide-descendants"
+                          style={[styles.barStack, { height: chartHeight }]}
                         >
                           {day.discarded > 0 && (
                             <View
@@ -409,25 +284,25 @@ export default function WeeklySummaryScreen() {
                         </View>
 
                         <Text
-                          style={[
-                            styles.chartLabel,
-                            isToday && styles.chartLabelToday,
-                          ]}
+                          accessibilityElementsHidden
+                          importantForAccessibility="no-hide-descendants"
+                          style={[styles.chartLabel, isToday && styles.chartLabelToday]}
                         >
-                          {day.label}
+                          {dayName}
                         </Text>
                       </View>
                     );
                   })}
                 </View>
 
-                <View style={styles.chartLegend}>
+                <View
+                  accessibilityElementsHidden
+                  importantForAccessibility="no-hide-descendants"
+                  style={styles.chartLegend}
+                >
                   <LegendItem color={COLORS.accent} label="Eaten" />
                   <LegendItem color={COLORS.donated} label="Donated" />
-                  <LegendItem
-                    color={COLORS.discarded}
-                    label="Thrown out"
-                  />
+                  <LegendItem color={COLORS.discarded} label="Thrown out" />
                 </View>
               </View>
             </>
@@ -437,15 +312,9 @@ export default function WeeklySummaryScreen() {
 
           {discardedItems.length === 0 ? (
             <View style={styles.emptyWasteCard}>
-              <Ionicons
-                name="leaf-outline"
-                size={28}
-                color={COLORS.secondary}
-              />
+              <Ionicons name="leaf-outline" size={28} color={COLORS.secondary} />
 
-              <Text style={styles.emptyWasteTitle}>
-                No food thrown out
-              </Text>
+              <Text style={styles.emptyWasteTitle}>No food thrown out</Text>
 
               <Text style={styles.emptyWasteText}>
                 Food you mark as thrown out during this period will appear here.
@@ -472,36 +341,23 @@ export default function WeeklySummaryScreen() {
                     ]}
                   >
                     <View style={styles.discardedIcon}>
-                      <Ionicons
-                        name="nutrition-outline"
-                        size={24}
-                        color={COLORS.primary}
-                      />
+                      <Ionicons name="nutrition-outline" size={24} color={COLORS.primary} />
                     </View>
 
                     <View style={styles.discardedInfo}>
-                      <Text style={styles.discardedName}>
-                        {item.name}
-                      </Text>
+                      <Text style={styles.discardedName}>{item.name}</Text>
 
                       <Text style={styles.discardedDate}>
-                        {new Date(item.statusUpdatedAt!).toLocaleDateString(
-                          'en-AU',
-                          {
-                            weekday: 'short',
-                            day: 'numeric',
-                            month: 'short',
-                          },
-                        )}
+                        {new Date(item.statusUpdatedAt!).toLocaleDateString('en-AU', {
+                          weekday: 'short',
+                          day: 'numeric',
+                          month: 'short',
+                        })}
                         {' · '}Marked as thrown out
                       </Text>
                     </View>
 
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color={COLORS.secondary}
-                    />
+                    <Ionicons name="chevron-forward" size={20} color={COLORS.secondary} />
                   </Pressable>
                 </View>
               ))}

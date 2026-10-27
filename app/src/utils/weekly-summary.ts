@@ -1,13 +1,19 @@
 import type { FoodItem } from '@/types/food-item';
+import { toExpiryDateString } from '@/utils/expiry-date';
 
-export type WeeklyData = {
-  week: string;
+export type SummaryPeriod = 'week' | 'month';
+
+/** What happened to food on one local calendar day. */
+export type DayOutcomes = {
+  /** The day as YYYY-MM-DD, which is also how an outcome is matched to it. */
+  key: string;
+  date: Date;
   eaten: number;
   donated: number;
   discarded: number;
 };
 
-const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
+export type OutcomeTotals = Pick<DayOutcomes, 'eaten' | 'donated' | 'discarded'>;
 
 /** Midnight at the start of the Monday of the week containing `date`, in local time. */
 export function getStartOfWeek(date: Date): Date {
@@ -21,50 +27,87 @@ export function getStartOfWeek(date: Date): Date {
 }
 
 /**
- * Counts what happened to food in this week, last week and the week before.
+ * The local day an item was eaten, thrown out or donated on, or null for an
+ * item that has not been resolved or whose timestamp cannot be read.
+ */
+function getOutcomeDayKey(item: FoodItem): string | null {
+  if (item.status === 'active' || !item.statusUpdatedAt) {
+    return null;
+  }
+
+  const outcomeDate = new Date(item.statusUpdatedAt);
+
+  return Number.isNaN(outcomeDate.getTime()) ? null : toExpiryDateString(outcomeDate);
+}
+
+/**
+ * Counts what happened to food on each day of the week or month containing
+ * `today`: Monday to Sunday, or the 1st to the last day of the month.
  *
  * Active items have not been resolved, so they are not outcomes.
  */
-export function getWeeklyData(items: FoodItem[], now: Date): WeeklyData[] {
-  const currentWeekStart = getStartOfWeek(now);
+export function getSummaryDays(
+  items: FoodItem[],
+  today: Date,
+  period: SummaryPeriod,
+): DayOutcomes[] {
+  const firstDay =
+    period === 'week' ? getStartOfWeek(today) : new Date(today.getFullYear(), today.getMonth(), 1);
 
-  const weeks: WeeklyData[] = [
-    { week: 'This week', eaten: 0, donated: 0, discarded: 0 },
-    { week: 'Last week', eaten: 0, donated: 0, discarded: 0 },
-    { week: '2 weeks ago', eaten: 0, donated: 0, discarded: 0 },
-  ];
+  const dayCount =
+    period === 'week' ? 7 : new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+
+  /*
+   * Each day is built from the first one with setDate, which keeps midnight as
+   * midnight. Adding 24 hours would land an hour off after the clocks change.
+   */
+  const days = Array.from({ length: dayCount }, (_, index): DayOutcomes => {
+    const date = new Date(firstDay);
+    date.setDate(firstDay.getDate() + index);
+
+    return { key: toExpiryDateString(date), date, eaten: 0, donated: 0, discarded: 0 };
+  });
+
+  const daysByKey = new Map(days.map((day) => [day.key, day]));
 
   for (const item of items) {
-    if (item.status === 'active' || !item.statusUpdatedAt) {
-      continue;
-    }
+    const key = getOutcomeDayKey(item);
+    const day = key ? daysByKey.get(key) : undefined;
 
-    const outcomeDate = new Date(item.statusUpdatedAt);
-
-    if (Number.isNaN(outcomeDate.getTime())) {
-      continue;
-    }
-
-    /*
-     * Rounded because the week in which the clocks change is an hour longer or
-     * shorter than 7 x 24 hours, so the difference is not a whole number of weeks.
-     */
-    const weekIndex = Math.round(
-      (currentWeekStart.getTime() - getStartOfWeek(outcomeDate).getTime()) / MS_PER_WEEK,
-    );
-
-    if (weekIndex < 0 || weekIndex >= weeks.length) {
+    if (!day) {
       continue;
     }
 
     if (item.status === 'eaten') {
-      weeks[weekIndex].eaten += 1;
+      day.eaten += 1;
     } else if (item.status === 'donated') {
-      weeks[weekIndex].donated += 1;
+      day.donated += 1;
     } else if (item.status === 'discarded') {
-      weeks[weekIndex].discarded += 1;
+      day.discarded += 1;
     }
   }
 
-  return weeks;
+  return days;
+}
+
+export function sumOutcomes(days: DayOutcomes[]): OutcomeTotals {
+  return days.reduce<OutcomeTotals>(
+    (totals, day) => ({
+      eaten: totals.eaten + day.eaten,
+      donated: totals.donated + day.donated,
+      discarded: totals.discarded + day.discarded,
+    }),
+    { eaten: 0, donated: 0, discarded: 0 },
+  );
+}
+
+/** The items thrown out on any of the given days, so the summary can list them. */
+export function getDiscardedItems(items: FoodItem[], days: DayOutcomes[]): FoodItem[] {
+  const keys = new Set(days.map((day) => day.key));
+
+  return items.filter((item) => {
+    const key = getOutcomeDayKey(item);
+
+    return item.status === 'discarded' && key !== null && keys.has(key);
+  });
 }
