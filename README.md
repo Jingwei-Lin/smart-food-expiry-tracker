@@ -50,7 +50,7 @@ Also worth knowing:
 
 ### What you need
 
-- A computer with [Node.js](https://nodejs.org) 20 or newer (which includes npm), and [Git](https://git-scm.com) if you clone rather than download.
+- A computer with [Node.js](https://nodejs.org) 22 (22.13 or newer) or 24 (24.3 or newer), which includes npm, and [Git](https://git-scm.com) if you clone rather than download.
 - An Android or iOS phone with **Expo Go** installed from the [Play Store](https://play.google.com/store/apps/details?id=host.exp.exponent) or the [App Store](https://apps.apple.com/app/expo-go/id982107779). It needs the Expo Go release for SDK 58.
 - The phone and the computer on the same Wi-Fi network. For another network, see "If it doesn't connect" below.
 
@@ -450,5 +450,5 @@ Two suggestions were not adopted:
 | --- | --- |
 | Hanchen Wang | Barcode scanning, recipe suggestions (first half), donation point data, donated food, the Think Aloud changes |
 | Jingwei Lin | Expiry reminders, recipe suggestions (second half, Gemini and Matilda), weekly summary fixes |
-| Angel Huang | Donation point finder, navigation bar |
-| Yuna Chuang | Weekly waste summary |
+| Angel Huang | Donation point finder, navigation bar, UI Redesign |
+| Yuna Chuang | Weekly waste summary, Implemented the redesigned UI |
