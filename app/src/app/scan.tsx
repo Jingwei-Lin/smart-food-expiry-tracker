@@ -42,40 +42,28 @@ export default function ScanScreen() {
     hasScanned.current = true;
     setStage('looking-up');
 
-    try {
-      const result = await lookupProduct(barcode);
+    // lookupProduct never throws: a network failure comes back as 'unavailable'.
+    const result = await lookupProduct(barcode);
 
-      if (result.outcome === 'found') {
-        router.replace({
-          pathname: '/add',
-          params: {
-            barcode: result.product.barcode,
-            name: result.product.name,
-            quantity: result.product.quantity,
-            expiryDate: result.product.expiryDate,
-            shelfLifeLabel: result.product.shelfLifeLabel,
-            category: result.product.category,
-          },
-        });
-        return;
-      }
-
+    if (result.outcome === 'found') {
       router.replace({
         pathname: '/add',
         params: {
-          barcode,
-          lookupOutcome: result.outcome,
+          barcode: result.product.barcode,
+          name: result.product.name,
+          quantity: result.product.quantity,
+          expiryDate: result.product.expiryDate,
+          shelfLifeLabel: result.product.shelfLifeLabel,
+          category: result.product.category,
         },
       });
-    } catch {
-      router.replace({
-        pathname: '/add',
-        params: {
-          barcode,
-          lookupOutcome: 'error',
-        },
-      });
+      return;
     }
+
+    router.replace({
+      pathname: '/add',
+      params: { barcode, lookupOutcome: result.outcome },
+    });
   }
 
   if (!permission) {

@@ -172,8 +172,8 @@ function goBack() {
 }
 
 /**
- * One donation point: what kind of place it is, how far away, and (in the
- * steps that follow) its hours, directions and what to bring from the fridge.
+ * One donation point: what kind of place it is, how far away, its hours,
+ * directions, and the food to bring, which is marked as donated from here.
  */
 export default function DonationPointScreen() {
   const insets = useSafeAreaInsets();

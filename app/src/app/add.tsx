@@ -31,7 +31,7 @@ function describeScan(
     };
   }
 
-  if (params.lookupOutcome === 'unavailable' || params.lookupOutcome === 'error') {
+  if (params.lookupOutcome === 'unavailable') {
     return {
       tone: 'manual',
       title: 'Could not look up this barcode',
@@ -65,7 +65,7 @@ export default function AddItemScreen() {
   const insets = useSafeAreaInsets();
 
   const scanNotice = describeScan(params);
-  const scannedCategory = params.category ? getValidCategory(params.category) : undefined;
+  const scannedCategory = getValidCategory(params.category);
 
   async function handleSubmit(values: ItemFormValues) {
     await addItem({
@@ -165,7 +165,7 @@ export default function AddItemScreen() {
           reminderDaysBefore: 1,
           notes: '',
           storageLocation: 'fridge',
-          category: scannedCategory ?? 'Others',
+          category: scannedCategory,
         }}
         onSubmit={handleSubmit}
         submitLabel={(storageLocation) => `Add to ${storageLocation}`}

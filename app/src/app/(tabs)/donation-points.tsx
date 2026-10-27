@@ -381,7 +381,7 @@ export default function DonationPointsScreen() {
   }
 
   /*
-   * "Find donation point" on an item's screen opens this tab with near=phone.
+   * "Donate it" on an item's screen opens this tab with near=phone.
    * The tab stays mounted once opened, so without this it would still show
    * whatever it showed last: another suburb, a search or an error. It is
    * applied while rendering, React's pattern for state that follows a changing
@@ -390,7 +390,7 @@ export default function DonationPointsScreen() {
    */
   const { near } = useLocalSearchParams<{ near?: string }>();
   const [appliedNear, setAppliedNear] = useState(near ?? null);
-  /* Each change starts a load near the phone: the first when the tab opens, then one per "Find donation point". */
+  /* Each change starts a load near the phone: the first when the tab opens, then one per "Donate it". */
   const [phoneLoads, setPhoneLoads] = useState(0);
 
   if ((near ?? null) !== appliedNear) {
@@ -403,7 +403,7 @@ export default function DonationPointsScreen() {
     }
   }
 
-  /* Clear the param, so the next "Find donation point" counts as a change. */
+  /* Clear the param, so the next "Donate it" counts as a change. */
   useEffect(() => {
     if (appliedNear) {
       router.setParams({ near: undefined });
@@ -771,34 +771,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 
-  /* Filter chips (step 6) */
-  chips: {
-    gap: 8,
-    marginTop: 14,
-  },
-  chip: {
-    justifyContent: 'center',
-    minHeight: 40,
-    paddingHorizontal: 16,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 20,
-    backgroundColor: COLORS.surface,
-  },
-  chipSelected: {
-    borderColor: COLORS.primary,
-    backgroundColor: COLORS.primary,
-  },
-  chipText: {
-    color: COLORS.primary,
-    fontFamily: 'Fredoka_500Medium',
-    fontSize: 14,
-  },
-  chipTextSelected: {
-    color: COLORS.surface,
-  },
-
-  /* The list of places (step 7) */
+  /* The list of places */
   section: {
     marginTop: 22,
     paddingHorizontal: 20,

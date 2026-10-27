@@ -30,7 +30,6 @@ const COLORS = {
   secondary: '#55614D',
   border: '#E4E5D4',
   divider: '#EEEFE5',
-  subtle: '#F2F3EA',
   accent: '#A6D45A',
   accentSoft: '#F0F7DB',
   error: '#8B2C25',
@@ -213,10 +212,6 @@ export default function RecipeDetailScreen() {
 
   /* The star fills or empties only once the change is saved, as on the cards. */
   async function toggleSaved() {
-    if (!loaded) {
-      return;
-    }
-
     try {
       const next = isSaved ? await unsaveRecipe(id) : await saveRecipe({ ...recipe, id });
 
