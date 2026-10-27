@@ -130,7 +130,8 @@ async function lookUpAddress(latitude: number, longitude: number): Promise<strin
  * Donation points tab: food banks and soup kitchens from the bundled
  * OpenStreetMap list within 10 km of the phone, or of a suburb the student
  * types in. Nothing is downloaded, so the list shows as soon as the location
- * is known, and the location never leaves the phone.
+ * is known. Only the phone's own geocoder sees the location, to name the
+ * suburb and fill in missing addresses.
  *
  * Search narrows the list by name, kind of place or address. Only the newest
  * load is shown, so a slow GPS load can't overwrite a suburb search made while

@@ -4,7 +4,7 @@
 
 **SDG Goal 12: Responsible consumption and production**
 
-An app that helps university students waste less food by taking the effort out of tracking groceries. Built with Expo SDK 58, React Native 0.88 and React 19.3 for Android and iOS.
+An app that helps university students waste less food by taking the effort out of tracking groceries. Built with Expo SDK 58, React Native 0.88 and React 19.3, and tested on iOS through Expo Go. Android is not yet tested (see [Known limitations](#known-limitations-and-todo)).
 
 You scan a product's barcode when you unpack your shopping, and the app fills in the product and estimates when it will go off. It reminds you before the food spoils and suggests recipes for whatever needs using up. For anything you can't finish in time, it points you to a nearby donation point, and a weekly summary shows what you ate, donated and threw away.
 
@@ -30,14 +30,14 @@ You scan a product's barcode when you unpack your shopping, and the app fills in
 
 ## Key features
 
-| Feature                   | What it does                                                                                                                                                                                                                                                         | Status                                                               |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| **Barcode scanning**      | Scan a product and look up its name in Open Food Facts. The app provides a guessed expiry estimate that you can correct                                                                                                                                              | Working, tested on Android and iOS                                   |
-| **Manual entry**          | Add, edit and delete items by hand, for loose produce or anything without a barcode. The expiry date is picked from a calendar. Swipe a row left to edit or delete it straight from the list                                                                         | Working, tested on Android and iOS                                   |
-| **Expiry reminders**      | Choose 1 to 7 days' notice and get a second reminder on the expiry day, at 9 am. Reminders follow every edit, resolve and delete, and tapping one opens the item. The item's screen says which reminders are actually set                                            | Working, tested on Android and iOS                                   |
-| **Donation point finder** | Food banks, soup kitchens and community pantries within 10 km of you, or of any suburb you type, closest first. "Donate it" on an item opens it, and ticking food on a place's page and marking it as donated counts it in the summary                               | Working, tested on Android and iOS                                   |
-| **Weekly waste summary**  | Counts the food you marked eaten, donated or thrown out this week (Monday to Sunday) or this month, with a day-by-day chart for the week                                                                                                                             | Working, tested on Android and iOS                                   |
-| **Recipe suggestions**    | Tick the food you want to cook with (food expiring within 3 days is ticked for you) and get simple recipes from an AI model you choose, using your own API key. Save the ones you like, ask for different ideas, and your last suggestions come back after a restart | Working, tested on Android and iOS with Gemini, Matilda and DeepSeek |
+| Feature                   | What it does                                                                                                                                                                                                                                                                                                                                              | Status                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **Barcode scanning**      | Scan a product and look up its name in Open Food Facts. The app provides a guessed expiry estimate that you can correct                                                                                                                                                                                                                                   | Working, tested on iOS                                   |
+| **Manual entry**          | Add, edit and delete items by hand, for loose produce or anything without a barcode. The expiry date is picked from a calendar. Swipe a row left to edit or delete it straight from the list                                                                                                                                                              | Working, tested on iOS                                   |
+| **Expiry reminders**      | Choose 1 to 7 days' notice and get a second reminder on the expiry day, at 9 am. Reminders follow every edit, resolve and delete, and tapping one opens the item. The item's screen says which reminders are actually set                                                                                                                                 | Working, tested on iOS                                   |
+| **Donation point finder** | Food banks, soup kitchens and community pantries within 10 km of you, or of any suburb you type, closest first. "Donate it" on an item opens it, and ticking food on a place's page and marking it as donated counts it in the summary                                                                                                                    | Working, tested on iOS                                   |
+| **Weekly waste summary**  | Counts the food you marked eaten, donated or thrown out this week (Monday to Sunday) or this month, with a day-by-day chart for the week                                                                                                                                                                                                                  | Working, tested on iOS                                   |
+| **Recipe suggestions**    | Tick the food you want to cook with (food expiring within 3 days is ticked for you) and get simple recipes from an AI model you choose, using your own API key. Save the ones you like, ask for different ideas, and your last suggestions come back after a restart. Open a recipe to mark the food it uses as eaten or wasted, which the summary counts | Working, tested on iOS with Gemini, Matilda and DeepSeek |
 
 Also worth knowing:
 
@@ -120,26 +120,26 @@ The key is never stored in this repository.
 
 ## How the app is built
 
-The app is a single Expo project in `app/`, written in TypeScript (strict mode), with no backend server. Screens are React components. Logic that can be tested without a screen lives in `src/utils/`, and each file there has a test beside it.
+The app is a single Expo project in `app/`, written in TypeScript (strict mode), with no backend server. Screens are React components. Logic that can be tested without a screen lives in `src/utils/`, with a test beside each file. The two exceptions, `donation-look.ts` and `recipe-providers.ts`, are lookup tables with no logic.
 
 ### Screens and navigation
 
 Navigation uses [Expo Router](https://docs.expo.dev/router/introduction/): every file in `src/app/` is a route.
 
-| Route           | File                         | What it is                                                  |
-| --------------- | ---------------------------- | ----------------------------------------------------------- |
-| Home            | `(tabs)/index.tsx`           | The inventory, in Fridge, Freezer and Pantry tabs           |
-| Summary         | `(tabs)/summary.tsx`         | The waste summary, for the week or the month                |
-| Donation Points | `(tabs)/donation-points.tsx` | Nearby donation points                                      |
-| Recipes         | `(tabs)/recipes.tsx`         | Ingredient checklist, suggestions and the saved recipes box |
-| Scanner         | `scan.tsx`                   | The camera, opened by the centre button in the tab bar      |
-| Add item        | `add.tsx`                    | The add form, pre-filled from a scan when there is one      |
-| Item            | `item/[id].tsx`              | One item: details, reminders and its actions                |
-| Edit item       | `item/edit/[id].tsx`         | The same form as Add, for an existing item                  |
-| Donation point  | `donation-point/[id].tsx`    | One place: hours, directions, and marking food as donated   |
-| Recipe          | `recipe/[id].tsx`            | One suggested recipe, and what it uses from your food       |
-| Recipe settings | `recipe-settings.tsx`        | Choose a model and manage API keys                          |
-| Saved recipes   | `saved-recipes.tsx`          | Every starred recipe                                        |
+| Route           | File                         | What it is                                                          |
+| --------------- | ---------------------------- | ------------------------------------------------------------------- |
+| Home            | `(tabs)/index.tsx`           | The inventory, in Fridge, Freezer and Pantry tabs                   |
+| Summary         | `(tabs)/summary.tsx`         | The waste summary, for the week or the month                        |
+| Donation Points | `(tabs)/donation-points.tsx` | Nearby donation points                                              |
+| Recipes         | `(tabs)/recipes.tsx`         | Ingredient checklist, suggestions and a link to the saved recipes   |
+| Scanner         | `scan.tsx`                   | The camera, opened by the centre button in the tab bar              |
+| Add item        | `add.tsx`                    | The add form, pre-filled from a scan when there is one              |
+| Item            | `item/[id].tsx`              | One item: details, reminders and its actions                        |
+| Edit item       | `item/edit/[id].tsx`         | The same form as Add, for an existing item                          |
+| Donation point  | `donation-point/[id].tsx`    | One place: hours, directions, and marking food as donated           |
+| Recipe          | `recipe/[id].tsx`            | One recipe, the food it uses, and marking that food eaten or wasted |
+| Recipe settings | `recipe-settings.tsx`        | Choose a model and manage API keys                                  |
+| Saved recipes   | `saved-recipes.tsx`          | Every starred recipe                                                |
 
 - **Tabs:** `(tabs)/_layout.tsx` draws the custom tab bar.
 - **Root layout:** `_layout.tsx` wraps the app in the inventory provider. It also opens the right item when a reminder is tapped, including when the tap starts the app.
@@ -182,6 +182,7 @@ Every change is written to storage first and only then shown. The stored list is
   2. `utils/recipe-prompt.ts` writes the prompt and validates the reply. A recipe that uses food you didn't tick is dropped.
   3. `utils/recipe-client.ts` calls the provider: an OpenAI-style chat request in JSON mode, 30-second timeout. `utils/matilda.ts` adapts Matilda's own streaming API.
   - Results and saved recipes are kept by `utils/recipe-storage.ts`. Keys are kept by `utils/recipe-credentials.ts`.
+  - A recipe's screen matches each ingredient to an item by name. Where two items share a name, the one still in date is used, so **Mark as consumed** never marks an expired carton when a fresh one is in the fridge.
 
 ## Data formats
 
@@ -394,12 +395,12 @@ app/                  Expo project (run every command from here)
 
 ## Mobile technologies
 
-| Technology                                 | Used for                                       | Status                             |
-| ------------------------------------------ | ---------------------------------------------- | ---------------------------------- |
-| Camera (`expo-camera`)                     | Scanning product barcodes                      | Working, tested on Android and iOS |
-| Local notifications (`expo-notifications`) | Scheduled expiry reminders                     | Working, tested on Android and iOS |
-| GPS / geolocation (`expo-location`)        | Finding donation points near you               | Working, tested on Android and iOS |
-| Mobile data networks                       | Open Food Facts lookups and recipe suggestions | Working, tested on Android and iOS |
+| Technology                                 | Used for                                       | Status                 |
+| ------------------------------------------ | ---------------------------------------------- | ---------------------- |
+| Camera (`expo-camera`)                     | Scanning product barcodes                      | Working, tested on iOS |
+| Local notifications (`expo-notifications`) | Scheduled expiry reminders                     | Working, tested on iOS |
+| GPS / geolocation (`expo-location`)        | Finding donation points near you               | Working, tested on iOS |
+| Mobile data networks                       | Open Food Facts lookups and recipe suggestions | Working, tested on iOS |
 
 ## Your data and security
 
@@ -407,7 +408,7 @@ app/                  Expo project (run every command from here)
 - **Leaves the phone:**
   - a scanned barcode goes to Open Food Facts;
   - the food you tick for recipes goes to the AI provider you chose.
-- **Location:** used only on the phone to sort the bundled list of donation points.
+- **Location:** used to sort the bundled list of donation points. To name your suburb and fill in missing addresses, the position is sent to the phone's own geocoder (Apple's or Google's), as is a typed suburb that isn't picked from the suggestions.
 - **API keys:**
   - kept in the phone's secure storage and only ever shown masked;
   - no key is built into the app or stored in this repository;
@@ -431,7 +432,8 @@ Two suggestions were not adopted:
 
 ## Known limitations and TODO
 
-- **Recipes are untested with OpenAI**, which needs prepaid credit before it answers. Gemini, Matilda and DeepSeek were tested on both platforms.
+- **Recipes are untested with OpenAI**, which needs prepaid credit before it answers. Gemini, Matilda and DeepSeek were tested on iOS.
+- **Android is not tested.** Adding, editing and swiping items were checked on an Android phone early in development, but the finished app, reminders included, has only been tested on iOS. The Android setup steps above should work but are unconfirmed.
 - **Not yet done:** a full accessibility pass (screen reader labels and large text on every screen), and a check that every screen has a clear empty, loading and error state.
 - **Web is best-effort only:**
   - the camera, location, reminders and recipes are mobile-only;
