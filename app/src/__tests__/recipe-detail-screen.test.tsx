@@ -191,6 +191,36 @@ describe('RecipeDetailScreen marking the food', () => {
     expect(router.back).toHaveBeenCalled();
   });
 
+  it('marks the fresh milk, not an expired carton, and does not warn about it', async () => {
+    mockInventory.activeItems = [
+      food('old-milk', 'Milk', -2),
+      food('spinach-soon', 'Spinach', 1),
+      food('new-milk', 'Milk', 4),
+    ];
+    const view = await openOmelette();
+
+    expect(view.queryByText('Milk · expired')).toBeNull();
+    expect(view.getByRole('button', { name: 'Mark Spinach and Milk as eaten' })).toBeTruthy();
+
+    await fireEvent.press(view.getByText('Mark as consumed'));
+
+    expect(mockInventory.resolveItem.mock.calls).toEqual([
+      ['spinach-soon', 'eaten'],
+      ['new-milk', 'eaten'],
+    ]);
+  });
+
+  it('says "Saving…" only on the button that was pressed', async () => {
+    mockInventory.resolveItem.mockReturnValue(new Promise(() => undefined));
+    const view = await openOmelette();
+
+    await fireEvent.press(view.getByText('Mark as wasted'));
+
+    expect(view.getByText('Mark as consumed')).toBeTruthy();
+    expect(view.queryByText('Mark as wasted')).toBeNull();
+    expect(view.getByText('Saving…')).toBeTruthy();
+  });
+
   it('marks the food as thrown out when it was wasted', async () => {
     const view = await openOmelette();
 

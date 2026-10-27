@@ -126,9 +126,59 @@ export function findRecipeIngredients(
   candidates: RecipeCandidate[],
 ): RecipeIngredient[] {
   return names.map((name) => {
-    const key = name.trim().toLowerCase();
-    const match = candidates.find((candidate) => candidate.name.trim().toLowerCase() === key);
+    const match = candidatesNamed(name, candidates)[0];
 
     return { name, daysLeft: match ? match.daysLeft : Number.POSITIVE_INFINITY };
   });
+}
+
+/**
+ * A recipe's food as it stands in the inventory now, for a recipe opened or
+ * saved earlier. Unlike `findRecipeIngredients`, an item still in date wins
+ * over an expired one of the same name: with a fresh carton of milk in the
+ * fridge, a recipe using milk is fine to cook, even if an old carton is there
+ * too. Food no longer in the inventory has no date.
+ */
+export function findStockedIngredients(
+  names: string[],
+  candidates: RecipeCandidate[],
+): RecipeIngredient[] {
+  return names.map((name) => {
+    const match = pickInDateFirst(candidatesNamed(name, candidates));
+
+    return { name, daysLeft: match ? match.daysLeft : Number.POSITIVE_INFINITY };
+  });
+}
+
+/**
+ * The items a recipe's "Mark as consumed" or "Mark as wasted" resolves: one
+ * per ingredient, chosen as in `findStockedIngredients` so the buttons mark
+ * the food the screen shows. No item is used twice, and food no longer in the
+ * inventory is skipped.
+ */
+export function findUsedItemIds(names: string[], candidates: RecipeCandidate[]): string[] {
+  const usedIds: string[] = [];
+
+  for (const name of names) {
+    const unused = candidates.filter((candidate) => !usedIds.includes(candidate.id));
+    const match = pickInDateFirst(candidatesNamed(name, unused));
+
+    if (match) {
+      usedIds.push(match.id);
+    }
+  }
+
+  return usedIds;
+}
+
+/** The candidates with this name, ignoring case, in their existing most-urgent-first order. */
+function candidatesNamed(name: string, candidates: RecipeCandidate[]): RecipeCandidate[] {
+  const key = name.trim().toLowerCase();
+
+  return candidates.filter((candidate) => candidate.name.trim().toLowerCase() === key);
+}
+
+/** The most urgent item still in date, or the first expired one when none is. */
+function pickInDateFirst(matches: RecipeCandidate[]): RecipeCandidate | undefined {
+  return matches.find((candidate) => candidate.daysLeft >= 0) ?? matches[0];
 }

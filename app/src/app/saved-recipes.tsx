@@ -16,7 +16,7 @@ import { RecipeCard } from '@/components/recipe-card';
 import { SavedStar } from '@/components/saved-star';
 import { useInventory } from '@/context/inventory-context';
 import { useToday } from '@/hooks/use-today';
-import { findRecipeIngredients, listRecipeCandidates } from '@/utils/recipe-ingredients';
+import { findStockedIngredients, listRecipeCandidates } from '@/utils/recipe-ingredients';
 import { findExpiredIngredients } from '@/utils/recipe-prompt';
 import {
   loadSavedRecipes,
@@ -200,7 +200,7 @@ export default function SavedRecipesScreen() {
                   key={entry.id}
                   expiredNames={findExpiredIngredients(
                     entry.recipe,
-                    findRecipeIngredients(entry.recipe.usesIngredients, candidates),
+                    findStockedIngredients(entry.recipe.usesIngredients, candidates),
                   )}
                   index={index}
                   isSaved
