@@ -69,11 +69,14 @@ const omelette: SuggestedRecipe = {
   steps: ['Wilt the spinach.', 'Whisk the eggs with the milk.', 'Cook until set.'],
 };
 
-/** Puts the omelette in the last suggestions, as the Recipes tab does, and opens it. */
-async function openOmelette() {
+/**
+ * Puts the omelette in the last suggestions, as the Recipes tab does, and opens
+ * it. `forIds` are the items that were ticked for those suggestions.
+ */
+async function openOmelette(forIds: string[] = []) {
   await saveRecipeSnapshot({
-    selectedIds: [],
-    lastResult: { recipes: [omelette], forNames: ['Spinach', 'Milk'] },
+    selectedIds: forIds,
+    lastResult: { recipes: [omelette], forNames: ['Spinach', 'Milk'], forIds },
   });
   mockParams.id = omelette.id;
 
@@ -189,6 +192,74 @@ describe('RecipeDetailScreen marking the food', () => {
 
     await fireEvent.press(view.getByRole('button', { name: 'Done' }));
     expect(router.back).toHaveBeenCalled();
+  });
+
+  it('marks the fresh milk, not an expired carton, and does not warn about it', async () => {
+    mockInventory.activeItems = [
+      food('old-milk', 'Milk', -2),
+      food('spinach-soon', 'Spinach', 1),
+      food('new-milk', 'Milk', 4),
+    ];
+    const view = await openOmelette();
+
+    expect(view.queryByText('Milk · expired')).toBeNull();
+    expect(view.getByHintText('Marks Spinach and Milk as eaten')).toBeTruthy();
+
+    await fireEvent.press(view.getByText('Mark as consumed'));
+
+    expect(mockInventory.resolveItem.mock.calls).toEqual([
+      ['spinach-soon', 'eaten'],
+      ['new-milk', 'eaten'],
+    ]);
+  });
+
+  it('says "Saving…" only on the button that was pressed', async () => {
+    mockInventory.resolveItem.mockReturnValue(new Promise(() => undefined));
+    const view = await openOmelette();
+
+    await fireEvent.press(view.getByText('Mark as wasted'));
+
+    expect(view.getByText('Mark as consumed')).toBeTruthy();
+    expect(view.queryByText('Mark as wasted')).toBeNull();
+    expect(view.getByText('Saving…')).toBeTruthy();
+  });
+
+  it('marks the milk that was ticked, even an expired carton picked on purpose', async () => {
+    mockInventory.activeItems = [
+      food('old-milk', 'Milk', -2),
+      food('spinach-soon', 'Spinach', 1),
+      food('new-milk', 'Milk', 4),
+    ];
+    const view = await openOmelette(['old-milk', 'spinach-soon']);
+
+    expect(view.getByText('Milk · expired')).toBeTruthy();
+
+    await fireEvent.press(view.getByText('Mark as consumed'));
+
+    expect(mockInventory.resolveItem.mock.calls).toEqual([
+      ['spinach-soon', 'eaten'],
+      ['old-milk', 'eaten'],
+    ]);
+  });
+
+  it('ignores the latest ticks for a saved recipe that is no longer suggested', async () => {
+    mockInventory.activeItems = [food('old-milk', 'Milk', -2), food('new-milk', 'Milk', 4)];
+    await saveRecipe(omelette);
+    await saveRecipeSnapshot({
+      selectedIds: ['old-milk'],
+      lastResult: {
+        recipes: [{ ...omelette, id: 'other' }],
+        forNames: ['Milk'],
+        forIds: ['old-milk'],
+      },
+    });
+    mockParams.id = omelette.id;
+    const view = await render(<RecipeDetailScreen />);
+    await view.findByRole('header', { name: 'Spinach omelette' });
+
+    await fireEvent.press(view.getByText('Mark as consumed'));
+
+    expect(mockInventory.resolveItem.mock.calls).toEqual([['new-milk', 'eaten']]);
   });
 
   it('marks the food as thrown out when it was wasted', async () => {

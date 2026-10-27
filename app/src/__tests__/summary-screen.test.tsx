@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, within } from '@testing-library/react-native';
+import { router } from 'expo-router';
 import { Pressable, Text } from 'react-native';
 
 import WeeklySummaryScreen from '@/app/(tabs)/summary';
@@ -18,6 +19,7 @@ jest.mock('expo-router', () => {
   const { useEffect } = jest.requireActual<typeof import('react')>('react');
 
   return {
+    router: { push: jest.fn() },
     useFocusEffect: (effect: () => void) =>
       useEffect(() => {
         mockFocus.effect = effect;
@@ -119,7 +121,7 @@ describe('WeeklySummaryScreen', () => {
     expect(totalFor(view, 'Thrown out')).toBe(1);
     expect(view.getByText('of 3 items saved')).toBeTruthy();
 
-    await fireEvent.press(view.getByRole('button', { name: 'Show this month' }));
+    await fireEvent.press(view.getByRole('button', { name: 'Month' }));
 
     /* ...but it is inside this month. */
     expect(totalFor(view, 'Eaten')).toBe(2);
@@ -131,13 +133,13 @@ describe('WeeklySummaryScreen', () => {
       buildItem('apple', { status: 'eaten', statusUpdatedAt: new Date(NOW).toISOString() }),
     ]);
 
-    expect(view.getByRole('button', { name: 'Show this week', selected: true })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Week', selected: true })).toBeTruthy();
     expect(view.getByText('This week · 12 Oct–18 Oct')).toBeTruthy();
     expect(view.getByText('DAY BY DAY')).toBeTruthy();
 
-    await fireEvent.press(view.getByRole('button', { name: 'Show this month' }));
+    await fireEvent.press(view.getByRole('button', { name: 'Month' }));
 
-    expect(view.getByRole('button', { name: 'Show this month', selected: true })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Month', selected: true })).toBeTruthy();
     expect(view.queryByText('DAY BY DAY')).toBeNull();
     expect(view.getByText(/This month · October 2026/)).toBeTruthy();
   });
@@ -169,8 +171,11 @@ describe('WeeklySummaryScreen', () => {
       buildItem('bread', { status: 'discarded', statusUpdatedAt: new Date(NOW).toISOString() }),
     ]);
 
-    expect(view.getByLabelText('View details for bread')).toBeTruthy();
     expect(view.queryByText('No food thrown out')).toBeNull();
+
+    await fireEvent.press(view.getByLabelText('View details for bread'));
+
+    expect(router.push).toHaveBeenCalledWith({ pathname: '/item/[id]', params: { id: 'bread' } });
   });
 
   it('lists the newest thrown-out food first', async () => {
@@ -189,7 +194,7 @@ describe('WeeklySummaryScreen', () => {
     expect(names).toEqual(['View details for newer', 'View details for older']);
   });
 
-  it('shows the 10 newest thrown-out items and counts the rest', async () => {
+  it('shows the 10 newest thrown-out items, and the rest on request', async () => {
     const view = await renderScreen(
       Array.from({ length: 12 }, (_, index) =>
         buildItem(`food-${index}`, {
@@ -202,11 +207,18 @@ describe('WeeklySummaryScreen', () => {
     expect(view.getAllByLabelText(/^View details for /)).toHaveLength(10);
     expect(view.getByLabelText('View details for food-9')).toBeTruthy();
     expect(view.queryByLabelText('View details for food-10')).toBeNull();
-    expect(view.getByLabelText('2 more thrown out, not shown')).toBeTruthy();
-    expect(view.getByText('+2 more')).toBeTruthy();
+
+    await fireEvent.press(view.getByRole('button', { name: 'Show 2 more' }));
+
+    expect(view.getAllByLabelText(/^View details for /)).toHaveLength(12);
+    expect(view.getByLabelText('View details for food-11')).toBeTruthy();
+
+    await fireEvent.press(view.getByRole('button', { name: 'Show fewer' }));
+
+    expect(view.getAllByLabelText(/^View details for /)).toHaveLength(10);
   });
 
-  it('shows no count of more items when all of them fit', async () => {
+  it('offers no Show button when all of them fit', async () => {
     const view = await renderScreen(
       Array.from({ length: 10 }, (_, index) =>
         buildItem(`food-${index}`, {

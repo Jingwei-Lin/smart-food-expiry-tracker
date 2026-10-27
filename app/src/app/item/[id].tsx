@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FoodCategoryIcon } from '@/components/food-category-icon';
 import { useInventory } from '@/context/inventory-context';
+import { useToday } from '@/hooks/use-today';
 import { returnToInventory } from '@/utils/navigation';
 import type { FoodStorageLocation, ResolvedFoodItemStatus } from '@/types/food-item';
 import { describeDeletion } from '@/utils/delete-confirm';
@@ -31,7 +32,6 @@ const COLORS = {
   primary: '#1E2A16',
   secondary: '#55614D',
   border: '#E4E5D4',
-  divider: '#EEEFE5',
   accent: '#A6D45A',
   accentSoft: '#F0F7DB',
   urgent: '#A92E26',
@@ -119,6 +119,11 @@ export default function ItemDetailScreen() {
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<ResolvedFoodItemStatus | null>(null);
+  /*
+   * The same day the donation point page uses, so the two agree on what has
+   * expired just after midnight.
+   */
+  const today = useToday();
   const [actionError, setActionError] = useState<string | null>(null);
 
   const item = items.find((candidate) => candidate.id === id);
@@ -212,9 +217,11 @@ export default function ItemDetailScreen() {
 
   const isActive = item.status === 'active';
   const statusLabel = item.status === 'active' ? null : STATUS_LABELS[item.status];
-  const daysLeft = daysUntilExpiry(item.expiryDate);
-  const expiry = getExpiryPresentation(item.expiryDate);
+  const daysLeft = daysUntilExpiry(item.expiryDate, today);
+  const expiry = getExpiryPresentation(item.expiryDate, today);
   const deletion = describeDeletion(item);
+  /* A donation point's page only offers food still in date, so expired food has nowhere to go. */
+  const canDonate = Number.isFinite(daysLeft) && daysLeft >= 0;
   const addedOn = formatStoredDate(item.createdAt);
   const updatedOn = formatStoredDate(item.statusUpdatedAt);
 
@@ -227,7 +234,49 @@ export default function ItemDetailScreen() {
    * to Edit for nothing.
    */
   const reminderDescription =
-    Platform.OS === 'web' ? 'Not available on web' : describeReminders(item);
+    Platform.OS === 'web' ? 'Not available on web' : describeReminders(item, today);
+
+  const deleteToggle = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityHint={isConfirmingDelete ? undefined : `Asks before deleting ${item.name}`}
+      disabled={actionsDisabled}
+      onPress={() => setIsConfirmingDelete((current) => !current)}
+      style={styles.deleteLink}
+    >
+      <Text style={styles.deleteLinkText}>
+        {isConfirmingDelete ? 'Cancel delete' : 'Delete item'}
+      </Text>
+    </Pressable>
+  );
+
+  const deleteConfirm = isConfirmingDelete ? (
+    <View style={styles.deleteConfirmCard}>
+      <Text style={styles.deleteConfirmTitle}>{deletion.title}</Text>
+
+      <Text style={styles.deleteConfirmText}>{deletion.message}</Text>
+
+      <View style={styles.confirmButtons}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={isWorking}
+          onPress={() => setIsConfirmingDelete(false)}
+          style={styles.cancelDeleteButton}
+        >
+          <Text style={styles.cancelDeleteText}>Keep item</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          disabled={actionsDisabled}
+          onPress={handleDelete}
+          style={[styles.confirmDeleteButton, actionsDisabled && styles.disabled]}
+        >
+          <Text style={styles.confirmDeleteText}>{isWorking ? 'Deleting...' : 'Delete'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  ) : null;
 
   // This is a qualitative urgency indicator, not a shelf-life percentage.
   const urgencyWidth = !Number.isFinite(daysLeft)
@@ -262,7 +311,7 @@ export default function ItemDetailScreen() {
           {isActive ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Edit item"
+              accessibilityLabel={`Edit ${item.name}`}
               onPress={openEdit}
               style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
             >
@@ -295,7 +344,9 @@ export default function ItemDetailScreen() {
               <Text style={styles.storageText}>{STORAGE_LABELS[item.storageLocation]}</Text>
             </View>
 
-            <Text style={styles.itemName}>{item.name}</Text>
+            <Text accessibilityRole="header" style={styles.itemName}>
+              {item.name}
+            </Text>
 
             {itemMeta ? <Text style={styles.itemMeta}>{itemMeta}</Text> : null}
 
@@ -343,8 +394,9 @@ export default function ItemDetailScreen() {
 
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityHint={`Edits the expiry date of ${item.name}`}
                   onPress={openEdit}
-                  style={({ pressed }) => (pressed ? styles.pressed : undefined)}
+                  style={({ pressed }) => [styles.changeDateButton, pressed && styles.pressed]}
                 >
                   <Text style={styles.changeDate}>Change date</Text>
                 </Pressable>
@@ -355,33 +407,23 @@ export default function ItemDetailScreen() {
               <View style={styles.reminderContent}>
                 <Text style={styles.sectionEyebrow}>ALERTS</Text>
 
+                {/*
+                 * Only what is actually scheduled: the chosen notice alone would
+                 * claim a reminder when notifications are off or the day has passed.
+                 */}
                 <View style={styles.reminderRow}>
+                  <Ionicons name="notifications-outline" size={21} color={COLORS.primary} />
+
                   <View style={styles.reminderCopy}>
-                    <Text style={styles.reminderTitle}>Remind me</Text>
+                    <Text style={styles.reminderTitle}>Reminders</Text>
 
-                    <Text style={styles.reminderDescription}>
-                      {item.reminderDaysBefore} {item.reminderDaysBefore === 1 ? 'day' : 'days'}{' '}
-                      before it expires
-                    </Text>
+                    <Text style={styles.reminderDescription}>{reminderDescription}</Text>
                   </View>
-
-                  <View style={styles.reminderValue}>
-                    <Ionicons name="notifications-outline" size={20} color={COLORS.primary} />
-
-                    <Text style={styles.reminderValueText}>{item.reminderDaysBefore}</Text>
-                  </View>
-                </View>
-
-                <View style={styles.divider} />
-
-                <View style={styles.reminderStatusRow}>
-                  <Ionicons name="notifications-outline" size={21} color={COLORS.secondary} />
-
-                  <Text style={styles.reminderStatus}>{reminderDescription}</Text>
                 </View>
 
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityHint={`Edits the reminders for ${item.name}`}
                   onPress={openEdit}
                   style={({ pressed }) => [styles.reminderEdit, pressed && styles.pressed]}
                 >
@@ -408,62 +450,48 @@ export default function ItemDetailScreen() {
                 <Text style={styles.quickActionText}>Find recipes</Text>
               </Pressable>
 
-              <Pressable
-                accessibilityRole="button"
-                disabled={isWorking}
-                onPress={openDonationPoints}
-                style={({ pressed }) => [
-                  styles.quickActionButton,
-                  pressed && styles.pressed,
-                  isWorking && styles.disabled,
-                ]}
-              >
-                <Ionicons name="location-outline" size={23} color={COLORS.primary} />
+              {canDonate ? (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isWorking}
+                  onPress={openDonationPoints}
+                  style={({ pressed }) => [
+                    styles.quickActionButton,
+                    pressed && styles.pressed,
+                    isWorking && styles.disabled,
+                  ]}
+                >
+                  <Ionicons name="location-outline" size={23} color={COLORS.primary} />
 
-                <Text style={styles.quickActionText}>Donate it</Text>
-              </Pressable>
+                  <Text style={styles.quickActionText}>Donate it</Text>
+                </Pressable>
+              ) : null}
             </View>
 
-            {isConfirmingDelete && (
-              <View style={styles.deleteConfirmCard}>
-                <Text style={styles.deleteConfirmTitle}>{deletion.title}</Text>
-
-                <Text style={styles.deleteConfirmText}>{deletion.message}</Text>
-
-                <View style={styles.confirmButtons}>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={isWorking}
-                    onPress={() => setIsConfirmingDelete(false)}
-                    style={styles.cancelDeleteButton}
-                  >
-                    <Text style={styles.cancelDeleteText}>Keep item</Text>
-                  </Pressable>
-
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={actionsDisabled}
-                    onPress={handleDelete}
-                    style={[styles.confirmDeleteButton, actionsDisabled && styles.disabled]}
-                  >
-                    <Text style={styles.confirmDeleteText}>
-                      {isWorking ? 'Deleting...' : 'Delete'}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
+            {deleteConfirm}
           </>
         ) : (
-          <View style={styles.resolvedCard}>
-            <Ionicons name="checkmark-circle-outline" size={30} color={COLORS.secondary} />
+          <>
+            <View style={styles.resolvedCard}>
+              <Ionicons name="checkmark-circle-outline" size={30} color={COLORS.secondary} />
 
-            <Text style={styles.resolvedTitle}>This item is no longer in your inventory.</Text>
+              <Text style={styles.resolvedTitle}>This item is no longer in your inventory.</Text>
 
-            <Text style={styles.resolvedDescription}>Status: {statusLabel}</Text>
+              <Text style={styles.resolvedDescription}>Status: {statusLabel}</Text>
 
-            {updatedOn ? <Text style={styles.resolvedDescription}>Updated {updatedOn}</Text> : null}
-          </View>
+              {updatedOn ? (
+                <Text style={styles.resolvedDescription}>Updated {updatedOn}</Text>
+              ) : null}
+            </View>
+
+            {/*
+             * Resolved food still counts in the summary. Summary's thrown-out
+             * list opens it here, so a mistaken Thrown out can be undone by
+             * deleting it. Eaten and donated food is not listed anywhere.
+             */}
+            {deleteToggle}
+            {deleteConfirm}
+          </>
         )}
 
         {item.notes ? (
@@ -501,7 +529,7 @@ export default function ItemDetailScreen() {
             <Pressable
               accessibilityRole="button"
               disabled={actionsDisabled}
-              accessibilityLabel={`Mark ${item.name} as eaten`}
+              accessibilityHint={`Marks ${item.name} as eaten`}
               accessibilityState={{ busy: pendingStatus === 'eaten' }}
               onPress={() => handleResolve('eaten')}
               style={({ pressed }) => [
@@ -518,7 +546,7 @@ export default function ItemDetailScreen() {
             <Pressable
               accessibilityRole="button"
               disabled={actionsDisabled}
-              accessibilityLabel={`Mark ${item.name} as thrown out`}
+              accessibilityHint={`Marks ${item.name} as thrown out`}
               accessibilityState={{ busy: pendingStatus === 'discarded' }}
               onPress={() => handleResolve('discarded')}
               style={({ pressed }) => [
@@ -533,16 +561,7 @@ export default function ItemDetailScreen() {
             </Pressable>
           </View>
 
-          <Pressable
-            accessibilityRole="button"
-            disabled={actionsDisabled}
-            onPress={() => setIsConfirmingDelete((current) => !current)}
-            style={styles.deleteLink}
-          >
-            <Text style={styles.deleteLinkText}>
-              {isConfirmingDelete ? 'Cancel delete' : 'Delete item'}
-            </Text>
-          </Pressable>
+          {deleteToggle}
         </View>
       )}
     </View>
@@ -735,6 +754,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
   },
+  changeDateButton: {
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 4,
+  },
   changeDate: {
     color: COLORS.primary,
     fontFamily: 'Fredoka_600SemiBold',
@@ -761,8 +785,7 @@ const styles = StyleSheet.create({
   },
   reminderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     gap: 12,
   },
   reminderCopy: {
@@ -778,40 +801,6 @@ const styles = StyleSheet.create({
     color: COLORS.secondary,
     fontFamily: 'Fredoka_400Regular',
     fontSize: 14,
-    lineHeight: 20,
-  },
-  reminderValue: {
-    minWidth: 54,
-    height: 42,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 21,
-  },
-  reminderValueText: {
-    color: COLORS.primary,
-    fontFamily: 'Fredoka_600SemiBold',
-    fontSize: 16,
-  },
-  divider: {
-    height: 1,
-    marginTop: 14,
-    backgroundColor: COLORS.divider,
-  },
-  reminderStatusRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginTop: 14,
-  },
-  reminderStatus: {
-    flex: 1,
-    color: COLORS.secondary,
-    fontFamily: 'Fredoka_400Regular',
-    fontSize: 13,
     lineHeight: 20,
   },
   reminderEdit: {
@@ -1015,8 +1004,9 @@ const styles = StyleSheet.create({
   },
   deleteLink: {
     alignSelf: 'center',
-    paddingTop: 8,
-    paddingBottom: 2,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 12,
   },
   deleteLinkText: {
     color: COLORS.error,

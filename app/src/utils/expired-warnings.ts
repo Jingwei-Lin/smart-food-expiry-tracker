@@ -4,9 +4,10 @@
  * go missing or be softened.
  */
 
-function joinNames(names: string[]): string {
-  if (names.length === 1) {
-    return names[0];
+/** "Milk", "Milk and Spinach", "Milk, Spinach and Eggs". */
+export function joinNames(names: string[]): string {
+  if (names.length <= 1) {
+    return names[0] ?? '';
   }
 
   return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
@@ -17,13 +18,6 @@ export function describeExpiredTicked(names: string[]): string {
   return names.length > 1
     ? `${joinNames(names)} are past their date. Check they look and smell fine before cooking with them.`
     : `${names[0]} is past its date. Check it looks and smells fine before cooking with it.`;
-}
-
-/** The warning on an opened saved recipe whose food has expired since it was saved. */
-export function describeExpiredInSaved(names: string[]): string {
-  return names.length > 1
-    ? `Your ${joinNames(names)} are now past their date. Check they look and smell fine before cooking with them.`
-    : `Your ${names[0]} is now past its date. Check it looks and smells fine before cooking with it.`;
 }
 
 /** The warning on a recipe card that uses expired food. */

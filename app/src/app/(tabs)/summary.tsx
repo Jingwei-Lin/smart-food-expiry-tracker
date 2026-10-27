@@ -32,7 +32,10 @@ const COLORS = {
   error: '#8B2C25',
 };
 
-/** A month can hold many thrown-out items, and the list sits above the end of the screen. */
+/*
+ * A month can hold many thrown-out items, and a long list would push the
+ * note below it out of sight, so the rest wait behind a "Show" button.
+ */
 const MAX_DISCARDED_SHOWN = 10;
 
 function describeDay(day: DayOutcomes, dayName: string): string {
@@ -89,6 +92,7 @@ export default function WeeklySummaryScreen() {
   const { items, isLoading, isStorageReady } = useInventory();
   const today = useToday();
   const [period, setPeriod] = useState<SummaryPeriod>('week');
+  const [showAllDiscarded, setShowAllDiscarded] = useState(false);
 
   const days = getSummaryDays(items, today, period);
   const todayKey = toExpiryDateString(today);
@@ -100,8 +104,10 @@ export default function WeeklySummaryScreen() {
   const maxBarValue = Math.max(1, ...days.map((day) => day.eaten + day.donated + day.discarded));
 
   const discardedItems = getDiscardedItems(items, days);
-  const shownDiscardedItems = discardedItems.slice(0, MAX_DISCARDED_SHOWN);
-  const hiddenDiscardedCount = discardedItems.length - shownDiscardedItems.length;
+  const extraDiscardedCount = Math.max(0, discardedItems.length - MAX_DISCARDED_SHOWN);
+  const shownDiscardedItems = showAllDiscarded
+    ? discardedItems
+    : discardedItems.slice(0, MAX_DISCARDED_SHOWN);
 
   return (
     <ScrollView
@@ -128,7 +134,7 @@ export default function WeeklySummaryScreen() {
             <Pressable
               key={option}
               accessibilityRole="button"
-              accessibilityLabel={option === 'week' ? 'Show this week' : 'Show this month'}
+              accessibilityHint={option === 'week' ? 'Shows this week' : 'Shows this month'}
               accessibilityState={{ selected }}
               onPress={() => setPeriod(option)}
               style={[styles.periodOption, selected && styles.periodOptionSelected]}
@@ -358,7 +364,6 @@ export default function WeeklySummaryScreen() {
                           day: 'numeric',
                           month: 'short',
                         })}
-                        {' · '}Marked as thrown out
                       </Text>
                     </View>
 
@@ -367,13 +372,19 @@ export default function WeeklySummaryScreen() {
                 </View>
               ))}
 
-              {hiddenDiscardedCount > 0 && (
-                <Text
-                  accessibilityLabel={`${hiddenDiscardedCount} more thrown out, not shown`}
-                  style={styles.discardedMore}
+              {extraDiscardedCount > 0 && (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setShowAllDiscarded((current) => !current)}
+                  style={({ pressed }) => [
+                    styles.discardedMore,
+                    pressed && styles.discardedRowPressed,
+                  ]}
                 >
-                  +{hiddenDiscardedCount} more
-                </Text>
+                  <Text style={styles.discardedMoreText}>
+                    {showAllDiscarded ? 'Show fewer' : `Show ${extraDiscardedCount} more`}
+                  </Text>
+                </Pressable>
               )}
             </View>
           )}
@@ -634,9 +645,13 @@ const styles = StyleSheet.create({
     lineHeight: 19,
   },
   discardedMore: {
+    justifyContent: 'center',
+    minHeight: 44,
     borderTopWidth: 1,
     borderTopColor: COLORS.divider,
     paddingVertical: 12,
+  },
+  discardedMoreText: {
     color: COLORS.secondary,
     fontFamily: 'Fredoka_500Medium',
     fontSize: 14,

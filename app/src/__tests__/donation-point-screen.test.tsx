@@ -279,6 +279,20 @@ describe('bringing food from the fridge', () => {
     mockInventory.activeItems = [food('old', 'Old yoghurt', '2026-10-19')];
     const view = await renderPlace({ id: 'node-1' });
 
-    expect(view.getByText(/Nothing in your fridge is still in date/)).toBeTruthy();
+    expect(view.getByText(/None of your food is still in date/)).toBeTruthy();
+  });
+
+  it('offers every item in date, so the food "Donate it" came from is always there', async () => {
+    mockInventory.activeItems = Array.from({ length: 8 }, (_, index) =>
+      food(`item-${index}`, `Item ${index}`, `2026-10-${22 + index}`),
+    );
+    const view = await renderPlace({ id: 'node-1' });
+
+    expect(view.getAllByRole('checkbox')).toHaveLength(8);
+
+    await fireEvent.press(view.getByLabelText('Item 7, 8 days left'));
+    await fireEvent.press(view.getByRole('button', { name: 'Mark 1 item as donated' }));
+
+    expect(mockInventory.resolveItem).toHaveBeenCalledWith('item-7', 'donated');
   });
 });

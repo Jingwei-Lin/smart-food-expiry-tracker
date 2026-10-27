@@ -21,6 +21,7 @@ jest.mock('expo-router', () => ({
     replace: jest.fn(),
   },
   Stack: { Screen: () => null },
+  useFocusEffect: jest.fn(),
   useLocalSearchParams: () => ({ id: 'milk' }),
 }));
 
@@ -81,7 +82,7 @@ describe('ItemDetailScreen', () => {
   });
 
   it('opens the Donation Points tab near the phone for food that cannot be finished', async () => {
-    const view = await renderScreen(buildMilk());
+    const view = await renderScreen(buildMilk({ expiryDate: '2099-12-31' }));
 
     await fireEvent.press(view.getByText('Donate it'));
 
@@ -89,6 +90,13 @@ describe('ItemDetailScreen', () => {
       pathname: '/donation-points',
       params: { near: 'phone' },
     });
+  });
+
+  it('does not offer donating expired food, which a donation point cannot take', async () => {
+    const view = await renderScreen(buildMilk({ expiryDate: '2000-01-01' }));
+
+    expect(view.getByText('Find recipes')).toBeTruthy();
+    expect(view.queryByText('Donate it')).toBeNull();
   });
 
   it.each([
@@ -124,8 +132,12 @@ describe('ItemDetailScreen', () => {
   it('names the item on the buttons that resolve it, for screen readers', async () => {
     const view = await renderScreen(buildMilk());
 
-    expect(view.getByRole('button', { name: 'Mark Milk as eaten' })).toBeTruthy();
-    expect(view.getByRole('button', { name: 'Mark Milk as thrown out' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Eaten' }).props.accessibilityHint).toBe(
+      'Marks Milk as eaten',
+    );
+    expect(view.getByRole('button', { name: 'Thrown out' }).props.accessibilityHint).toBe(
+      'Marks Milk as thrown out',
+    );
   });
 
   it('marks only the pressed button as busy while it saves', async () => {
@@ -134,12 +146,14 @@ describe('ItemDetailScreen', () => {
 
     await fireEvent.press(view.getByText('Thrown out'));
 
-    expect(
-      view.getByRole('button', { name: 'Mark Milk as thrown out' }).props.accessibilityState,
-    ).toMatchObject({ busy: true, disabled: true });
-    expect(
-      view.getByRole('button', { name: 'Mark Milk as eaten' }).props.accessibilityState,
-    ).toMatchObject({ busy: false, disabled: true });
+    expect(view.getByHintText('Marks Milk as thrown out').props.accessibilityState).toMatchObject({
+      busy: true,
+      disabled: true,
+    });
+    expect(view.getByHintText('Marks Milk as eaten').props.accessibilityState).toMatchObject({
+      busy: false,
+      disabled: true,
+    });
   });
 
   it('goes back one screen, which is not always the inventory', async () => {
@@ -237,12 +251,26 @@ describe('ItemDetailScreen', () => {
     expect(view.getByText('1 day before and on expiry day')).toBeTruthy();
   });
 
-  it('says reminders are not set when none were scheduled', async () => {
-    const view = await renderScreen(buildMilk({ expiryDate: '2099-01-10' }));
+  it('says reminders are not set when none were scheduled, and claims no notice', async () => {
+    const view = await renderScreen(buildMilk({ expiryDate: '2099-01-10', reminderDaysBefore: 3 }));
 
     expect(
       view.getByText('Not set. Turn on notifications, then save the item again from Edit'),
     ).toBeTruthy();
+    expect(view.queryByText(/3 days before/)).toBeNull();
+  });
+
+  it('names the item on the buttons that change it, for screen readers', async () => {
+    const view = await renderScreen(buildMilk({ expiryDate: '2099-01-10' }));
+
+    expect(view.getByRole('header', { name: 'Milk' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Edit Milk' })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Change date' }).props.accessibilityHint).toBe(
+      'Edits the expiry date of Milk',
+    );
+    expect(
+      view.getByRole('button', { name: 'Edit reminder settings' }).props.accessibilityHint,
+    ).toBe('Edits the reminders for Milk');
   });
 
   it('says reminders are not available on web, where none can be scheduled', async () => {
@@ -274,5 +302,45 @@ describe('ItemDetailScreen', () => {
 
     expect(view.queryByText('Find recipes')).toBeNull();
     expect(view.queryByText('Donate it')).toBeNull();
+  });
+
+  it('deletes an active item only after it is confirmed', async () => {
+    const view = await renderScreen(buildMilk());
+
+    await fireEvent.press(view.getByRole('button', { name: 'Delete item' }));
+    expect(
+      view.getByText('This removes the item from your inventory. It cannot be undone.'),
+    ).toBeTruthy();
+
+    await fireEvent.press(view.getByText('Delete'));
+
+    expect(await AsyncStorage.getItem(STORAGE_KEY)).toBe('[]');
+    expect(router.back).toHaveBeenCalled();
+  });
+
+  it.each(['eaten', 'discarded', 'donated'] as const)(
+    'lets a %s item be deleted, so a mistaken resolve can be undone',
+    async (status) => {
+      const view = await renderScreen(
+        buildMilk({ status, statusUpdatedAt: '2026-09-28T00:00:00.000Z' }),
+      );
+
+      await fireEvent.press(view.getByRole('button', { name: 'Delete item' }));
+      expect(view.getByText(/and from the waste summary/)).toBeTruthy();
+
+      await fireEvent.press(view.getByText('Delete'));
+
+      expect(await AsyncStorage.getItem(STORAGE_KEY)).toBe('[]');
+    },
+  );
+
+  it('keeps the item when the delete is cancelled', async () => {
+    const view = await renderScreen(buildMilk());
+
+    await fireEvent.press(view.getByRole('button', { name: 'Delete item' }));
+    await fireEvent.press(view.getByText('Keep item'));
+
+    expect(view.queryByText('Keep item')).toBeNull();
+    expect(JSON.parse((await AsyncStorage.getItem(STORAGE_KEY)) ?? '[]')).toHaveLength(1);
   });
 });

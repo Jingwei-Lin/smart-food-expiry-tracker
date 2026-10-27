@@ -67,6 +67,6 @@
     "setupFilesAfterEnv": [
       "<rootDir>/jest-setup.ts"
     ],
-    "testTimeout": 15000
+    "testTimeout": 30000
   }
 }

@@ -16,7 +16,8 @@ import { RecipeCard } from '@/components/recipe-card';
 import { SavedStar } from '@/components/saved-star';
 import { useInventory } from '@/context/inventory-context';
 import { useToday } from '@/hooks/use-today';
-import { findRecipeIngredients, listRecipeCandidates } from '@/utils/recipe-ingredients';
+import { goBackOr } from '@/utils/navigation';
+import { findStockedIngredients, listRecipeCandidates } from '@/utils/recipe-ingredients';
 import { findExpiredIngredients } from '@/utils/recipe-prompt';
 import {
   loadSavedRecipes,
@@ -45,13 +46,7 @@ function matchesSearch(entry: SavedRecipe, search: string): boolean {
   );
 }
 
-function goBack() {
-  if (router.canGoBack()) {
-    router.back();
-  } else {
-    router.replace('/recipes');
-  }
-}
+const goBack = () => goBackOr('/recipes');
 
 /**
  * The recipes the student starred. They are copies, so they stay here after
@@ -200,7 +195,7 @@ export default function SavedRecipesScreen() {
                   key={entry.id}
                   expiredNames={findExpiredIngredients(
                     entry.recipe,
-                    findRecipeIngredients(entry.recipe.usesIngredients, candidates),
+                    findStockedIngredients(entry.recipe.usesIngredients, candidates),
                   )}
                   index={index}
                   isSaved

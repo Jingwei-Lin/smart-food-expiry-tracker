@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,9 +8,13 @@ import { DishArt } from '@/components/dish-art';
 import { SavedStar } from '@/components/saved-star';
 import { useInventory } from '@/context/inventory-context';
 import { useToday } from '@/hooks/use-today';
-import type { FoodItem } from '@/types/food-item';
-import { describeExpiredInRecipe } from '@/utils/expired-warnings';
-import { findRecipeIngredients, listRecipeCandidates } from '@/utils/recipe-ingredients';
+import { describeExpiredInRecipe, joinNames } from '@/utils/expired-warnings';
+import { goBackOr } from '@/utils/navigation';
+import {
+  findStockedIngredients,
+  findUsedItemIds,
+  listRecipeCandidates,
+} from '@/utils/recipe-ingredients';
 import { findExpiredIngredients, type Recipe } from '@/utils/recipe-prompt';
 import {
   loadRecipeSnapshot,
@@ -27,7 +31,6 @@ const COLORS = {
   secondary: '#55614D',
   border: '#E4E5D4',
   divider: '#EEEFE5',
-  subtle: '#F2F3EA',
   accent: '#A6D45A',
   accentSoft: '#F0F7DB',
   error: '#8B2C25',
@@ -45,8 +48,12 @@ type DetailParams = {
   tint?: string;
 };
 
-/** undefined while reading, null when the recipe can't be found. */
-type Loaded = { recipe: Recipe; saved: SavedRecipe[] } | null | undefined;
+/**
+ * undefined while reading, null when the recipe can't be found. `tickedIds`
+ * are the items ticked for the suggestions it came from; a recipe opened from
+ * the saved list has none.
+ */
+type Loaded = { recipe: Recipe; saved: SavedRecipe[]; tickedIds: string[] } | null | undefined;
 
 /*
  * "From your fridge" chips are dark, with two exceptions so
@@ -84,50 +91,13 @@ function fridgeChip(daysLeft: number): {
       };
 }
 
-/** "Milk", "Milk and Spinach", "Milk, Spinach and Eggs". */
-function listNames(names: string[]): string {
-  return names.length <= 1
-    ? (names[0] ?? '')
-    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
-
-/**
- * The inventory items this recipe uses, matched by name as the Recipes tab
- * does. With two of the same food, the one that goes off first is used.
- * The inventory is already sorted soonest first.
- */
-function findUsedItems(recipe: Recipe, activeItems: FoodItem[]): FoodItem[] {
-  const used: FoodItem[] = [];
-
-  for (const name of recipe.usesIngredients) {
-    const key = name.trim().toLowerCase();
-    const item = activeItems.find(
-      (candidate) =>
-        candidate.name.trim().toLowerCase() === key &&
-        !used.some((chosen) => chosen.id === candidate.id),
-    );
-
-    if (item) {
-      used.push(item);
-    }
-  }
-
-  return used;
-}
-
 /* What each button records, in the words the confirmation uses. */
 const OUTCOME_WORDS: Record<'eaten' | 'discarded', string> = {
   eaten: 'eaten',
   discarded: 'thrown out',
 };
 
-function goBack() {
-  if (router.canGoBack()) {
-    router.back();
-  } else {
-    router.replace('/recipes');
-  }
-}
+const goBack = () => goBackOr('/recipes');
 
 /**
  * One recipe with its steps. It is looked up by id in the last suggestions,
@@ -140,7 +110,9 @@ export default function RecipeDetailScreen() {
   const { activeItems, resolveItem } = useInventory();
   const today = useToday();
   const [loaded, setLoaded] = useState<Loaded>(undefined);
-  const [isMarking, setIsMarking] = useState(false);
+  /* The outcome being saved, so only the pressed button says "Saving…". */
+  const [markingStatus, setMarkingStatus] = useState<'eaten' | 'discarded' | null>(null);
+  const isMarking = markingStatus !== null;
   const [markError, setMarkError] = useState<string | null>(null);
   /* What was just marked, for the confirmation; null until then. */
   const [marked, setMarked] = useState<{ names: string[]; status: 'eaten' | 'discarded' } | null>(
@@ -157,8 +129,9 @@ export default function RecipeDetailScreen() {
 
       const suggested = snapshot?.lastResult?.recipes.find((recipe) => recipe.id === id);
       const recipe = suggested ?? saved.find((entry) => entry.id === id)?.recipe;
+      const tickedIds = suggested ? (snapshot?.lastResult?.forIds ?? []) : [];
 
-      setLoaded(recipe ? { recipe, saved } : null);
+      setLoaded(recipe ? { recipe, saved, tickedIds } : null);
     });
 
     return () => {
@@ -191,17 +164,18 @@ export default function RecipeDetailScreen() {
     );
   }
 
-  const { recipe, saved } = loaded;
+  const { recipe, saved, tickedIds } = loaded;
   const isSaved = saved.some((entry) => entry.id === id);
 
   /* Today's dates, so food that has expired since the recipe was suggested is flagged. */
-  const fridge = findRecipeIngredients(
-    recipe.usesIngredients,
-    listRecipeCandidates(activeItems, today),
-  );
+  const candidates = listRecipeCandidates(activeItems, today);
+  const fridge = findStockedIngredients(recipe.usesIngredients, candidates, tickedIds);
   const expiredNames = findExpiredIngredients(recipe, fridge);
   const heroTint = HERO_TINTS[Number(tint ?? 0) % HERO_TINTS.length] ?? HERO_TINTS[0];
-  const usedItems = findUsedItems(recipe, activeItems);
+  const usedItems = findUsedItemIds(recipe.usesIngredients, candidates, tickedIds).flatMap(
+    (usedId) => activeItems.filter((item) => item.id === usedId),
+  );
+  const usedNames = joinNames(usedItems.map((item) => item.name));
 
   /**
    * Records the recipe's food as eaten or thrown out, which takes it out of
@@ -212,7 +186,7 @@ export default function RecipeDetailScreen() {
       return;
     }
 
-    setIsMarking(true);
+    setMarkingStatus(status);
     setMarkError(null);
 
     try {
@@ -225,20 +199,16 @@ export default function RecipeDetailScreen() {
     } catch {
       setMarkError("Some food couldn't be updated. Please try again.");
     } finally {
-      setIsMarking(false);
+      setMarkingStatus(null);
     }
   }
 
   /* The star fills or empties only once the change is saved, as on the cards. */
   async function toggleSaved() {
-    if (!loaded) {
-      return;
-    }
-
     try {
       const next = isSaved ? await unsaveRecipe(id) : await saveRecipe({ ...recipe, id });
 
-      setLoaded({ recipe, saved: next });
+      setLoaded({ recipe, saved: next, tickedIds });
     } catch {
       // Storage failed, so the star keeps showing what is really saved.
     }
@@ -364,7 +334,7 @@ export default function RecipeDetailScreen() {
           <View style={styles.done}>
             <Ionicons color={COLORS.link} name="checkmark-circle" size={26} />
             <Text style={styles.doneText}>
-              {listNames(marked.names)} {marked.names.length === 1 ? 'is' : 'are'} marked as{' '}
+              {joinNames(marked.names)} {marked.names.length === 1 ? 'is' : 'are'} marked as{' '}
               {OUTCOME_WORDS[marked.status]}.
             </Text>
             <Pressable
@@ -384,24 +354,28 @@ export default function RecipeDetailScreen() {
 
             <View style={styles.barButtons}>
               <Pressable
+                accessibilityHint={`Marks ${usedNames} as thrown out`}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: isMarking }}
+                accessibilityState={{ disabled: isMarking, busy: markingStatus === 'discarded' }}
                 disabled={isMarking}
                 onPress={() => void markUsedFood('discarded')}
                 style={({ pressed }) => [styles.wastedButton, pressed ? styles.pressed : null]}
               >
-                <Text style={styles.wastedText}>Mark as wasted</Text>
+                <Text style={styles.wastedText}>
+                  {markingStatus === 'discarded' ? 'Saving…' : 'Mark as wasted'}
+                </Text>
               </Pressable>
 
               <Pressable
+                accessibilityHint={`Marks ${usedNames} as eaten`}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: isMarking }}
+                accessibilityState={{ disabled: isMarking, busy: markingStatus === 'eaten' }}
                 disabled={isMarking}
                 onPress={() => void markUsedFood('eaten')}
                 style={({ pressed }) => [styles.consumedButton, pressed ? styles.pressed : null]}
               >
                 <Text style={styles.consumedText}>
-                  {isMarking ? 'Saving…' : 'Mark as consumed'}
+                  {markingStatus === 'eaten' ? 'Saving…' : 'Mark as consumed'}
                 </Text>
               </Pressable>
             </View>

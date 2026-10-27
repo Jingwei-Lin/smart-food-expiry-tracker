@@ -1,7 +1,8 @@
 import { FoodItem } from '@/types/food-item';
 import {
   defaultRecipeSelection,
-  findRecipeIngredients,
+  findStockedIngredients,
+  findUsedItemIds,
   listRecipeCandidates,
   MAX_RECIPE_INGREDIENTS,
   RecipeCandidate,
@@ -208,25 +209,95 @@ describe('toRecipeIngredients', () => {
   });
 });
 
-describe('findRecipeIngredients', () => {
-  it('reads each date again from the inventory, using the most urgent item of a name', () => {
+describe('findStockedIngredients', () => {
+  it('uses an item still in date over an expired one of the same name', () => {
     const candidates = [
       buildCandidate('old-milk', -1, 'Milk'),
       buildCandidate('spinach', 0, 'Spinach'),
       buildCandidate('new-milk', 5, 'Milk'),
     ];
 
-    expect(findRecipeIngredients(['Spinach', 'milk'], candidates)).toEqual([
+    expect(findStockedIngredients(['Spinach', 'milk'], candidates)).toEqual([
       { name: 'Spinach', daysLeft: 0 },
-      { name: 'milk', daysLeft: -1 },
+      { name: 'milk', daysLeft: 5 },
     ]);
   });
 
-  it('keeps food no longer in the inventory, with no date so it is never marked expired', () => {
-    const candidates = [buildCandidate('spinach', 0, 'Spinach')];
+  it('says a food has expired only when every item of that name has', () => {
+    const candidates = [
+      buildCandidate('older-milk', -3, 'Milk'),
+      buildCandidate('old-milk', -1, 'Milk'),
+    ];
 
-    expect(findRecipeIngredients(['Cheddar'], candidates)).toEqual([
+    expect(findStockedIngredients(['Milk'], candidates)).toEqual([{ name: 'Milk', daysLeft: -3 }]);
+  });
+
+  it('uses the item ticked for the result, even an expired one picked on purpose', () => {
+    const candidates = [
+      buildCandidate('old-milk', -1, 'Milk'),
+      buildCandidate('new-milk', 5, 'Milk'),
+    ];
+
+    expect(findStockedIngredients(['Milk'], candidates, ['old-milk'])).toEqual([
+      { name: 'Milk', daysLeft: -1 },
+    ]);
+  });
+
+  it('gives food no longer in the inventory no date', () => {
+    expect(findStockedIngredients(['Cheddar'], [])).toEqual([
       { name: 'Cheddar', daysLeft: Number.POSITIVE_INFINITY },
+    ]);
+  });
+});
+
+describe('findUsedItemIds', () => {
+  it('marks the fresh item, not an expired one of the same name', () => {
+    const candidates = [
+      buildCandidate('old-milk', -1, 'Milk'),
+      buildCandidate('new-milk', 5, 'Milk'),
+    ];
+
+    expect(findUsedItemIds(['Milk'], candidates)).toEqual(['new-milk']);
+  });
+
+  it('uses the in-date item that goes off first when there are several', () => {
+    const candidates = [buildCandidate('soon', 1, 'Milk'), buildCandidate('later', 6, 'Milk')];
+
+    expect(findUsedItemIds(['milk'], candidates)).toEqual(['soon']);
+  });
+
+  it('marks the ticked item over an unticked one of the same name', () => {
+    const candidates = [
+      buildCandidate('old-milk', -1, 'Milk'),
+      buildCandidate('soon', 1, 'Milk'),
+      buildCandidate('later', 6, 'Milk'),
+    ];
+
+    expect(findUsedItemIds(['Milk'], candidates, ['old-milk'])).toEqual(['old-milk']);
+    expect(findUsedItemIds(['Milk'], candidates, ['later'])).toEqual(['later']);
+  });
+
+  it('falls back to the in-date item once the ticked one has gone', () => {
+    const candidates = [
+      buildCandidate('old-milk', -1, 'Milk'),
+      buildCandidate('new-milk', 5, 'Milk'),
+    ];
+
+    expect(findUsedItemIds(['Milk'], candidates, ['eaten-milk'])).toEqual(['new-milk']);
+  });
+
+  it('uses an expired item when it is the only one of that name', () => {
+    expect(findUsedItemIds(['Milk'], [buildCandidate('old-milk', -1, 'Milk')])).toEqual([
+      'old-milk',
+    ]);
+  });
+
+  it('skips food not in the inventory and never uses an item twice', () => {
+    const candidates = [buildCandidate('milk', 2, 'Milk'), buildCandidate('eggs', 4, 'Eggs')];
+
+    expect(findUsedItemIds(['Milk', 'Cheddar', 'Eggs', 'Milk'], candidates)).toEqual([
+      'milk',
+      'eggs',
     ]);
   });
 });

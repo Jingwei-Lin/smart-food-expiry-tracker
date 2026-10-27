@@ -23,7 +23,7 @@ import { fetchRecipeSuggestions, RecipeSuggestionResult } from '@/utils/recipe-c
 import { getRecipeCredentials, RecipeCredentials } from '@/utils/recipe-credentials';
 import {
   defaultRecipeSelection,
-  findRecipeIngredients,
+  findStockedIngredients,
   listRecipeCandidates,
   RecipeIngredient,
   toRecipeIngredients,
@@ -36,6 +36,7 @@ import {
 import {
   loadRecipeSnapshot,
   loadSavedRecipes,
+  RecipeResult,
   RecipeScreenSnapshot,
   SavedRecipe,
   saveRecipe,
@@ -74,8 +75,8 @@ type FailedOutcome = Exclude<RecipeSuggestionResult['outcome'], 'ok'>;
 type RequestState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'done'; recipes: SuggestedRecipe[]; forNames: string[] }
-  | { status: 'error'; outcome: FailedOutcome; forNames: string[] };
+  | ({ status: 'done' } & RecipeResult)
+  | { status: 'error'; outcome: FailedOutcome; forNames: string[]; forIds: string[] };
 
 type ErrorCopy = {
   icon: IconName;
@@ -216,7 +217,11 @@ export default function RecipesScreen() {
   const shownTitles = useRef<string[]>([]);
 
   /* What the last request asked for, so Try again repeats it exactly. */
-  const lastAsk = useRef<{ ingredients: RecipeIngredient[]; avoidTitles: string[] } | null>(null);
+  const lastAsk = useRef<{
+    ingredients: RecipeIngredient[];
+    avoidTitles: string[];
+    forIds: string[];
+  } | null>(null);
 
   /* ---- Checklist rows and ticks ---- */
 
@@ -345,12 +350,17 @@ export default function RecipesScreen() {
   /* ---- Actions ---- */
 
   /* Sends food to the provider and shows whatever comes back. */
-  async function requestRecipes(ingredients: RecipeIngredient[], avoidTitles: string[]) {
+  /** `forIds` are the ticked items the food came from, so a recipe can be matched to them later. */
+  async function requestRecipes(
+    ingredients: RecipeIngredient[],
+    avoidTitles: string[],
+    forIds: string[],
+  ) {
     if (!credentials || ingredients.length === 0) {
       return;
     }
 
-    lastAsk.current = { ingredients, avoidTitles };
+    lastAsk.current = { ingredients, avoidTitles, forIds };
 
     /* Only one request at a time: a new tap cancels the one still running. */
     pendingRequest.current?.abort();
@@ -379,13 +389,13 @@ export default function RecipesScreen() {
         shownTitles.current,
         recipes.map((recipe) => recipe.title),
       );
-      lastResult.current = { recipes, forNames };
-      setRequest({ status: 'done', recipes, forNames });
+      lastResult.current = { recipes, forNames, forIds };
+      setRequest({ status: 'done', recipes, forNames, forIds });
       setIsChecklistOpen(false);
       void saveRecipeSnapshot({ selectedIds, lastResult: lastResult.current });
     } else {
       /* Errors are not saved: after a restart the last good result, or the checklist, shows. */
-      setRequest({ status: 'error', outcome: result.outcome, forNames });
+      setRequest({ status: 'error', outcome: result.outcome, forNames, forIds });
       setIsChecklistOpen(false);
     }
   }
@@ -405,12 +415,16 @@ export default function RecipesScreen() {
   }
 
   function suggestForTickedFood() {
-    void requestRecipes(toRecipeIngredients(candidates, selectedIds), currentAvoidTitles());
+    void requestRecipes(
+      toRecipeIngredients(candidates, selectedIds),
+      currentAvoidTitles(),
+      selectedIds,
+    );
   }
 
   /* New ideas for the same food as the recipes on screen. */
-  function suggestDifferentRecipes(ingredients: RecipeIngredient[]) {
-    void requestRecipes(ingredients, currentAvoidTitles());
+  function suggestDifferentRecipes(ingredients: RecipeIngredient[], forIds: string[]) {
+    void requestRecipes(ingredients, currentAvoidTitles(), forIds);
   }
 
   /* The star fills or empties only once the change is saved. */
@@ -427,7 +441,9 @@ export default function RecipesScreen() {
   /* A retry repeats what failed, so a failed "different" request stays different. */
   function tryAgain() {
     if (lastAsk.current) {
-      void requestRecipes(lastAsk.current.ingredients, lastAsk.current.avoidTitles);
+      const { ingredients, avoidTitles, forIds } = lastAsk.current;
+
+      void requestRecipes(ingredients, avoidTitles, forIds);
     }
   }
 
@@ -605,7 +621,7 @@ export default function RecipesScreen() {
   /* The food a finished or failed request was for, shown as chips in place of the checklist. */
   const askedFor =
     request.status === 'done' || request.status === 'error'
-      ? findRecipeIngredients(request.forNames, candidates)
+      ? findStockedIngredients(request.forNames, candidates, request.forIds)
       : null;
   const failure =
     request.status === 'error'
@@ -684,7 +700,7 @@ export default function RecipesScreen() {
 
         <Pressable
           accessibilityRole="button"
-          onPress={() => suggestDifferentRecipes(askedFor)}
+          onPress={() => suggestDifferentRecipes(askedFor, request.forIds)}
           style={({ pressed }) => [styles.differentButton, pressed ? styles.pressed : null]}
         >
           <Text style={styles.differentButtonText}>More ideas</Text>

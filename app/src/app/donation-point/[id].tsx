@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   Linking,
@@ -19,8 +19,10 @@ import { useToday } from '@/hooks/use-today';
 import type { FoodItem } from '@/types/food-item';
 import { TYPE_LOOK } from '@/utils/donation-look';
 import { parseSnapshot } from '@/utils/donation-snapshot';
+import { joinNames } from '@/utils/expired-warnings';
 import { daysUntilExpiry } from '@/utils/expiry-date';
 import { getFoodIcon } from '@/utils/food-icon';
+import { goBackOr } from '@/utils/navigation';
 import { openStatus, parseOpeningHours, weekRows } from '@/utils/opening-hours';
 import { type DonationPoint, toDonationPoint } from '@/utils/overpass';
 
@@ -39,9 +41,6 @@ const COLORS = {
   warning: '#8B6B1F',
   warningSoft: '#FFF0D5',
 };
-
-/* How many of the soonest-expiring items to offer: two rows of three. */
-const ITEMS_TO_OFFER = 6;
 
 const SNAPSHOT = parseSnapshot(bundledSnapshot);
 
@@ -159,24 +158,11 @@ function FridgeTile({ item, days, checked, onToggle }: FridgeTileProps) {
   );
 }
 
-/** "Milk", "Milk and Spinach", "Milk, Spinach and Eggs". */
-function listNames(names: string[]): string {
-  return names.length <= 1
-    ? (names[0] ?? '')
-    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
-
-function goBack() {
-  if (router.canGoBack()) {
-    router.back();
-  } else {
-    router.replace('/donation-points');
-  }
-}
+const goBack = () => goBackOr('/donation-points');
 
 /**
- * One donation point: what kind of place it is, how far away, and (in the
- * steps that follow) its hours, directions and what to bring from the fridge.
+ * One donation point: what kind of place it is, how far away, its hours,
+ * directions, and the food to bring, which is marked as donated from here.
  */
 export default function DonationPointScreen() {
   const insets = useSafeAreaInsets();
@@ -221,14 +207,15 @@ export default function DonationPointScreen() {
   const heroDetail = [status?.detail, distance].filter(Boolean).join(' · ');
 
   /*
-   * The food that will go off soonest, which is what's worth giving away.
+   * Every item still in date, soonest first, since that is what's most worth
+   * giving away. All of it is offered: this page is the only place food is
+   * marked as donated, so "Donate it" on any item must lead to that item here.
    * Food that has already expired is left out: a food bank can't take it.
    */
   const offered = activeItems
     .map((item) => ({ item, days: daysUntilExpiry(item.expiryDate, today) }))
     .filter(({ days }) => Number.isFinite(days) && days >= 0)
-    .sort((a, b) => a.days - b.days)
-    .slice(0, ITEMS_TO_OFFER);
+    .sort((a, b) => a.days - b.days);
 
   /* Only ticked items still on offer count, in case one was eaten on another screen. */
   const chosen = offered
@@ -385,7 +372,7 @@ export default function DonationPointScreen() {
         {/* What to bring */}
         <View style={styles.bringSection}>
           <View style={styles.bringHeading}>
-            <Text style={styles.sectionTitle}>BRING FROM YOUR FRIDGE</Text>
+            <Text style={styles.sectionTitle}>FOOD TO BRING</Text>
             {offered.length > 0 ? <Text style={styles.bringHint}>Expiring soonest</Text> : null}
           </View>
 
@@ -403,14 +390,14 @@ export default function DonationPointScreen() {
             </View>
           ) : (
             <Text style={styles.bringEmpty}>
-              Nothing in your fridge is still in date to bring. Add food with the + button.
+              None of your food is still in date to bring. Add food with the + button.
             </Text>
           )}
         </View>
 
         <Text style={styles.footnote}>
-          OpenStreetMap doesn&apos;t list what each place accepts, so call ahead for fresh or
-          chilled food. Data © OpenStreetMap contributors.
+          OpenStreetMap doesn&apos;t list what each place accepts, so check with the place before
+          bringing fresh or chilled food. Data © OpenStreetMap contributors.
         </Text>
       </ScrollView>
 
@@ -421,7 +408,7 @@ export default function DonationPointScreen() {
             <Ionicons color={COLORS.link} name="checkmark-circle" size={26} />
 
             <Text style={styles.thanksText}>
-              Thank you! {listNames(donatedNames)} {donatedNames.length === 1 ? 'is' : 'are'} marked
+              Thank you! {joinNames(donatedNames)} {donatedNames.length === 1 ? 'is' : 'are'} marked
               as donated.
             </Text>
 

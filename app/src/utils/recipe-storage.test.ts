@@ -27,7 +27,7 @@ const omelette: SuggestedRecipe = { ...recipe, id: 'r-1' };
 
 const snapshot: RecipeScreenSnapshot = {
   selectedIds: ['spinach', 'milk'],
-  lastResult: { recipes: [omelette], forNames: ['Spinach', 'Milk'] },
+  lastResult: { recipes: [omelette], forNames: ['Spinach', 'Milk'], forIds: ['spinach', 'milk'] },
 };
 
 beforeEach(async () => {
@@ -72,6 +72,20 @@ describe('loadRecipeSnapshot and saveRecipeSnapshot', () => {
     await AsyncStorage.setItem(SNAPSHOT_KEY, stored);
 
     await expect(loadRecipeSnapshot()).resolves.toBeNull();
+  });
+
+  it('reads a result saved before the ticked ids were kept as having none', async () => {
+    await AsyncStorage.setItem(
+      SNAPSHOT_KEY,
+      JSON.stringify({
+        selectedIds: ['spinach'],
+        lastResult: { recipes: [omelette], forNames: ['Spinach'] },
+      }),
+    );
+
+    const loaded = await loadRecipeSnapshot();
+
+    expect(loaded?.lastResult).toEqual({ recipes: [omelette], forNames: ['Spinach'], forIds: [] });
   });
 
   it('drops a malformed recipe and keeps the rest', async () => {
