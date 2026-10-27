@@ -4,7 +4,6 @@ import { router, useLocalSearchParams } from 'expo-router';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -82,11 +81,11 @@ export default function EditItemScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={0}
-      style={styles.screen}
-    >
+    /*
+     * Android draws edge to edge, so the window no longer shrinks for the
+     * keyboard and the padding is needed there too.
+     */
+    <KeyboardAvoidingView behavior="padding" style={styles.screen}>
       <ItemForm
         topContent={
           <View style={[styles.heading, { paddingTop: insets.top + 10 }]}>

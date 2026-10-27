@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ItemForm, ItemFormValues } from '@/components/item-form';
 import { useInventory } from '@/context/inventory-context';
@@ -130,9 +130,12 @@ export default function AddItemScreen() {
   );
 
   return (
+    /*
+     * Android draws edge to edge, so the window no longer shrinks for the
+     * keyboard and the padding is needed there too.
+     */
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={0}
+      behavior="padding"
       style={[styles.screen, { paddingTop: insets.top + 10 }]}
     >
       <ItemForm
