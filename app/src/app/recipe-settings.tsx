@@ -5,7 +5,6 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Linking,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -221,10 +220,11 @@ export default function RecipeSettingsScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.screen}
-    >
+    /*
+     * Android draws edge to edge, so the window no longer shrinks for the
+     * keyboard and the padding is needed there too, as on the add form.
+     */
+    <KeyboardAvoidingView behavior="padding" style={styles.screen}>
       <ScrollView
         contentContainerStyle={[
           styles.content,
