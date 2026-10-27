@@ -479,8 +479,9 @@ export default function ItemDetailScreen() {
             </View>
 
             {/*
-             * Resolved food still counts in the summary, so deleting it is the
-             * only way to undo a mistaken Eaten or Thrown out.
+             * Resolved food still counts in the summary. Summary's thrown-out
+             * list opens it here, so a mistaken Thrown out can be undone by
+             * deleting it. Eaten and donated food is not listed anywhere.
              */}
             {deleteToggle}
             {deleteConfirm}
