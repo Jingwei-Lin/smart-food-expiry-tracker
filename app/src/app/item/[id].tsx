@@ -229,6 +229,48 @@ export default function ItemDetailScreen() {
   const reminderDescription =
     Platform.OS === 'web' ? 'Not available on web' : describeReminders(item);
 
+  const deleteToggle = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={isConfirmingDelete ? 'Cancel delete' : `Delete ${item.name}`}
+      disabled={actionsDisabled}
+      onPress={() => setIsConfirmingDelete((current) => !current)}
+      style={styles.deleteLink}
+    >
+      <Text style={styles.deleteLinkText}>
+        {isConfirmingDelete ? 'Cancel delete' : 'Delete item'}
+      </Text>
+    </Pressable>
+  );
+
+  const deleteConfirm = isConfirmingDelete ? (
+    <View style={styles.deleteConfirmCard}>
+      <Text style={styles.deleteConfirmTitle}>{deletion.title}</Text>
+
+      <Text style={styles.deleteConfirmText}>{deletion.message}</Text>
+
+      <View style={styles.confirmButtons}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={isWorking}
+          onPress={() => setIsConfirmingDelete(false)}
+          style={styles.cancelDeleteButton}
+        >
+          <Text style={styles.cancelDeleteText}>Keep item</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          disabled={actionsDisabled}
+          onPress={handleDelete}
+          style={[styles.confirmDeleteButton, actionsDisabled && styles.disabled]}
+        >
+          <Text style={styles.confirmDeleteText}>{isWorking ? 'Deleting...' : 'Delete'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  ) : null;
+
   // This is a qualitative urgency indicator, not a shelf-life percentage.
   const urgencyWidth = !Number.isFinite(daysLeft)
     ? '0%'
@@ -424,46 +466,29 @@ export default function ItemDetailScreen() {
               </Pressable>
             </View>
 
-            {isConfirmingDelete && (
-              <View style={styles.deleteConfirmCard}>
-                <Text style={styles.deleteConfirmTitle}>{deletion.title}</Text>
-
-                <Text style={styles.deleteConfirmText}>{deletion.message}</Text>
-
-                <View style={styles.confirmButtons}>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={isWorking}
-                    onPress={() => setIsConfirmingDelete(false)}
-                    style={styles.cancelDeleteButton}
-                  >
-                    <Text style={styles.cancelDeleteText}>Keep item</Text>
-                  </Pressable>
-
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={actionsDisabled}
-                    onPress={handleDelete}
-                    style={[styles.confirmDeleteButton, actionsDisabled && styles.disabled]}
-                  >
-                    <Text style={styles.confirmDeleteText}>
-                      {isWorking ? 'Deleting...' : 'Delete'}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
+            {deleteConfirm}
           </>
         ) : (
-          <View style={styles.resolvedCard}>
-            <Ionicons name="checkmark-circle-outline" size={30} color={COLORS.secondary} />
+          <>
+            <View style={styles.resolvedCard}>
+              <Ionicons name="checkmark-circle-outline" size={30} color={COLORS.secondary} />
 
-            <Text style={styles.resolvedTitle}>This item is no longer in your inventory.</Text>
+              <Text style={styles.resolvedTitle}>This item is no longer in your inventory.</Text>
 
-            <Text style={styles.resolvedDescription}>Status: {statusLabel}</Text>
+              <Text style={styles.resolvedDescription}>Status: {statusLabel}</Text>
 
-            {updatedOn ? <Text style={styles.resolvedDescription}>Updated {updatedOn}</Text> : null}
-          </View>
+              {updatedOn ? (
+                <Text style={styles.resolvedDescription}>Updated {updatedOn}</Text>
+              ) : null}
+            </View>
+
+            {/*
+             * Resolved food still counts in the summary, so deleting it is the
+             * only way to undo a mistaken Eaten or Thrown out.
+             */}
+            {deleteToggle}
+            {deleteConfirm}
+          </>
         )}
 
         {item.notes ? (
@@ -533,16 +558,7 @@ export default function ItemDetailScreen() {
             </Pressable>
           </View>
 
-          <Pressable
-            accessibilityRole="button"
-            disabled={actionsDisabled}
-            onPress={() => setIsConfirmingDelete((current) => !current)}
-            style={styles.deleteLink}
-          >
-            <Text style={styles.deleteLinkText}>
-              {isConfirmingDelete ? 'Cancel delete' : 'Delete item'}
-            </Text>
-          </Pressable>
+          {deleteToggle}
         </View>
       )}
     </View>
@@ -1015,8 +1031,9 @@ const styles = StyleSheet.create({
   },
   deleteLink: {
     alignSelf: 'center',
-    paddingTop: 8,
-    paddingBottom: 2,
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 12,
   },
   deleteLinkText: {
     color: COLORS.error,

@@ -275,4 +275,44 @@ describe('ItemDetailScreen', () => {
     expect(view.queryByText('Find recipes')).toBeNull();
     expect(view.queryByText('Donate it')).toBeNull();
   });
+
+  it('deletes an active item only after it is confirmed', async () => {
+    const view = await renderScreen(buildMilk());
+
+    await fireEvent.press(view.getByRole('button', { name: 'Delete Milk' }));
+    expect(
+      view.getByText('This removes the item from your inventory. It cannot be undone.'),
+    ).toBeTruthy();
+
+    await fireEvent.press(view.getByText('Delete'));
+
+    expect(await AsyncStorage.getItem(STORAGE_KEY)).toBe('[]');
+    expect(router.back).toHaveBeenCalled();
+  });
+
+  it.each(['eaten', 'discarded', 'donated'] as const)(
+    'lets a %s item be deleted, so a mistaken resolve can be undone',
+    async (status) => {
+      const view = await renderScreen(
+        buildMilk({ status, statusUpdatedAt: '2026-09-28T00:00:00.000Z' }),
+      );
+
+      await fireEvent.press(view.getByRole('button', { name: 'Delete Milk' }));
+      expect(view.getByText(/and from the waste summary/)).toBeTruthy();
+
+      await fireEvent.press(view.getByText('Delete'));
+
+      expect(await AsyncStorage.getItem(STORAGE_KEY)).toBe('[]');
+    },
+  );
+
+  it('keeps the item when the delete is cancelled', async () => {
+    const view = await renderScreen(buildMilk());
+
+    await fireEvent.press(view.getByRole('button', { name: 'Delete Milk' }));
+    await fireEvent.press(view.getByText('Keep item'));
+
+    expect(view.queryByText('Keep item')).toBeNull();
+    expect(JSON.parse((await AsyncStorage.getItem(STORAGE_KEY)) ?? '[]')).toHaveLength(1);
+  });
 });
