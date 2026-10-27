@@ -115,36 +115,19 @@ export function toRecipeIngredients(
 }
 
 /**
- * The food a result was made for, with each date read again from the
- * inventory as it is now, so a result shown again the next day warns about
- * food that has expired overnight. The most urgent item of a name is used, as
- * in `toRecipeIngredients`. Food no longer in the inventory keeps its name
+ * A recipe's food as it stands in the inventory now, with each date read
+ * again so a recipe opened the next day warns about food that has expired
+ * overnight. Each name is matched as in `findUsedItemIds`, so the warnings
+ * and the Mark buttons agree. Food no longer in the inventory keeps its name
  * with no date, so it is never marked expired.
- */
-export function findRecipeIngredients(
-  names: string[],
-  candidates: RecipeCandidate[],
-): RecipeIngredient[] {
-  return names.map((name) => {
-    const match = candidatesNamed(name, candidates)[0];
-
-    return { name, daysLeft: match ? match.daysLeft : Number.POSITIVE_INFINITY };
-  });
-}
-
-/**
- * A recipe's food as it stands in the inventory now, for a recipe opened or
- * saved earlier. Unlike `findRecipeIngredients`, an item still in date wins
- * over an expired one of the same name: with a fresh carton of milk in the
- * fridge, a recipe using milk is fine to cook, even if an old carton is there
- * too. Food no longer in the inventory has no date.
  */
 export function findStockedIngredients(
   names: string[],
   candidates: RecipeCandidate[],
+  tickedIds: string[] = [],
 ): RecipeIngredient[] {
   return names.map((name) => {
-    const match = pickInDateFirst(candidatesNamed(name, candidates));
+    const match = pickItemNamed(name, candidates, tickedIds);
 
     return { name, daysLeft: match ? match.daysLeft : Number.POSITIVE_INFINITY };
   });
@@ -152,16 +135,19 @@ export function findStockedIngredients(
 
 /**
  * The items a recipe's "Mark as consumed" or "Mark as wasted" resolves: one
- * per ingredient, chosen as in `findStockedIngredients` so the buttons mark
- * the food the screen shows. No item is used twice, and food no longer in the
- * inventory is skipped.
+ * per ingredient. No item is used twice, and food no longer in the inventory
+ * is skipped.
  */
-export function findUsedItemIds(names: string[], candidates: RecipeCandidate[]): string[] {
+export function findUsedItemIds(
+  names: string[],
+  candidates: RecipeCandidate[],
+  tickedIds: string[] = [],
+): string[] {
   const usedIds: string[] = [];
 
   for (const name of names) {
     const unused = candidates.filter((candidate) => !usedIds.includes(candidate.id));
-    const match = pickInDateFirst(candidatesNamed(name, unused));
+    const match = pickItemNamed(name, unused, tickedIds);
 
     if (match) {
       usedIds.push(match.id);
@@ -171,14 +157,28 @@ export function findUsedItemIds(names: string[], candidates: RecipeCandidate[]):
   return usedIds;
 }
 
-/** The candidates with this name, ignoring case, in their existing most-urgent-first order. */
-function candidatesNamed(name: string, candidates: RecipeCandidate[]): RecipeCandidate[] {
+/**
+ * The item of this name a recipe uses, when two or more share it.
+ *
+ * 1. The one the student ticked for this result, even if it has expired:
+ *    they may have picked an old carton on purpose to use it up.
+ * 2. Otherwise the most urgent one still in date, so a saved recipe made
+ *    with milk is fine to cook while a fresh carton is in the fridge.
+ * 3. Otherwise the most urgent expired one.
+ *
+ * Candidates are already sorted most urgent first.
+ */
+function pickItemNamed(
+  name: string,
+  candidates: RecipeCandidate[],
+  tickedIds: string[],
+): RecipeCandidate | undefined {
   const key = name.trim().toLowerCase();
+  const matches = candidates.filter((candidate) => candidate.name.trim().toLowerCase() === key);
 
-  return candidates.filter((candidate) => candidate.name.trim().toLowerCase() === key);
-}
-
-/** The most urgent item still in date, or the first expired one when none is. */
-function pickInDateFirst(matches: RecipeCandidate[]): RecipeCandidate | undefined {
-  return matches.find((candidate) => candidate.daysLeft >= 0) ?? matches[0];
+  return (
+    matches.find((candidate) => tickedIds.includes(candidate.id)) ??
+    matches.find((candidate) => candidate.daysLeft >= 0) ??
+    matches[0]
+  );
 }

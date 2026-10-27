@@ -623,6 +623,21 @@ describe('RecipesScreen after the app restarts', () => {
     ).toBeTruthy();
   });
 
+  it('does not warn about an expired carton when the fresh one was ticked', async () => {
+    fetchSuggestionsMock.mockResolvedValue(recipesReply(['Milk pudding'], ['Milk']));
+    const view = await renderScreen([
+      buildFood('old-milk', 'Milk', -2),
+      buildFood('new-milk', 'Milk', 1),
+    ]);
+    await view.findByText('IN YOUR FRIDGE');
+
+    await fireEvent.press(view.getByText('Suggest recipes'));
+
+    expect(await view.findByText('Milk pudding')).toBeTruthy();
+    expect(view.queryByText(/which is past its date/)).toBeNull();
+    expect(view.queryByText('Milk · expired')).toBeNull();
+  });
+
   it('keeps the ticks the student chose', async () => {
     const view = await renderScreen(fridge);
     await view.findByText('IN YOUR FRIDGE');

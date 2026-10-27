@@ -182,7 +182,7 @@ Every change is written to storage first and only then shown. The stored list is
   2. `utils/recipe-prompt.ts` writes the prompt and validates the reply. A recipe that uses food you didn't tick is dropped.
   3. `utils/recipe-client.ts` calls the provider: an OpenAI-style chat request in JSON mode, 30-second timeout. `utils/matilda.ts` adapts Matilda's own streaming API.
   - Results and saved recipes are kept by `utils/recipe-storage.ts`. Keys are kept by `utils/recipe-credentials.ts`.
-  - A recipe's screen matches each ingredient to an item by name. Where two items share a name, the one still in date is used, so **Mark as consumed** never marks an expired carton when a fresh one is in the fridge.
+  - Recipes name their food, so each name is matched to an item, the same way on the Recipes tab, a recipe's screen and the saved recipes. Where two items share a name, the one ticked for the suggestions wins, then the one still in date. So **Mark as consumed** uses an old carton only when it was ticked on purpose, and a saved recipe never warns about expired milk while a fresh carton is in the fridge.
 
 ## Data formats
 
@@ -190,11 +190,11 @@ Everything is stored on the phone. There is no database server.
 
 ### AsyncStorage (plain JSON)
 
-| Key                                            | Contents                                                                                                                                          |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@smart-food-expiry-tracker/inventory-v1`      | The whole inventory, as an array of food items (below)                                                                                            |
-| `@smart-food-expiry-tracker/recipes-screen-v1` | The Recipes tab's ticks and last suggestions: `{ selectedIds: string[], lastResult: { recipes: SuggestedRecipe[], forNames: string[] } \| null }` |
-| `@smart-food-expiry-tracker/recipes-saved-v1`  | Saved recipes: `{ id, savedAt, recipe }[]`                                                                                                        |
+| Key                                            | Contents                                                                                                                                                                                                                                                                    |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@smart-food-expiry-tracker/inventory-v1`      | The whole inventory, as an array of food items (below)                                                                                                                                                                                                                      |
+| `@smart-food-expiry-tracker/recipes-screen-v1` | The Recipes tab's ticks and last suggestions: `{ selectedIds: string[], lastResult: { recipes: SuggestedRecipe[], forNames: string[], forIds: string[] } \| null }`. `forIds` are the items ticked for those suggestions; `selectedIds` follows the checklist as it changes |
+| `@smart-food-expiry-tracker/recipes-saved-v1`  | Saved recipes: `{ id, savedAt, recipe }[]`                                                                                                                                                                                                                                  |
 
 A food item, as stored (`src/types/food-item.ts`):
 

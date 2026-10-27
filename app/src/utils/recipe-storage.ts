@@ -20,11 +20,22 @@ export type SuggestedRecipe = Recipe & { id: string };
  */
 export type SavedRecipe = { id: string; savedAt: string; recipe: Recipe };
 
+/**
+ * A set of suggestions and the food they were made for: its names, and the ids
+ * of the items ticked. The ids are kept apart from `selectedIds`, which
+ * changes whenever a tick does while the result stays on screen.
+ */
+export type RecipeResult = {
+  recipes: SuggestedRecipe[];
+  forNames: string[];
+  forIds: string[];
+};
+
 export type RecipeScreenSnapshot = {
   /** Ticked inventory items. Ones since eaten or deleted are dropped by the screen. */
   selectedIds: string[];
-  /** The last successful result, with the names of the food it was made for. */
-  lastResult: { recipes: SuggestedRecipe[]; forNames: string[] } | null;
+  /** The last successful result, with the food it was made for. */
+  lastResult: RecipeResult | null;
 };
 
 /** Gives each recipe in a new result an id, for saving it and as its list key. */
@@ -97,8 +108,11 @@ function readLastResult(value: unknown): RecipeScreenSnapshot['lastResult'] {
     .map(readSuggestedRecipe)
     .filter((recipe): recipe is SuggestedRecipe => recipe !== null);
 
+  /* A result saved before the ids were kept has none, and is matched by name alone. */
+  const forIds = isStringList(value.forIds) ? value.forIds : [];
+
   return recipes.length > 0 && value.forNames.length > 0
-    ? { recipes, forNames: value.forNames }
+    ? { recipes, forNames: value.forNames, forIds }
     : null;
 }
 

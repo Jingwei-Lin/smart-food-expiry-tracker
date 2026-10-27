@@ -48,8 +48,12 @@ type DetailParams = {
   tint?: string;
 };
 
-/** undefined while reading, null when the recipe can't be found. */
-type Loaded = { recipe: Recipe; saved: SavedRecipe[] } | null | undefined;
+/**
+ * undefined while reading, null when the recipe can't be found. `tickedIds`
+ * are the items ticked for the suggestions it came from; a recipe opened from
+ * the saved list has none.
+ */
+type Loaded = { recipe: Recipe; saved: SavedRecipe[]; tickedIds: string[] } | null | undefined;
 
 /*
  * "From your fridge" chips are dark, with two exceptions so
@@ -125,8 +129,9 @@ export default function RecipeDetailScreen() {
 
       const suggested = snapshot?.lastResult?.recipes.find((recipe) => recipe.id === id);
       const recipe = suggested ?? saved.find((entry) => entry.id === id)?.recipe;
+      const tickedIds = suggested ? (snapshot?.lastResult?.forIds ?? []) : [];
 
-      setLoaded(recipe ? { recipe, saved } : null);
+      setLoaded(recipe ? { recipe, saved, tickedIds } : null);
     });
 
     return () => {
@@ -159,16 +164,16 @@ export default function RecipeDetailScreen() {
     );
   }
 
-  const { recipe, saved } = loaded;
+  const { recipe, saved, tickedIds } = loaded;
   const isSaved = saved.some((entry) => entry.id === id);
 
   /* Today's dates, so food that has expired since the recipe was suggested is flagged. */
   const candidates = listRecipeCandidates(activeItems, today);
-  const fridge = findStockedIngredients(recipe.usesIngredients, candidates);
+  const fridge = findStockedIngredients(recipe.usesIngredients, candidates, tickedIds);
   const expiredNames = findExpiredIngredients(recipe, fridge);
   const heroTint = HERO_TINTS[Number(tint ?? 0) % HERO_TINTS.length] ?? HERO_TINTS[0];
-  const usedItems = findUsedItemIds(recipe.usesIngredients, candidates).flatMap((usedId) =>
-    activeItems.filter((item) => item.id === usedId),
+  const usedItems = findUsedItemIds(recipe.usesIngredients, candidates, tickedIds).flatMap(
+    (usedId) => activeItems.filter((item) => item.id === usedId),
   );
   const usedNames = joinNames(usedItems.map((item) => item.name));
 
@@ -203,7 +208,7 @@ export default function RecipeDetailScreen() {
     try {
       const next = isSaved ? await unsaveRecipe(id) : await saveRecipe({ ...recipe, id });
 
-      setLoaded({ recipe, saved: next });
+      setLoaded({ recipe, saved: next, tickedIds });
     } catch {
       // Storage failed, so the star keeps showing what is really saved.
     }
