@@ -1,5 +1,6 @@
 import { BarcodeType, CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { ScanBarcode, X } from 'lucide-react-native';
 import { useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -134,6 +135,9 @@ export default function ScanScreen() {
 
   return (
     <View style={styles.screen}>
+      {/* Light text over the dimmed camera; the root layout's dark style returns on close. */}
+      <StatusBar style="light" />
+
       <CameraView
         barcodeScannerSettings={{
           barcodeTypes: BARCODE_TYPES,

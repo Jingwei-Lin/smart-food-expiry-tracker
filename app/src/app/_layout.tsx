@@ -118,7 +118,12 @@ export default function RootLayout() {
             <Stack.Screen name="saved-recipes" options={{ headerShown: false }} />
           </Stack>
 
-          <StatusBar style="auto" />
+          {/*
+           * Every screen is drawn on a light background, even when the phone is
+           * in dark mode, so the status bar text stays dark. The scanner, the one
+           * dark screen, sets its own.
+           */}
+          <StatusBar style="dark" />
         </InventoryProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
