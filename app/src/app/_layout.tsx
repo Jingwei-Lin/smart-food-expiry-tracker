@@ -32,9 +32,20 @@ function openItemFromNotification(notification: Notifications.Notification): boo
   return true;
 }
 
-/** Opens the relevant item whether the notification launched or resumed the app. */
-function useNotificationNavigation(): void {
+/**
+ * Opens the relevant item whether the notification launched or resumed the app.
+ *
+ * It waits for `ready`, the moment the layout renders its Stack. Until then
+ * expo-router has no navigator to hand the push to and silently drops it, and
+ * a tap that launched the app would only open Home. The response is cleared
+ * once handled, so it can't be retried later.
+ */
+function useNotificationNavigation(ready: boolean): void {
   useEffect(() => {
+    if (!ready) {
+      return undefined;
+    }
+
     let isMounted = true;
 
     void Notifications.getLastNotificationResponseAsync()
@@ -57,7 +68,7 @@ function useNotificationNavigation(): void {
       isMounted = false;
       subscription.remove();
     };
-  }, []);
+  }, [ready]);
 }
 
 export default function RootLayout() {
@@ -70,7 +81,7 @@ export default function RootLayout() {
 
   const fontsSettled = fontsLoaded || fontError !== null;
 
-  useNotificationNavigation();
+  useNotificationNavigation(fontsSettled);
 
   useEffect(() => {
     if (fontsSettled) {
