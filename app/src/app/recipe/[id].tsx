@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -8,7 +8,8 @@ import { DishArt } from '@/components/dish-art';
 import { SavedStar } from '@/components/saved-star';
 import { useInventory } from '@/context/inventory-context';
 import { useToday } from '@/hooks/use-today';
-import { describeExpiredInRecipe } from '@/utils/expired-warnings';
+import { describeExpiredInRecipe, joinNames } from '@/utils/expired-warnings';
+import { goBackOr } from '@/utils/navigation';
 import {
   findStockedIngredients,
   findUsedItemIds,
@@ -86,26 +87,13 @@ function fridgeChip(daysLeft: number): {
       };
 }
 
-/** "Milk", "Milk and Spinach", "Milk, Spinach and Eggs". */
-function listNames(names: string[]): string {
-  return names.length <= 1
-    ? (names[0] ?? '')
-    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
-
 /* What each button records, in the words the confirmation uses. */
 const OUTCOME_WORDS: Record<'eaten' | 'discarded', string> = {
   eaten: 'eaten',
   discarded: 'thrown out',
 };
 
-function goBack() {
-  if (router.canGoBack()) {
-    router.back();
-  } else {
-    router.replace('/recipes');
-  }
-}
+const goBack = () => goBackOr('/recipes');
 
 /**
  * One recipe with its steps. It is looked up by id in the last suggestions,
@@ -182,7 +170,7 @@ export default function RecipeDetailScreen() {
   const usedItems = findUsedItemIds(recipe.usesIngredients, candidates).flatMap((usedId) =>
     activeItems.filter((item) => item.id === usedId),
   );
-  const usedNames = listNames(usedItems.map((item) => item.name));
+  const usedNames = joinNames(usedItems.map((item) => item.name));
 
   /**
    * Records the recipe's food as eaten or thrown out, which takes it out of
@@ -341,7 +329,7 @@ export default function RecipeDetailScreen() {
           <View style={styles.done}>
             <Ionicons color={COLORS.link} name="checkmark-circle" size={26} />
             <Text style={styles.doneText}>
-              {listNames(marked.names)} {marked.names.length === 1 ? 'is' : 'are'} marked as{' '}
+              {joinNames(marked.names)} {marked.names.length === 1 ? 'is' : 'are'} marked as{' '}
               {OUTCOME_WORDS[marked.status]}.
             </Text>
             <Pressable

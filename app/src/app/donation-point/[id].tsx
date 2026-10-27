@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   Linking,
@@ -19,8 +19,10 @@ import { useToday } from '@/hooks/use-today';
 import type { FoodItem } from '@/types/food-item';
 import { TYPE_LOOK } from '@/utils/donation-look';
 import { parseSnapshot } from '@/utils/donation-snapshot';
+import { joinNames } from '@/utils/expired-warnings';
 import { daysUntilExpiry } from '@/utils/expiry-date';
 import { getFoodIcon } from '@/utils/food-icon';
+import { goBackOr } from '@/utils/navigation';
 import { openStatus, parseOpeningHours, weekRows } from '@/utils/opening-hours';
 import { type DonationPoint, toDonationPoint } from '@/utils/overpass';
 
@@ -156,20 +158,7 @@ function FridgeTile({ item, days, checked, onToggle }: FridgeTileProps) {
   );
 }
 
-/** "Milk", "Milk and Spinach", "Milk, Spinach and Eggs". */
-function listNames(names: string[]): string {
-  return names.length <= 1
-    ? (names[0] ?? '')
-    : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
-}
-
-function goBack() {
-  if (router.canGoBack()) {
-    router.back();
-  } else {
-    router.replace('/donation-points');
-  }
-}
+const goBack = () => goBackOr('/donation-points');
 
 /**
  * One donation point: what kind of place it is, how far away, its hours,
@@ -419,7 +408,7 @@ export default function DonationPointScreen() {
             <Ionicons color={COLORS.link} name="checkmark-circle" size={26} />
 
             <Text style={styles.thanksText}>
-              Thank you! {listNames(donatedNames)} {donatedNames.length === 1 ? 'is' : 'are'} marked
+              Thank you! {joinNames(donatedNames)} {donatedNames.length === 1 ? 'is' : 'are'} marked
               as donated.
             </Text>
 
