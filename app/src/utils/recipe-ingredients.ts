@@ -1,6 +1,5 @@
 import { FoodItem } from '@/types/food-item';
-import { daysUntilExpiry } from '@/utils/expiry-date';
-import { EAT_SOON_DAYS } from '@/utils/inventory-sections';
+import { daysUntilExpiry, EAT_SOON_DAYS } from '@/utils/expiry-date';
 
 /* Enough for a varied meal without the prompt turning into a shopping list. */
 export const MAX_RECIPE_INGREDIENTS = 10;
@@ -116,20 +115,70 @@ export function toRecipeIngredients(
 }
 
 /**
- * The food a result was made for, with each date read again from the
- * inventory as it is now, so a result shown again the next day warns about
- * food that has expired overnight. The most urgent item of a name is used, as
- * in `toRecipeIngredients`. Food no longer in the inventory keeps its name
+ * A recipe's food as it stands in the inventory now, with each date read
+ * again so a recipe opened the next day warns about food that has expired
+ * overnight. Each name is matched as in `findUsedItemIds`, so the warnings
+ * and the Mark buttons agree. Food no longer in the inventory keeps its name
  * with no date, so it is never marked expired.
  */
-export function findRecipeIngredients(
+export function findStockedIngredients(
   names: string[],
   candidates: RecipeCandidate[],
+  tickedIds: string[] = [],
 ): RecipeIngredient[] {
   return names.map((name) => {
-    const key = name.trim().toLowerCase();
-    const match = candidates.find((candidate) => candidate.name.trim().toLowerCase() === key);
+    const match = pickItemNamed(name, candidates, tickedIds);
 
     return { name, daysLeft: match ? match.daysLeft : Number.POSITIVE_INFINITY };
   });
+}
+
+/**
+ * The items a recipe's "Mark as consumed" or "Mark as wasted" resolves: one
+ * per ingredient. No item is used twice, and food no longer in the inventory
+ * is skipped.
+ */
+export function findUsedItemIds(
+  names: string[],
+  candidates: RecipeCandidate[],
+  tickedIds: string[] = [],
+): string[] {
+  const usedIds: string[] = [];
+
+  for (const name of names) {
+    const unused = candidates.filter((candidate) => !usedIds.includes(candidate.id));
+    const match = pickItemNamed(name, unused, tickedIds);
+
+    if (match) {
+      usedIds.push(match.id);
+    }
+  }
+
+  return usedIds;
+}
+
+/**
+ * The item of this name a recipe uses, when two or more share it.
+ *
+ * 1. The one the student ticked for this result, even if it has expired:
+ *    they may have picked an old carton on purpose to use it up.
+ * 2. Otherwise the most urgent one still in date, so a saved recipe made
+ *    with milk is fine to cook while a fresh carton is in the fridge.
+ * 3. Otherwise the most urgent expired one.
+ *
+ * Candidates are already sorted most urgent first.
+ */
+function pickItemNamed(
+  name: string,
+  candidates: RecipeCandidate[],
+  tickedIds: string[],
+): RecipeCandidate | undefined {
+  const key = name.trim().toLowerCase();
+  const matches = candidates.filter((candidate) => candidate.name.trim().toLowerCase() === key);
+
+  return (
+    matches.find((candidate) => tickedIds.includes(candidate.id)) ??
+    matches.find((candidate) => candidate.daysLeft >= 0) ??
+    matches[0]
+  );
 }

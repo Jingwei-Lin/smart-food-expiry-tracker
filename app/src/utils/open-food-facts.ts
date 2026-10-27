@@ -1,4 +1,5 @@
-import { addDaysToToday, estimateShelfLife } from '@/utils/shelf-life';
+import type { FoodCategory } from '@/types/food-item';
+import { addDaysToToday, estimateShelfLife, normalizeCategoryTag } from '@/utils/shelf-life';
 
 /*
  * Only the fields the add form can use are requested, which keeps the response
@@ -21,6 +22,7 @@ export type ScannedProduct = {
   expiryDate: string;
   /** Names the category the estimate came from, or empty when there was none. */
   shelfLifeLabel: string;
+  category: FoodCategory;
 };
 
 export type ProductLookupResult =
@@ -39,6 +41,36 @@ type OpenFoodFactsResponse = {
   };
 };
 
+/*
+ * Open Food Facts tags that put a product in each category, checked in order so
+ * a product tagged as both fish and vegetables is filed as Seafood. Tags are
+ * matched whole: "en:fish-sauces" or "en:milk-chocolates" are condiments and
+ * sweets, and must not be mistaken for fish or dairy just because of a word in
+ * them. The shelf-life estimate uses the same tag names (see shelf-life.ts).
+ */
+const CATEGORY_TAGS: [Exclude<FoodCategory, 'Others'>, string[]][] = [
+  ['Seafood', ['seafood', 'fishes', 'frozen-fishes', 'crustaceans', 'molluscs']],
+  ['Veg', ['fresh-vegetables', 'vegetables', 'salads']],
+  ['Fruit', ['fresh-fruits', 'fruits']],
+  ['Dairy', ['fresh-dairy', 'milks', 'yogurts', 'cheeses', 'butters', 'creams', 'eggs']],
+  ['Meat', ['fresh-meats', 'meats', 'poultries']],
+  ['Bread', ['breads']],
+];
+
+/**
+ * Maps Open Food Facts category tags to the categories used by the add form.
+ * Anything that does not match a tag above exactly is Others.
+ */
+function mapFoodCategory(tags: string[]): FoodCategory {
+  const normalized = tags.map(normalizeCategoryTag);
+
+  const match = CATEGORY_TAGS.find(([, categoryTags]) =>
+    categoryTags.some((categoryTag) => normalized.includes(categoryTag)),
+  );
+
+  return match ? match[0] : 'Others';
+}
+
 /**
  * Turns an Open Food Facts response into the fields the add form pre-fills.
  *
@@ -56,6 +88,7 @@ export function parseProductResponse(
   }
 
   const { product } = body;
+
   const englishName = product.product_name_en?.trim();
   const defaultName = product.product_name?.trim();
   const name = englishName || defaultName || '';
@@ -65,7 +98,10 @@ export function parseProductResponse(
   }
 
   const brand = (product.brands ?? '').split(',')[0].trim();
-  const estimate = estimateShelfLife(product.categories_tags ?? []);
+  const tags = product.categories_tags ?? [];
+
+  const estimate = estimateShelfLife(tags);
+  const category = mapFoodCategory(tags);
 
   return {
     outcome: 'found',
@@ -76,6 +112,7 @@ export function parseProductResponse(
       quantity: (product.quantity ?? '').trim(),
       expiryDate: estimate ? addDaysToToday(estimate.days, today) : '',
       shelfLifeLabel: estimate ? estimate.label : '',
+      category,
     },
   };
 }

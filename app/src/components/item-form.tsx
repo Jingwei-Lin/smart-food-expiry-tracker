@@ -1,8 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
-import { useState } from 'react';
-import { Keyboard, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ReactNode, useState } from 'react';
+import {
+  Keyboard,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { FOOD_CATEGORIES } from '@/types/food-item';
+import type { FoodCategory, FoodStorageLocation } from '@/types/food-item';
 import {
   formatExpiryDateInput,
   formatWeekdayDate,
@@ -16,6 +29,8 @@ export type ItemFormValues = {
   expiryDate: string;
   reminderDaysBefore: number;
   notes: string;
+  storageLocation?: FoodStorageLocation;
+  category?: FoodCategory;
 };
 
 type ItemFormErrors = {
@@ -27,13 +42,14 @@ type ItemFormErrors = {
 
 type ItemFormProps = {
   initialValues?: ItemFormValues;
-  submitLabel: string;
-  /** Explains why saving is impossible, e.g. storage has not loaded; also disables the button. */
+  /** A function lets the label follow the chosen storage location. */
+  submitLabel: string | ((storageLocation: FoodStorageLocation) => string);
   blockedReason?: string | null;
-  /** The add screen stays mounted after saving, so it clears the fields afterwards. */
   clearOnSubmit?: boolean;
-  /** Replaces the expiry hint, e.g. to say where a pre-filled date was estimated from. */
   expiryHelpText?: string;
+  topContent?: ReactNode;
+  bottomContent?: ReactNode;
+  onCategoryChange?: (category: FoodCategory) => void;
   onSubmit: (values: ItemFormValues) => Promise<void>;
 };
 
@@ -43,77 +59,80 @@ const emptyValues: ItemFormValues = {
   expiryDate: '',
   reminderDaysBefore: 1,
   notes: '',
+  storageLocation: 'fridge',
 };
 
-/**
- * The grocery item fields, shared by the add and edit screens.
- *
- * Owns its own validation and save error, and hands the trimmed values to the
- * screen, which decides what saving means and where to go afterwards.
- */
+const STORAGE_OPTIONS: {
+  label: string;
+  value: FoodStorageLocation;
+}[] = [
+  { label: 'Fridge', value: 'fridge' },
+  { label: 'Freezer', value: 'freezer' },
+  { label: 'Pantry', value: 'pantry' },
+];
+
+const COLORS = {
+  primary: '#1E2A16',
+  secondary: '#55614D',
+  background: '#FFFDF5',
+  surface: '#FFFFFF',
+  border: '#E4E5D4',
+  divider: '#EEEFE5',
+  accent: '#A6D45A',
+  accentSoft: '#F0F7DB',
+  pink: '#FBEFF2',
+  pinkText: '#D82D69',
+  error: '#9F2420',
+  warning: '#8B6B1F',
+  warningSoft: '#FFF0D5',
+  errorSoft: '#FDE7E5',
+};
+
 export function ItemForm({
   initialValues = emptyValues,
   submitLabel,
   blockedReason = null,
   clearOnSubmit = false,
   expiryHelpText,
+  topContent,
+  bottomContent,
+  onCategoryChange,
   onSubmit,
 }: ItemFormProps) {
   const [name, setName] = useState(initialValues.name);
   const [quantity, setQuantity] = useState(initialValues.quantity);
   const [expiryDate, setExpiryDate] = useState(initialValues.expiryDate);
-  const [reminderDaysBefore, setReminderDaysBefore] = useState(
-    String(initialValues.reminderDaysBefore),
-  );
+  const [reminderDaysBefore, setReminderDaysBefore] = useState(initialValues.reminderDaysBefore);
   const [notes, setNotes] = useState(initialValues.notes);
-  /* iOS shows its calendar inside the form; Android opens a dialog instead. */
+  const [storageLocation, setStorageLocation] = useState<FoodStorageLocation>(
+    initialValues.storageLocation ?? 'fridge',
+  );
+  const [selectedCategory, setSelectedCategory] = useState<FoodCategory>(
+    initialValues.category ?? 'Others',
+  );
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-
   const [errors, setErrors] = useState<ItemFormErrors>({});
   const [isSaving, setIsSaving] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const isSubmitDisabled = isSaving || blockedReason !== null;
-  /* The calendar picker has no web version, so the web build keeps the typed field. */
   const typesTheDate = Platform.OS === 'web';
+  const pickedDate = parseExpiryDate(expiryDate);
 
   function clearFieldError(field?: keyof ItemFormErrors) {
-    setErrors((currentErrors) => ({
-      ...currentErrors,
-      ...(field ? { [field]: undefined } : null),
+    setErrors((current) => ({
+      ...current,
+      ...(field ? { [field]: undefined } : {}),
       save: undefined,
     }));
   }
 
-  function handleNameChange(value: string) {
-    setName(value);
-    clearFieldError('name');
-  }
-
-  function handleQuantityChange(value: string) {
-    setQuantity(value);
-    clearFieldError();
-  }
-
-  function handleExpiryDateChange(value: string) {
-    setExpiryDate(formatExpiryDateInput(value));
-    clearFieldError('expiryDate');
-  }
-
-  const pickedDate = parseExpiryDate(expiryDate);
-
-  /* Only called with a picked day; closing the calendar without one changes nothing. */
   function handleDatePicked(_event: unknown, date: Date) {
     setExpiryDate(toExpiryDateString(date));
     clearFieldError('expiryDate');
   }
 
-  /*
-   * Opens on the date already chosen, such as a scan's estimate or the date
-   * being edited, or on today. There is no earliest date, so food that has
-   * already expired can still be logged.
-   */
   function openCalendar() {
-    /* The ScrollView keeps the keyboard up for a handled tap, and it would cover the calendar. */
     Keyboard.dismiss();
 
     if (Platform.OS === 'android') {
@@ -122,65 +141,47 @@ export function ItemForm({
         value: pickedDate ?? new Date(),
         onValueChange: handleDatePicked,
       });
-    } else {
-      /*
-       * iOS shows today as already selected, and tapping the selected day sends
-       * no change, so today is chosen here or it could never be picked.
-       */
-      if (!isCalendarOpen && !pickedDate) {
-        setExpiryDate(toExpiryDateString(new Date()));
-        clearFieldError('expiryDate');
-      }
-
-      setIsCalendarOpen(!isCalendarOpen);
+      return;
     }
-  }
 
-  function handleReminderDaysChange(value: string) {
-    setReminderDaysBefore(value);
-    clearFieldError('reminderDaysBefore');
-  }
+    if (!isCalendarOpen && !pickedDate) {
+      setExpiryDate(toExpiryDateString(new Date()));
+      clearFieldError('expiryDate');
+    }
 
-  function handleNotesChange(value: string) {
-    setNotes(value);
-    clearFieldError();
+    setIsCalendarOpen((open) => !open);
   }
 
   function validateForm(): ItemFormErrors {
-    const nextErrors: ItemFormErrors = {};
-
+    const next: ItemFormErrors = {};
     const trimmedName = name.trim();
-    const trimmedExpiryDate = expiryDate.trim();
-    const parsedReminderDays = Number(reminderDaysBefore);
+    const trimmedDate = expiryDate.trim();
 
-    if (!trimmedName) {
-      nextErrors.name = 'Enter a name for this item.';
+    if (!trimmedName) next.name = 'Enter a name for this item.';
+
+    if (!trimmedDate) {
+      next.expiryDate = 'Choose an expiry date.';
+    } else if (!parseExpiryDate(trimmedDate)) {
+      next.expiryDate = 'Use a valid date in YYYY-MM-DD format.';
     }
 
-    if (!trimmedExpiryDate) {
-      nextErrors.expiryDate = 'Choose an expiry date.';
-    } else if (!parseExpiryDate(trimmedExpiryDate)) {
-      // Only a typed date on web can be malformed; the calendar always gives a real one.
-      nextErrors.expiryDate = 'Use a valid date in YYYY-MM-DD format.';
+    if (!Number.isInteger(reminderDaysBefore) || reminderDaysBefore < 1 || reminderDaysBefore > 7) {
+      next.reminderDaysBefore = 'Choose a reminder from 1 to 7 days.';
     }
 
-    if (!Number.isInteger(parsedReminderDays) || parsedReminderDays < 1 || parsedReminderDays > 7) {
-      nextErrors.reminderDaysBefore = 'Choose a whole number from 1 to 7.';
-    }
-
-    return nextErrors;
+    return next;
   }
 
   async function handleSubmit() {
-    const validationErrors = validateForm();
+    Keyboard.dismiss();
 
+    const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
 
     setErrors({});
-    /* Closed while saving, so a day tapped now can't show without being saved. */
     setIsCalendarOpen(false);
     setIsSaving(true);
 
@@ -189,17 +190,21 @@ export function ItemForm({
         name: name.trim(),
         quantity: quantity.trim() || '1 item',
         expiryDate: expiryDate.trim(),
-        reminderDaysBefore: Number(reminderDaysBefore),
+        reminderDaysBefore,
         notes: notes.trim(),
+        storageLocation,
+        category: selectedCategory,
       });
 
       if (clearOnSubmit) {
         setName('');
         setQuantity('');
         setExpiryDate('');
-        setIsCalendarOpen(false);
-        setReminderDaysBefore('1');
+        setReminderDaysBefore(1);
         setNotes('');
+        setStorageLocation('fridge');
+        setSelectedCategory('Others');
+        setIsCalendarOpen(false);
       }
     } catch {
       setErrors({
@@ -211,95 +216,132 @@ export function ItemForm({
   }
 
   return (
-    <>
-      <View style={styles.form}>
-        <View style={styles.field}>
-          <Text style={styles.label}>Item name *</Text>
-
-          <TextInput
-            accessibilityLabel="Item name"
-            autoCapitalize="words"
-            editable={!isSaving}
-            onChangeText={handleNameChange}
-            placeholder="e.g. Natural yoghurt"
-            placeholderTextColor="#8a938c"
-            style={[styles.input, errors.name ? styles.inputError : null]}
-            value={name}
-          />
-
-          {errors.name ? <Text style={styles.errorText}>{errors.name}</Text> : null}
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Quantity</Text>
-
-          <TextInput
-            accessibilityLabel="Quantity"
-            editable={!isSaving}
-            onChangeText={handleQuantityChange}
-            placeholder="e.g. 1 tub or 500 g"
-            placeholderTextColor="#8a938c"
-            style={styles.input}
-            value={quantity}
-          />
-
-          <Text style={styles.helpText}>If left empty, the quantity will be one item.</Text>
-        </View>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Expiry date *</Text>
-
-          {typesTheDate ? (
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.content, topContent ? styles.contentWithTopContent : null]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {topContent}
+        {bottomContent}
+        <View style={styles.form}>
+          <View style={styles.field}>
+            <Text style={styles.label}>Name *</Text>
             <TextInput
-              accessibilityLabel="Expiry date in year month day format"
-              autoCapitalize="none"
+              accessibilityLabel="Item name"
+              autoCapitalize="words"
               editable={!isSaving}
-              inputMode="numeric"
-              maxLength={10}
-              onChangeText={handleExpiryDateChange}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#8a938c"
-              style={[styles.input, errors.expiryDate ? styles.inputError : null]}
-              value={expiryDate}
+              onChangeText={(value) => {
+                setName(value);
+                clearFieldError('name');
+              }}
+              placeholder="e.g. Baby spinach"
+              placeholderTextColor="#7B8574"
+              style={[styles.input, errors.name && styles.inputError]}
+              value={name}
             />
-          ) : (
-            <Pressable
-              accessibilityLabel={`Expiry date, ${pickedDate ? formatWeekdayDate(pickedDate) : 'not chosen'}`}
-              accessibilityRole="button"
-              disabled={isSaving}
-              onPress={openCalendar}
-              style={({ pressed }) => [
-                styles.input,
-                styles.dateButton,
-                errors.expiryDate ? styles.inputError : null,
-                pressed ? styles.pressedButton : null,
-              ]}
-            >
-              <Text style={pickedDate ? styles.dateText : styles.datePlaceholder}>
-                {pickedDate ? formatWeekdayDate(pickedDate) : 'Choose a date'}
-              </Text>
+            {errors.name ? <Text style={styles.errorText}>{errors.name}</Text> : null}
+          </View>
 
-              <Ionicons name="calendar-outline" size={20} color="#2f7d32" />
-            </Pressable>
-          )}
+          <View style={styles.field}>
+            <Text style={styles.label}>What kind of food?</Text>
+            <Text style={styles.helpText}>Choose a category to help identify your food.</Text>
+            <View style={styles.categoryOptions}>
+              {FOOD_CATEGORIES.map((category) => {
+                const selected = selectedCategory === category;
+                return (
+                  <Pressable
+                    key={category}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected }}
+                    disabled={isSaving}
+                    onPress={() => {
+                      setSelectedCategory(category);
+                      onCategoryChange?.(category);
+                    }}
+                    style={({ pressed }) => [
+                      styles.categoryPill,
+                      selected && styles.categoryPillSelected,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text style={[styles.categoryText, selected && styles.categoryTextSelected]}>
+                      {category}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+          <View style={styles.twoColumns}>
+            <View style={[styles.field, styles.column]}>
+              <Text style={styles.label}>Quantity</Text>
+              <TextInput
+                accessibilityLabel="Quantity"
+                editable={!isSaving}
+                onChangeText={setQuantity}
+                placeholder="e.g. 1 bag"
+                placeholderTextColor="#7B8574"
+                style={styles.input}
+                value={quantity}
+              />
+            </View>
+
+            <View style={[styles.field, styles.column]}>
+              <Text style={styles.label}>Expiry date *</Text>
+              {typesTheDate ? (
+                <TextInput
+                  accessibilityLabel="Expiry date in year month day format"
+                  autoCapitalize="none"
+                  editable={!isSaving}
+                  inputMode="numeric"
+                  maxLength={10}
+                  onChangeText={(value) => {
+                    setExpiryDate(formatExpiryDateInput(value));
+                    clearFieldError('expiryDate');
+                  }}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#7B8574"
+                  style={[styles.input, errors.expiryDate && styles.inputError]}
+                  value={expiryDate}
+                />
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Expiry date, ${pickedDate ? formatWeekdayDate(pickedDate) : 'not chosen'}`}
+                  disabled={isSaving}
+                  onPress={openCalendar}
+                  style={({ pressed }) => [
+                    styles.input,
+                    styles.dateButton,
+                    errors.expiryDate && styles.inputError,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Text style={pickedDate ? styles.dateText : styles.placeholder}>
+                    {pickedDate ? formatWeekdayDate(pickedDate) : 'Choose a date'}
+                  </Text>
+                  <Ionicons name="calendar-outline" size={19} color={COLORS.primary} />
+                </Pressable>
+              )}
+            </View>
+          </View>
 
           {isCalendarOpen ? (
             <View style={styles.calendar}>
               <DateTimePicker
-                accentColor="#2f7d32"
+                accentColor={COLORS.primary}
+                themeVariant="light"
                 display="inline"
                 mode="date"
                 onValueChange={handleDatePicked}
                 value={pickedDate ?? new Date()}
               />
-
               <Pressable
                 accessibilityRole="button"
                 onPress={() => setIsCalendarOpen(false)}
-                style={({ pressed }) => [
-                  styles.calendarDone,
-                  pressed ? styles.pressedButton : null,
-                ]}
+                style={styles.calendarDone}
               >
                 <Text style={styles.calendarDoneText}>Done</Text>
               </Pressable>
@@ -308,143 +350,388 @@ export function ItemForm({
 
           {errors.expiryDate ? (
             <Text style={styles.errorText}>{errors.expiryDate}</Text>
-          ) : (
+          ) : expiryHelpText ? (
+            <Text style={styles.helpText}>{expiryHelpText}</Text>
+          ) : selectedCategory !== 'Others' ? (
             <Text style={styles.helpText}>
-              {expiryHelpText ??
-                (typesTheDate
-                  ? 'Type the digits printed on the package, for example 20260920.'
-                  : 'Pick the date printed on the package.')}
+              Check the package for its use-by date. Food type: {selectedCategory}.
             </Text>
+          ) : (
+            <Text style={styles.helpText}>Check the date printed on the package.</Text>
           )}
-        </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Remind me before expiry *</Text>
+          <View style={styles.field}>
+            <Text style={styles.label}>Keep it in</Text>
+            <View style={styles.storageOptions}>
+              {STORAGE_OPTIONS.map((option) => {
+                const selected = storageLocation === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    accessibilityRole="radio"
+                    accessibilityState={{ checked: selected }}
+                    accessibilityLabel={option.label}
+                    disabled={isSaving}
+                    onPress={() => setStorageLocation(option.value)}
+                    style={({ pressed }) => [
+                      styles.storageOption,
+                      selected && styles.storageOptionSelected,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.storageOptionText,
+                        selected && styles.storageOptionTextSelected,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
 
-          <View style={styles.reminderInputRow}>
-            <TextInput
-              accessibilityLabel="Number of days before expiry to send a reminder"
-              editable={!isSaving}
-              inputMode="numeric"
-              maxLength={1}
-              onChangeText={handleReminderDaysChange}
-              placeholder="1"
-              placeholderTextColor="#8a938c"
-              style={[
-                styles.input,
-                styles.reminderInput,
-                errors.reminderDaysBefore ? styles.inputError : null,
-              ]}
-              value={reminderDaysBefore}
-            />
+          <View style={styles.reminderCard}>
+            <View style={styles.reminderTop}>
+              <View style={styles.reminderDescription}>
+                <Text style={styles.reminderTitle}>Expiry reminder</Text>
+                <Text style={styles.helpText}>
+                  {reminderDaysBefore} {reminderDaysBefore === 1 ? 'day' : 'days'} before
+                </Text>
+              </View>
 
-            <Text style={styles.reminderUnit}>day(s) before</Text>
+              <View style={styles.stepper}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Decrease reminder days"
+                  disabled={isSaving || reminderDaysBefore <= 1}
+                  onPress={() => {
+                    setReminderDaysBefore((days) => Math.max(1, days - 1));
+                    clearFieldError('reminderDaysBefore');
+                  }}
+                  style={({ pressed }) => [
+                    styles.stepperButton,
+                    (isSaving || reminderDaysBefore <= 1) && styles.stepperDisabled,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Ionicons name="remove" size={21} color={COLORS.primary} />
+                </Pressable>
+
+                <Text
+                  accessibilityLabel="Days before expiry"
+                  accessibilityValue={{
+                    now: reminderDaysBefore,
+                    min: 1,
+                    max: 7,
+                    text: `${reminderDaysBefore} ${reminderDaysBefore === 1 ? 'day' : 'days'}`,
+                  }}
+                  style={styles.stepperValue}
+                >
+                  {reminderDaysBefore}
+                </Text>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Increase reminder days"
+                  disabled={isSaving || reminderDaysBefore >= 7}
+                  onPress={() => {
+                    setReminderDaysBefore((days) => Math.min(7, days + 1));
+                    clearFieldError('reminderDaysBefore');
+                  }}
+                  style={({ pressed }) => [
+                    styles.stepperButton,
+                    (isSaving || reminderDaysBefore >= 7) && styles.stepperDisabled,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Ionicons name="add" size={21} color={COLORS.primary} />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.reminderPreview}>
+              <Ionicons name="notifications-outline" size={19} color={COLORS.primary} />
+              <Text style={styles.reminderPreviewText}>
+                You’ll get a reminder {reminderDaysBefore}{' '}
+                {reminderDaysBefore === 1 ? 'day' : 'days'} before expiry.
+              </Text>
+            </View>
           </View>
 
           {errors.reminderDaysBefore ? (
             <Text style={styles.errorText}>{errors.reminderDaysBefore}</Text>
-          ) : (
-            <Text style={styles.helpText}>
-              Choose 1 to 7 days. You will also be reminded on the expiry day.
-            </Text>
-          )}
-        </View>
+          ) : null}
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Notes</Text>
+          <View style={styles.field}>
+            <Text style={styles.label}>Notes (optional)</Text>
+            <TextInput
+              accessibilityLabel="Notes"
+              editable={!isSaving}
+              multiline
+              onChangeText={setNotes}
+              placeholder="e.g. Opened on Monday"
+              placeholderTextColor="#7B8574"
+              style={[styles.input, styles.notesInput]}
+              textAlignVertical="top"
+              value={notes}
+            />
+          </View>
 
-          <TextInput
-            accessibilityLabel="Notes"
-            editable={!isSaving}
-            multiline
-            onChangeText={handleNotesChange}
-            placeholder="e.g. Opened on Monday"
-            placeholderTextColor="#8a938c"
-            style={[styles.input, styles.notesInput]}
-            textAlignVertical="top"
-            value={notes}
-          />
+          {blockedReason ? (
+            <View style={styles.notice}>
+              <Ionicons name="hourglass-outline" size={19} color={COLORS.warning} />
+              <Text style={styles.noticeText}>{blockedReason}</Text>
+            </View>
+          ) : null}
+
+          {errors.save ? (
+            <View style={styles.saveError}>
+              <Ionicons name="warning-outline" size={19} color={COLORS.error} />
+              <Text style={styles.errorText}>{errors.save}</Text>
+            </View>
+          ) : null}
         </View>
+      </ScrollView>
+
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={isSubmitDisabled}
+          onPress={() => void handleSubmit()}
+          style={({ pressed }) => [
+            styles.submitButton,
+            pressed && styles.pressed,
+            isSubmitDisabled && styles.disabledButton,
+          ]}
+        >
+          <Text style={styles.submitButtonText}>
+            {isSaving
+              ? 'Saving...'
+              : typeof submitLabel === 'function'
+                ? submitLabel(storageLocation)
+                : submitLabel}
+          </Text>
+        </Pressable>
       </View>
-
-      {blockedReason ? (
-        <View style={styles.storageNotice}>
-          <Ionicons name="hourglass-outline" size={19} color="#8b6b1f" />
-
-          <Text style={styles.storageNoticeText}>{blockedReason}</Text>
-        </View>
-      ) : null}
-
-      {errors.save ? (
-        <View style={styles.saveError}>
-          <Ionicons name="warning-outline" size={19} color="#8b2c25" />
-
-          <Text style={styles.saveErrorText}>{errors.save}</Text>
-        </View>
-      ) : null}
-
-      <Pressable
-        accessibilityRole="button"
-        disabled={isSubmitDisabled}
-        onPress={() => void handleSubmit()}
-        style={({ pressed }) => [
-          styles.submitButton,
-          pressed ? styles.pressedButton : null,
-          isSubmitDisabled ? styles.disabledButton : null,
-        ]}
-      >
-        <Ionicons name="checkmark" size={21} color="#ffffff" />
-
-        <Text style={styles.submitButtonText}>{isSaving ? 'Saving...' : submitLabel}</Text>
-      </Pressable>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  scroll: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 24,
+  },
+  contentWithTopContent: {
+    paddingTop: 0,
+  },
   form: {
-    gap: 20,
-    marginTop: 26,
+    gap: 18,
+    marginTop: 22,
   },
   field: {
     gap: 7,
   },
   label: {
-    color: '#263229',
-    fontSize: 14,
-    fontWeight: '700',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 15,
   },
   input: {
-    minHeight: 50,
+    minHeight: 54,
     borderWidth: 1,
-    borderColor: '#cad4c9',
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 14,
-    color: '#172019',
+    borderColor: COLORS.border,
+    borderRadius: 17,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 16,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 16,
   },
   inputError: {
-    borderColor: '#b83c33',
+    borderColor: COLORS.error,
+  },
+  placeholder: {
+    color: '#7B8574',
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 15,
   },
   dateButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingVertical: 14,
   },
   dateText: {
-    color: '#172019',
-    fontSize: 16,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 15,
   },
-  datePlaceholder: {
-    color: '#8a938c',
-    fontSize: 16,
+  twoColumns: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  column: {
+    flex: 1,
+    minWidth: 0,
+  },
+  categoryOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 3,
+  },
+  categoryPill: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 24,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 16,
+  },
+  categoryPillSelected: {
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
+  },
+  categoryText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 14,
+  },
+  categoryTextSelected: {
+    color: COLORS.surface,
+    fontFamily: 'Fredoka_500Medium',
+  },
+  storageOptions: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 17,
+    backgroundColor: '#F1F3E8',
+    padding: 4,
+  },
+  storageOption: {
+    flex: 1,
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 13,
+    paddingHorizontal: 3,
+  },
+  storageOptionSelected: {
+    backgroundColor: COLORS.surface,
+    shadowColor: '#1E2A16',
+    shadowOpacity: 0.09,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+  },
+  storageOptionText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 14,
+  },
+  storageOptionTextSelected: {
+    fontFamily: 'Fredoka_600SemiBold',
+  },
+  reminderCard: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    backgroundColor: COLORS.surface,
+  },
+  reminderTop: {
+    minHeight: 78,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  reminderDescription: {
+    flex: 1,
+    gap: 4,
+  },
+  reminderTitle: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 17,
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stepperButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 24,
+    backgroundColor: COLORS.surface,
+  },
+  stepperDisabled: {
+    opacity: 0.4,
+  },
+  stepperValue: {
+    minWidth: 20,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 19,
+    textAlign: 'center',
+  },
+  reminderPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.divider,
+    backgroundColor: '#F5F6ED',
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+  },
+  reminderPreviewText: {
+    flex: 1,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  helpText: {
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  errorText: {
+    color: COLORS.error,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 12,
+    lineHeight: 17,
   },
   calendar: {
     borderWidth: 1,
-    borderColor: '#cad4c9',
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
     padding: 8,
   },
   calendarDone: {
@@ -454,48 +741,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   calendarDoneText: {
-    color: '#2f7d32',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  reminderInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  reminderInput: {
-    width: 72,
-    textAlign: 'center',
-  },
-  reminderUnit: {
-    color: '#3c463e',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
     fontSize: 15,
   },
   notesInput: {
-    minHeight: 96,
+    minHeight: 88,
     paddingTop: 14,
     paddingBottom: 14,
   },
-  errorText: {
-    color: '#9f2420',
-    fontSize: 12,
-  },
-  helpText: {
-    color: '#718075',
-    fontSize: 12,
-  },
-  storageNotice: {
+  notice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 8,
-    marginTop: 20,
-    borderRadius: 12,
-    backgroundColor: '#fff0d5',
+    borderRadius: 14,
+    backgroundColor: COLORS.warningSoft,
     padding: 12,
   },
-  storageNoticeText: {
+  noticeText: {
     flex: 1,
-    color: '#8b6b1f',
+    color: COLORS.warning,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 13,
     lineHeight: 18,
   },
@@ -503,34 +769,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 20,
-    borderRadius: 12,
-    backgroundColor: '#fde7e5',
+    borderRadius: 14,
+    backgroundColor: COLORS.errorSoft,
     padding: 12,
   },
-  saveErrorText: {
-    flex: 1,
-    color: '#8b2c25',
-    fontSize: 13,
+  footer: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
   },
   submitButton: {
-    minHeight: 54,
-    flexDirection: 'row',
+    minHeight: 62,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginTop: 24,
-    borderRadius: 14,
-    backgroundColor: '#2f7d32',
+    borderRadius: 20,
+    backgroundColor: COLORS.accent,
     paddingHorizontal: 18,
   },
   submitButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 17,
   },
-  pressedButton: {
-    opacity: 0.72,
+  pressed: {
+    opacity: 0.75,
   },
   disabledButton: {
     opacity: 0.55,

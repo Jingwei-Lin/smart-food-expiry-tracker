@@ -26,6 +26,7 @@ describe('parseProductResponse', () => {
         quantity: '2 L',
         expiryDate: '2026-09-24',
         shelfLifeLabel: 'milk',
+        category: 'Dairy',
       },
     });
   });
@@ -63,7 +64,98 @@ describe('parseProductResponse', () => {
       today,
     );
 
-    expect(result).toMatchObject({ product: { expiryDate: '', shelfLifeLabel: '' } });
+    expect(result).toMatchObject({
+      product: {
+        expiryDate: '',
+        shelfLifeLabel: '',
+        category: 'Others',
+      },
+    });
+  });
+
+  it('uses Others when Open Food Facts has no category tags', () => {
+    const result = parseProductResponse(
+      '1',
+      { status: 1, product: { product_name: 'Mystery jar' } },
+      today,
+    );
+
+    expect(result).toMatchObject({
+      outcome: 'found',
+      product: { category: 'Others' },
+    });
+  });
+
+  it('maps the Open Food Facts fishes tag to Seafood', () => {
+    const result = parseProductResponse(
+      '1',
+      {
+        status: 1,
+        product: {
+          product_name: 'Fresh fish',
+          categories_tags: ['en:fishes'],
+        },
+      },
+      today,
+    );
+
+    expect(result).toMatchObject({
+      outcome: 'found',
+      product: { category: 'Seafood' },
+    });
+  });
+
+  it.each([
+    ['en:fishes', 'Seafood'],
+    ['en:frozen-fishes', 'Seafood'],
+    ['en:fresh-vegetables', 'Veg'],
+    ['en:fresh-fruits', 'Fruit'],
+    ['en:cheeses', 'Dairy'],
+    ['en:fresh-meats', 'Meat'],
+    ['en:breads', 'Bread'],
+  ])('files the whole tag %s under %s', (tag, category) => {
+    const result = parseProductResponse(
+      '1',
+      { status: 1, product: { product_name: 'Item', categories_tags: [tag] } },
+      today,
+    );
+
+    expect(result).toMatchObject({ product: { category } });
+  });
+
+  it.each([
+    'en:canned-vegetables',
+    'en:fruits-and-vegetables-based-foods',
+    'en:egg-noodles',
+    'en:milk-chocolates',
+    'en:fish-sauces',
+    'en:chicken-soups',
+    'en:fruit-juices',
+    'en:salad-dressings',
+  ])('does not file %s by a word that happens to be in it', (tag) => {
+    const result = parseProductResponse(
+      '1',
+      { status: 1, product: { product_name: 'Item', categories_tags: [tag] } },
+      today,
+    );
+
+    expect(result).toMatchObject({ product: { category: 'Others' } });
+  });
+
+  it('files a product under the first category in the list when its tags match two', () => {
+    const result = parseProductResponse(
+      '1',
+      {
+        status: 1,
+        product: {
+          product_name: 'Fish pie',
+          categories_tags: ['en:fresh-vegetables', 'en:fishes'],
+        },
+      },
+      today,
+    );
+
+    expect(result).toMatchObject({ product: { category: 'Seafood' } });
   });
 
   it.each([
@@ -94,6 +186,7 @@ describe('lookupProduct', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toContain('/product/3017620422003.json');
+    expect(fetchMock.mock.calls[0][0]).toContain('categories_tags');
     expect(result).toMatchObject({ outcome: 'found' });
   });
 

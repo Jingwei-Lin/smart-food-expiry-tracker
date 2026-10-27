@@ -190,7 +190,7 @@ describe('toSnapshot', () => {
     });
   });
 
-  it('keeps only the tags a card reads', () => {
+  it('keeps only the tags a card reads, and never a phone number', () => {
     const { elements } = toSnapshot(
       [
         {
@@ -206,6 +206,7 @@ describe('toSnapshot', () => {
             amenity: 'social_facility',
             operator: 'Pantry Inc',
             website: 'https://example.org',
+            phone: '+61 2 9000 0000',
           },
         },
       ],

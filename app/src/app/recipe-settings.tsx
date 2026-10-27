@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { checkRecipeKey, KeyCheckResult } from '@/utils/recipe-client';
 import {
@@ -25,6 +26,22 @@ import {
 import { RECIPE_PROVIDERS, RecipeProvider, RecipeProviderId } from '@/utils/recipe-providers';
 
 const PROVIDERS = Object.values(RECIPE_PROVIDERS);
+
+/* The app's palette, as on the redesigned screens. */
+const COLORS = {
+  background: '#FFFDF5',
+  primary: '#1E2A16',
+  secondary: '#55614D',
+  subtle: '#F2F3EA',
+  surface: '#FFFFFF',
+  border: '#E4E5D4',
+  accent: '#A6D45A',
+  accentSoft: '#F0F7DB',
+  link: '#4E7A1F',
+  divider: '#EEEFE5',
+  error: '#8B2C25',
+  errorSoft: '#FDE7E5',
+};
 
 /* Free, so a student who has never set anything up can start without paying. */
 const DEFAULT_PROVIDER_ID: RecipeProviderId = 'gemini';
@@ -58,6 +75,7 @@ function describeCheckFailure(
  * switching back to one saved earlier needs no pasting.
  */
 export default function RecipeSettingsScreen() {
+  const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(true);
   const [activeId, setActiveId] = useState<RecipeProviderId | null>(null);
   const [selectedId, setSelectedId] = useState<RecipeProviderId>(DEFAULT_PROVIDER_ID);
@@ -197,7 +215,7 @@ export default function RecipeSettingsScreen() {
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator color="#2f7d32" />
+        <ActivityIndicator color={COLORS.primary} />
       </View>
     );
   }
@@ -208,39 +226,77 @@ export default function RecipeSettingsScreen() {
       style={styles.screen}
     >
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 40 },
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {/* Its own header, like the other redesigned screens, in place of "‹ (tabs)". */}
+        <View style={styles.header}>
+          <Pressable
+            accessibilityLabel="Back"
+            accessibilityRole="button"
+            hitSlop={6}
+            onPress={() => router.back()}
+            style={({ pressed }) => [styles.backButton, pressed ? styles.pressed : null]}
+          >
+            <Ionicons color={COLORS.primary} name="chevron-back" size={24} />
+          </Pressable>
+
+          <Text accessibilityRole="header" style={styles.title}>
+            Recipe settings
+          </Text>
+        </View>
+
+        <Text style={styles.intro}>
+          Choose the AI model that suggests recipes, and paste a key from that provider.
+        </Text>
+
         <Text style={styles.sectionTitle}>MODEL</Text>
 
-        <View accessibilityRole="radiogroup" style={styles.card}>
-          {PROVIDERS.map((option, index) => {
+        {/* One card per model; the chosen one is tinted lime with a dark tick. */}
+        <View accessibilityRole="radiogroup" style={styles.providers}>
+          {PROVIDERS.map((option) => {
             const isSelected = option.id === selectedId;
 
             return (
-              <View key={option.id}>
-                {index > 0 ? <View style={styles.divider} /> : null}
+              <Pressable
+                key={option.id}
+                accessibilityLabel={
+                  hints[option.id]
+                    ? `${option.label}, ${option.company}, key saved`
+                    : `${option.label}, ${option.company}`
+                }
+                accessibilityRole="radio"
+                accessibilityState={{ checked: isSelected, disabled: isWorking }}
+                disabled={isWorking}
+                onPress={() => chooseProvider(option.id)}
+                style={({ pressed }) => [
+                  styles.providerCard,
+                  isSelected ? styles.providerCardSelected : null,
+                  pressed ? styles.pressed : null,
+                ]}
+              >
+                <View style={[styles.radio, isSelected ? styles.radioSelected : null]}>
+                  {isSelected ? (
+                    <Ionicons color={COLORS.surface} name="checkmark" size={16} />
+                  ) : null}
+                </View>
 
-                <Pressable
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: isSelected, disabled: isWorking }}
-                  disabled={isWorking}
-                  onPress={() => chooseProvider(option.id)}
-                  style={({ pressed }) => [styles.providerRow, pressed ? styles.pressed : null]}
-                >
-                  <View style={[styles.radio, isSelected ? styles.radioSelected : null]}>
-                    {isSelected ? <View style={styles.radioDot} /> : null}
+                <View style={styles.providerText}>
+                  <Text style={styles.providerLabel}>{option.label}</Text>
+                  <Text style={styles.providerCompany}>{option.company}</Text>
+                </View>
+
+                {hints[option.id] ? (
+                  <View style={styles.savedBadge}>
+                    <Ionicons color={COLORS.link} name="key-outline" size={13} />
+                    <Text style={styles.savedBadgeText}>Key saved</Text>
                   </View>
-
-                  <View style={styles.providerText}>
-                    <Text style={styles.providerLabel}>{option.label}</Text>
-                    <Text style={styles.providerCompany}>{option.company}</Text>
-                  </View>
-
-                  {hints[option.id] ? <Text style={styles.savedBadge}>Key saved</Text> : null}
-                </Pressable>
-              </View>
+                ) : null}
+              </Pressable>
             );
           })}
         </View>
@@ -261,7 +317,7 @@ export default function RecipeSettingsScreen() {
             style={({ pressed }) => [styles.getKey, pressed ? styles.pressed : null]}
           >
             <Text style={styles.getKeyText}>Get a key</Text>
-            <Ionicons color="#2f7d32" name="open-outline" size={15} />
+            <Ionicons color={COLORS.link} name="open-outline" size={15} />
           </Pressable>
         </View>
 
@@ -277,14 +333,14 @@ export default function RecipeSettingsScreen() {
           placeholder={
             savedHint ? 'Paste a new key to replace it' : `Paste your ${provider.company} key`
           }
-          placeholderTextColor="#8a938c"
+          placeholderTextColor={COLORS.secondary}
           secureTextEntry
           style={styles.input}
           value={keyInput}
         />
 
         <View style={styles.savedRow}>
-          {savedHint ? <Ionicons color="#27652a" name="checkmark" size={15} /> : null}
+          {savedHint ? <Ionicons color={COLORS.link} name="checkmark-circle" size={16} /> : null}
 
           <Text style={savedHint ? styles.savedText : styles.helpText}>
             {savedHint ? `Saved key: ${savedHint}` : `No ${provider.company} key saved yet`}
@@ -292,7 +348,7 @@ export default function RecipeSettingsScreen() {
         </View>
 
         <View style={styles.privacyCard}>
-          <Ionicons color="#27652a" name="lock-closed-outline" size={18} />
+          <Ionicons color={COLORS.primary} name="lock-closed-outline" size={18} />
 
           <Text style={styles.privacyText}>
             Your key is stored only on this phone and is sent only to {provider.company}. Only the
@@ -319,12 +375,20 @@ export default function RecipeSettingsScreen() {
           onPress={() => void primaryAction?.()}
           style={({ pressed }) => [
             styles.primaryButton,
-            isPrimaryDisabled ? styles.disabledButton : null,
+            /* Grey while there is nothing to do; still lime while a key is being checked. */
+            isPrimaryDisabled && !isWorking ? styles.primaryButtonIdle : null,
             pressed ? styles.pressed : null,
           ]}
         >
-          {isWorking && trimmedKey ? <ActivityIndicator color="#ffffff" /> : null}
-          <Text style={styles.primaryButtonText}>{primaryLabel}</Text>
+          {isWorking && trimmedKey ? <ActivityIndicator color={COLORS.primary} /> : null}
+          <Text
+            style={[
+              styles.primaryButtonText,
+              isPrimaryDisabled && !isWorking ? styles.primaryButtonTextIdle : null,
+            ]}
+          >
+            {primaryLabel}
+          </Text>
         </Pressable>
 
         {savedHint ? (
@@ -345,96 +409,123 @@ export default function RecipeSettingsScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f6f8f3',
+    backgroundColor: COLORS.background,
   },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f6f8f3',
+    backgroundColor: COLORS.background,
   },
   content: {
     paddingHorizontal: 20,
-    paddingTop: 22,
-    paddingBottom: 40,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  backButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+    backgroundColor: COLORS.subtle,
+  },
+  title: {
+    flex: 1,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 26,
+    lineHeight: 32,
+  },
+  intro: {
+    marginTop: 12,
+    marginBottom: 22,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 15,
+    lineHeight: 21,
   },
   sectionTitle: {
     marginBottom: 10,
-    color: '#687269',
-    fontSize: 11,
-    fontWeight: '800',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 12,
     letterSpacing: 0.9,
   },
-  card: {
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#dce4da',
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
+  providers: {
+    gap: 10,
   },
-  divider: {
-    height: 1,
-    marginLeft: 52,
-    backgroundColor: '#eef1ed',
-  },
-  providerRow: {
-    minHeight: 64,
+  providerCard: {
+    minHeight: 68,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
     paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    backgroundColor: COLORS.surface,
   },
+  providerCardSelected: {
+    borderColor: COLORS.accent,
+    backgroundColor: COLORS.accentSoft,
+  },
+  /* A round tick box: empty, or dark with a white tick once chosen. */
   radio: {
-    width: 22,
-    height: 22,
+    width: 26,
+    height: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#aab6a9',
-    borderRadius: 11,
+    borderWidth: 1.5,
+    borderColor: '#D5D8C4',
+    borderRadius: 13,
+    backgroundColor: COLORS.surface,
   },
   radioSelected: {
-    borderColor: '#2f7d32',
-  },
-  radioDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#2f7d32',
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.primary,
   },
   providerText: {
     flex: 1,
     gap: 2,
   },
   providerLabel: {
-    color: '#172019',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
     fontSize: 17,
-    fontWeight: '600',
   },
   providerCompany: {
-    color: '#59635b',
-    fontSize: 13,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 14,
   },
   savedBadge: {
-    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 999,
-    backgroundColor: '#e7f4e8',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    color: '#27652a',
+    backgroundColor: COLORS.surface,
+  },
+  savedBadgeText: {
+    color: COLORS.link,
+    fontFamily: 'Fredoka_600SemiBold',
     fontSize: 12,
-    fontWeight: '700',
   },
   keyHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: 26,
   },
   label: {
     flex: 1,
-    color: '#263229',
-    fontSize: 14,
-    fontWeight: '700',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 16,
   },
   getKey: {
     minHeight: 44,
@@ -443,18 +534,19 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   getKeyText: {
-    color: '#2f7d32',
-    fontSize: 14,
-    fontWeight: '700',
+    color: COLORS.link,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 15,
   },
   input: {
-    minHeight: 50,
+    minHeight: 54,
     borderWidth: 1,
-    borderColor: '#cad4c9',
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 14,
-    color: '#172019',
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 16,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 16,
   },
   savedRow: {
@@ -464,68 +556,76 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   savedText: {
-    color: '#27652a',
-    fontSize: 12,
+    color: COLORS.link,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 13,
   },
   helpText: {
-    color: '#59635b',
-    fontSize: 12,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 13,
   },
   privacyCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
     marginTop: 20,
-    borderRadius: 12,
-    backgroundColor: '#e7f4e8',
-    padding: 12,
+    borderRadius: 16,
+    backgroundColor: COLORS.subtle,
+    padding: 14,
   },
   privacyText: {
     flex: 1,
-    color: '#1f4f22',
-    fontSize: 13,
-    lineHeight: 18,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 14,
+    lineHeight: 20,
   },
   errorCard: {
     marginTop: 16,
-    borderRadius: 12,
-    backgroundColor: '#fde7e5',
-    padding: 12,
+    borderRadius: 16,
+    backgroundColor: COLORS.errorSoft,
+    padding: 14,
   },
   errorText: {
-    color: '#8b2c25',
-    fontSize: 13,
-    lineHeight: 18,
+    color: COLORS.error,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 14,
+    lineHeight: 19,
   },
   successCard: {
     marginTop: 16,
-    borderRadius: 12,
-    backgroundColor: '#e7f4e8',
-    padding: 12,
+    borderRadius: 16,
+    backgroundColor: COLORS.accentSoft,
+    padding: 14,
   },
   successText: {
-    color: '#1f4f22',
-    fontSize: 13,
-    lineHeight: 18,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 14,
+    lineHeight: 19,
   },
   primaryButton: {
-    minHeight: 54,
+    minHeight: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
+    gap: 10,
     marginTop: 24,
-    borderRadius: 14,
-    backgroundColor: '#2f7d32',
+    borderRadius: 18,
+    backgroundColor: COLORS.accent,
     paddingHorizontal: 18,
   },
-  primaryButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
+  primaryButtonIdle: {
+    backgroundColor: COLORS.divider,
   },
-  disabledButton: {
-    opacity: 0.55,
+  primaryButtonText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 17,
+  },
+  primaryButtonTextIdle: {
+    color: COLORS.secondary,
   },
   removeButton: {
     minHeight: 48,
@@ -534,9 +634,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   removeButtonText: {
-    color: '#9f2420',
+    color: COLORS.error,
+    fontFamily: 'Fredoka_600SemiBold',
     fontSize: 15,
-    fontWeight: '700',
   },
   pressed: {
     opacity: 0.72,

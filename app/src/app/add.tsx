@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useLocalSearchParams } from 'expo-router';
-import { useHeaderHeight } from 'expo-router/react-navigation';
-import { KeyboardAvoidingView, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAvoidingView, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ItemForm, ItemFormValues } from '@/components/item-form';
 import { useInventory } from '@/context/inventory-context';
+import { getValidCategory } from '@/types/food-item';
 import { returnToInventory } from '@/utils/navigation';
 
 type ScanParams = {
@@ -13,119 +14,162 @@ type ScanParams = {
   quantity?: string;
   expiryDate?: string;
   shelfLifeLabel?: string;
+  category?: string;
   lookupOutcome?: string;
 };
 
-/**
- * Describes what the scanner came back with, so the student knows whether the
- * fields below were filled in for them or are still blank on purpose.
- */
-function describeScan(params: ScanParams): { tone: 'found' | 'manual'; text: string } | null {
-  if (!params.barcode) {
-    return null;
-  }
+function describeScan(
+  params: ScanParams,
+): { tone: 'found' | 'manual'; title: string; text: string } | null {
+  if (!params.barcode) return null;
 
   if (params.lookupOutcome === 'not-found') {
     return {
       tone: 'manual',
-      text: `Barcode ${params.barcode} is not in Open Food Facts yet. Add the item by hand — it will still be saved against the barcode.`,
+      title: "We couldn't find that barcode",
+      text: "No problem. Fill it in and we'll still remind you.",
     };
   }
 
   if (params.lookupOutcome === 'unavailable') {
     return {
       tone: 'manual',
-      text: `Could not reach Open Food Facts to look up ${params.barcode}. Add the item by hand, or try the scan again with a connection.`,
+      title: 'Could not look up this barcode',
+      text: 'Enter the details manually and save your item.',
     };
   }
 
-  return { tone: 'found', text: `Scanned ${params.barcode} — check the details before saving.` };
+  return {
+    tone: 'found',
+    title: 'Found it',
+    text: 'Filled in from Open Food Facts. Check it looks right.',
+  };
 }
 
-/**
- * Add item screen.
- *
- * Reached from the scanner, either carrying a product it recognised or empty
- * when it could not. Everything it fills in is an ordinary form field, so the
- * student can correct any of it before saving.
- */
+const COLORS = {
+  background: '#FFFDF5',
+  surface: '#FFFFFF',
+  primary: '#1E2A16',
+  secondary: '#55614D',
+  border: '#E4E5D4',
+  divider: '#EEEFE5',
+  accentSoft: '#F0F7DB',
+  pink: '#FBEFF2',
+  pinkText: '#D82D69',
+  green: '#54852C',
+};
+
 export default function AddItemScreen() {
   const { addItem, isStorageReady, storageError } = useInventory();
   const params = useLocalSearchParams<ScanParams>();
-  const headerHeight = useHeaderHeight();
+  const insets = useSafeAreaInsets();
 
   const scanNotice = describeScan(params);
+  const scannedCategory = getValidCategory(params.category);
 
   async function handleSubmit(values: ItemFormValues) {
-    await addItem({ ...values, barcode: params.barcode });
+    await addItem({
+      ...values,
+      barcode: typeof params.barcode === 'string' ? params.barcode : undefined,
+    });
 
     returnToInventory();
   }
 
+  const topContent = (
+    <View>
+      <View style={styles.headingRow}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              returnToInventory();
+            }
+          }}
+          style={({ pressed }) => [styles.backButton, pressed && styles.pressedButton]}
+        >
+          <Ionicons name="chevron-back" size={25} color={COLORS.primary} />
+        </Pressable>
+
+        <Text style={styles.title}>Add food</Text>
+      </View>
+
+      <View
+        style={[
+          styles.noticeCard,
+          scanNotice?.tone === 'manual' ? styles.warningCard : styles.successCard,
+        ]}
+      >
+        <View style={styles.noticeIcon}>
+          <Ionicons
+            name={
+              scanNotice?.tone === 'manual'
+                ? 'alert-circle-outline'
+                : scanNotice
+                  ? 'checkmark-circle-outline'
+                  : 'information-circle-outline'
+            }
+            size={22}
+            color={scanNotice?.tone === 'manual' ? COLORS.pinkText : COLORS.green}
+          />
+        </View>
+
+        <View style={styles.noticeContent}>
+          <Text style={styles.noticeTitle}>{scanNotice?.title ?? 'Add your groceries'}</Text>
+
+          <Text style={styles.noticeText}>
+            {scanNotice?.text ??
+              'Enter your food details below so we can help you keep track of expiry dates.'}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     /*
      * Android draws edge to edge, so the window no longer shrinks for the
-     * keyboard and the padding is needed there too. The view measures itself
-     * from below the header, so the header's height is added back.
+     * keyboard and the padding is needed there too.
      */
     <KeyboardAvoidingView
       behavior="padding"
-      keyboardVerticalOffset={headerHeight}
-      style={styles.screen}
+      style={[styles.screen, { paddingTop: insets.top + 10 }]}
     >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.eyebrow}>{params.barcode ? 'SCANNED ITEM' : 'MANUAL ENTRY'}</Text>
-        <Text style={styles.title}>Add grocery item</Text>
-
-        <Text style={styles.subtitle}>
-          {params.barcode
-            ? 'Correct anything the scan got wrong, then save it.'
-            : 'Add loose produce or an item without a barcode.'}
-        </Text>
-
-        <View style={scanNotice?.tone === 'manual' ? styles.warningCard : styles.informationCard}>
-          <Ionicons
-            color={scanNotice?.tone === 'manual' ? '#8b6b1f' : '#2f7d32'}
-            name={
-              scanNotice?.tone === 'manual' ? 'alert-circle-outline' : 'information-circle-outline'
-            }
-            size={22}
-          />
-
-          <Text style={scanNotice?.tone === 'manual' ? styles.warningText : styles.informationText}>
-            {scanNotice?.text ??
-              'Required fields are marked with an asterisk. You can add quantity and notes if they are useful.'}
-          </Text>
-        </View>
-
-        <ItemForm
-          blockedReason={
-            isStorageReady
-              ? null
-              : (storageError ??
-                'Loading your saved inventory. Saving will be enabled in a moment.')
-          }
-          clearOnSubmit
-          expiryHelpText={
-            params.shelfLifeLabel
-              ? `Estimated from "${params.shelfLifeLabel}" — check the package and correct it.`
-              : undefined
-          }
-          initialValues={{
-            name: params.name ?? '',
-            quantity: params.quantity ?? '',
-            expiryDate: params.expiryDate ?? '',
-            reminderDaysBefore: 1,
-            notes: '',
-          }}
-          onSubmit={handleSubmit}
-          submitLabel="Save item"
-        />
-      </ScrollView>
+      <ItemForm
+        key={JSON.stringify([
+          params.barcode,
+          params.name,
+          params.quantity,
+          params.expiryDate,
+          scannedCategory,
+        ])}
+        topContent={topContent}
+        blockedReason={
+          isStorageReady
+            ? null
+            : (storageError ?? 'Loading your saved inventory. Saving will be enabled in a moment.')
+        }
+        clearOnSubmit
+        expiryHelpText={
+          params.shelfLifeLabel
+            ? `Estimated from "${params.shelfLifeLabel}" — check the package and correct it.`
+            : undefined
+        }
+        initialValues={{
+          name: params.name ?? '',
+          quantity: params.quantity ?? '',
+          expiryDate: params.expiryDate ?? '',
+          reminderDaysBefore: 1,
+          notes: '',
+          storageLocation: 'fridge',
+          category: scannedCategory,
+        }}
+        onSubmit={handleSubmit}
+        submitLabel={(storageLocation) => `Add to ${storageLocation}`}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -133,59 +177,69 @@ export default function AddItemScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f6f8f3',
+    backgroundColor: COLORS.background,
   },
-  content: {
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 40,
+  headingRow: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 14,
   },
-  eyebrow: {
-    color: '#2f7d32',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1.2,
+  backButton: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.divider,
+    borderRadius: 28,
+    backgroundColor: '#F1F3E8',
   },
   title: {
-    marginTop: 6,
-    color: '#172019',
-    fontSize: 32,
-    fontWeight: '800',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 26,
+    lineHeight: 34,
   },
-  subtitle: {
-    marginTop: 7,
-    color: '#59635b',
-    fontSize: 15,
-    lineHeight: 22,
-  },
-  informationCard: {
+  noticeCard: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    gap: 10,
-    marginTop: 22,
-    borderRadius: 14,
-    backgroundColor: '#e7f4e8',
-    padding: 14,
+    gap: 11,
+    borderRadius: 18,
+    padding: 15,
   },
-  informationText: {
-    flex: 1,
-    color: '#426747',
-    fontSize: 13,
-    lineHeight: 19,
+  successCard: {
+    backgroundColor: COLORS.accentSoft,
   },
   warningCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    marginTop: 22,
-    borderRadius: 14,
-    backgroundColor: '#fff0d5',
-    padding: 14,
+    backgroundColor: COLORS.pink,
   },
-  warningText: {
+  noticeIcon: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+    backgroundColor: COLORS.surface,
+  },
+  noticeContent: {
     flex: 1,
-    color: '#8b6b1f',
+    gap: 4,
+    paddingTop: 1,
+  },
+  noticeTitle: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 16,
+  },
+  noticeText: {
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 13,
     lineHeight: 19,
+  },
+  pressedButton: {
+    opacity: 0.72,
   },
 });

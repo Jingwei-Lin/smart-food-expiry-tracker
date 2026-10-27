@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { ComponentProps, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useState } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -10,57 +10,124 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ExpiryBadge } from '@/components/expiry-badge';
+import { FoodCategoryIcon } from '@/components/food-category-icon';
 import { useInventory } from '@/context/inventory-context';
+import { useToday } from '@/hooks/use-today';
 import { returnToInventory } from '@/utils/navigation';
-import { ResolvedFoodItemStatus } from '@/types/food-item';
+import type { FoodStorageLocation, ResolvedFoodItemStatus } from '@/types/food-item';
 import { describeDeletion } from '@/utils/delete-confirm';
-import { describeReminders, formatDayMonthYear, formatExpiryDate } from '@/utils/expiry-date';
+import {
+  daysUntilExpiry,
+  describeReminders,
+  formatDayMonthYear,
+  formatExpiryDate,
+  getExpiryPresentation,
+} from '@/utils/expiry-date';
 
-type IconName = ComponentProps<typeof Ionicons>['name'];
+const COLORS = {
+  background: '#FFFDF5',
+  surface: '#FFFFFF',
+  primary: '#1E2A16',
+  secondary: '#55614D',
+  border: '#E4E5D4',
+  accent: '#A6D45A',
+  accentSoft: '#F0F7DB',
+  urgent: '#A92E26',
+  urgentSoft: '#FBEFF2',
+  warning: '#8B6B1F',
+  warningSoft: '#FFF0D5',
+  error: '#8B2C25',
+  errorSoft: '#FDE7E5',
+};
 
-const resolvedStatusLabels: Record<ResolvedFoodItemStatus, string> = {
+const STORAGE_LABELS: Record<FoodStorageLocation, string> = {
+  fridge: 'Fridge',
+  freezer: 'Freezer',
+  pantry: 'Pantry',
+};
+
+const STATUS_LABELS: Record<ResolvedFoodItemStatus, string> = {
   eaten: 'Eaten',
   discarded: 'Thrown out',
   donated: 'Donated',
 };
 
-/**
- * Formats a stored moment, such as when an item was added or eaten, as its
- * day. Null when there is none or it can't be read, so the screen leaves it
- * out rather than showing "Invalid Date".
- */
+/** Null for a missing or unreadable timestamp, so the line can be left out. */
 function formatStoredDate(value: string | undefined): string | null {
-  if (!value) {
-    return null;
-  }
+  if (!value) return null;
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
+  if (Number.isNaN(date.getTime())) return null;
 
   return formatDayMonthYear(date);
 }
 
+function getExpiryHeadline(days: number): string {
+  if (!Number.isFinite(days)) return 'Check expiry date';
+
+  if (days < 0) {
+    const overdue = Math.abs(days);
+    return `Expired ${overdue} ${overdue === 1 ? 'day' : 'days'} ago`;
+  }
+
+  if (days === 0) return 'Expires today';
+  if (days === 1) return 'Expires tomorrow';
+
+  return `Expires in ${days} days`;
+}
+
+function getExpiryHint(days: number): string {
+  if (!Number.isFinite(days)) {
+    return 'Check the expiry date for this item.';
+  }
+
+  if (days < 0) {
+    return 'Check the food before deciding whether to use it.';
+  }
+
+  if (days <= 3) {
+    return 'Consider using it soon to help reduce food waste.';
+  }
+
+  return 'Keep an eye on the expiry date.';
+}
+
+/** Pops one screen. A reminder or a link can open this one with nothing underneath. */
+function BackButton() {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Go back"
+      onPress={returnToInventory}
+      style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
+    >
+      <Ionicons name="chevron-back" size={25} color={COLORS.primary} />
+    </Pressable>
+  );
+}
+
 export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
+
   const { items, isLoading, isStorageReady, storageError, deleteItem, resolveItem } =
     useInventory();
 
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<ResolvedFoodItemStatus | null>(null);
+  /*
+   * The same day the donation point page uses, so the two agree on what has
+   * expired just after midnight.
+   */
+  const today = useToday();
   const [actionError, setActionError] = useState<string | null>(null);
 
   const item = items.find((candidate) => candidate.id === id);
-
-  /*
-   * Every action writes to storage, so they are all blocked while the saved
-   * inventory is still loading or failed to load.
-   */
-  const areActionsDisabled = isWorking || !isStorageReady;
+  const actionsDisabled = isWorking || !isStorageReady;
 
   async function runAction(action: () => Promise<void>, failureMessage: string) {
     setActionError(null);
@@ -68,16 +135,18 @@ export default function ItemDetailScreen() {
 
     try {
       await action();
-
       returnToInventory();
     } catch {
       setActionError(failureMessage);
     } finally {
       setIsWorking(false);
+      setPendingStatus(null);
     }
   }
 
   function handleResolve(status: ResolvedFoodItemStatus) {
+    setPendingStatus(status);
+
     void runAction(
       () => resolveItem(id, status),
       'This item could not be updated. Please try again.',
@@ -88,543 +157,867 @@ export default function ItemDetailScreen() {
     void runAction(() => deleteItem(id), 'This item could not be deleted. Please try again.');
   }
 
+  function openEdit() {
+    if (!item) return;
+
+    router.push({
+      pathname: '/item/edit/[id]',
+      params: { id: item.id },
+    });
+  }
+
+  function openRecipes() {
+    if (!item) return;
+
+    router.dismissTo({
+      pathname: '/recipes',
+      params: { select: item.id },
+    });
+  }
+
+  function openDonationPoints() {
+    router.dismissTo({
+      pathname: '/donation-points',
+      params: { near: 'phone' },
+    });
+  }
+
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#2f7d32" />
-        <Text style={styles.loadingText}>Loading item...</Text>
+      <View style={styles.screen}>
+        <View style={[styles.header, styles.loadingHeader, { paddingTop: insets.top + 10 }]}>
+          <BackButton />
+        </View>
+
+        <View style={styles.centeredContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.centeredText}>Loading item...</Text>
+        </View>
       </View>
     );
   }
 
   if (!item) {
     return (
-      <>
-        <Stack.Screen
-          options={{
-            title: 'Item not found',
-          }}
-        />
+      <View style={[styles.centeredContainer, { paddingTop: insets.top + 24 }]}>
+        <Ionicons name="alert-circle-outline" size={42} color={COLORS.secondary} />
 
-        <View style={styles.notFoundContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color="#687269" />
+        <Text style={styles.notFoundTitle}>Item not found</Text>
 
-          <Text style={styles.notFoundTitle}>Item not found</Text>
+        <Text style={styles.centeredText}>
+          This item may have been removed or is no longer available.
+        </Text>
 
-          <Text style={styles.notFoundText}>
-            This item may have been removed or is no longer available.
-          </Text>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={returnToInventory}
-            style={({ pressed }) => [styles.returnButton, pressed ? styles.pressedButton : null]}
-          >
-            <Text style={styles.returnButtonText}>Back to inventory</Text>
-          </Pressable>
-        </View>
-      </>
+        <Pressable accessibilityRole="button" onPress={returnToInventory} style={styles.backButton}>
+          <Text style={styles.backButtonText}>Back to inventory</Text>
+        </Pressable>
+      </View>
     );
   }
 
-  const resolvedDate = formatStoredDate(item.statusUpdatedAt);
-  const addedDate = formatStoredDate(item.createdAt);
+  const isActive = item.status === 'active';
+  const statusLabel = item.status === 'active' ? null : STATUS_LABELS[item.status];
+  const daysLeft = daysUntilExpiry(item.expiryDate, today);
+  const expiry = getExpiryPresentation(item.expiryDate, today);
   const deletion = describeDeletion(item);
+  /* A donation point's page only offers food still in date, so expired food has nowhere to go. */
+  const canDonate = Number.isFinite(daysLeft) && daysLeft >= 0;
+  const addedOn = formatStoredDate(item.createdAt);
+  const updatedOn = formatStoredDate(item.statusUpdatedAt);
+
+  /* An item can have no quantity, and the separator belongs only between two parts. */
+  const itemMeta = [item.quantity.trim(), addedOn ? `Added ${addedOn}` : '']
+    .filter(Boolean)
+    .join(' · ');
+  /*
+   * Web never schedules reminders, so "Not set" there would send the student
+   * to Edit for nothing.
+   */
+  const reminderDescription =
+    Platform.OS === 'web' ? 'Not available on web' : describeReminders(item, today);
+
+  const deleteToggle = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityHint={isConfirmingDelete ? undefined : `Asks before deleting ${item.name}`}
+      disabled={actionsDisabled}
+      onPress={() => setIsConfirmingDelete((current) => !current)}
+      style={styles.deleteLink}
+    >
+      <Text style={styles.deleteLinkText}>
+        {isConfirmingDelete ? 'Cancel delete' : 'Delete item'}
+      </Text>
+    </Pressable>
+  );
+
+  const deleteConfirm = isConfirmingDelete ? (
+    <View style={styles.deleteConfirmCard}>
+      <Text style={styles.deleteConfirmTitle}>{deletion.title}</Text>
+
+      <Text style={styles.deleteConfirmText}>{deletion.message}</Text>
+
+      <View style={styles.confirmButtons}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={isWorking}
+          onPress={() => setIsConfirmingDelete(false)}
+          style={styles.cancelDeleteButton}
+        >
+          <Text style={styles.cancelDeleteText}>Keep item</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          disabled={actionsDisabled}
+          onPress={handleDelete}
+          style={[styles.confirmDeleteButton, actionsDisabled && styles.disabled]}
+        >
+          <Text style={styles.confirmDeleteText}>{isWorking ? 'Deleting...' : 'Delete'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  ) : null;
+
+  // This is a qualitative urgency indicator, not a shelf-life percentage.
+  const urgencyWidth = !Number.isFinite(daysLeft)
+    ? '0%'
+    : daysLeft <= 0
+      ? '100%'
+      : daysLeft === 1
+        ? '85%'
+        : daysLeft <= 3
+          ? '70%'
+          : daysLeft <= 7
+            ? '45%'
+            : '20%';
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: item.name,
-        }}
-      />
+    <View style={styles.screen}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.content,
+          {
+            paddingBottom: isActive ? 145 + insets.bottom : 24 + insets.bottom,
+          },
+        ]}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
+          <BackButton />
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.summaryCard}>
-          <View style={styles.itemIcon}>
-            <Ionicons name="nutrition-outline" size={32} color="#2f7d32" />
-          </View>
+          <View style={styles.headerSpacer} />
 
-          <Text style={styles.itemName}>{item.name}</Text>
-
-          {item.status === 'active' ? (
-            <ExpiryBadge expiryDate={item.expiryDate} />
+          {isActive ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Edit ${item.name}`}
+              onPress={openEdit}
+              style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
+            >
+              <Ionicons name="create-outline" size={23} color={COLORS.primary} />
+            </Pressable>
           ) : (
-            <Text style={styles.resolvedLabel}>
-              {resolvedStatusLabels[item.status]}
-              {resolvedDate ? ` on ${resolvedDate}` : ''}
-            </Text>
+            <View style={styles.headerSpacer} />
           )}
         </View>
 
-        <Text style={styles.sectionTitle}>ITEM DETAILS</Text>
+        <View
+          style={[
+            styles.summary,
+            {
+              backgroundColor: isActive ? expiry.background : COLORS.accentSoft,
+            },
+          ]}
+        >
+          <View style={styles.foodIcon}>
+            <FoodCategoryIcon
+              category={item.category}
+              size={28}
+              color={COLORS.primary}
+              backgroundColor={COLORS.accentSoft}
+            />
+          </View>
 
-        <View style={styles.detailsCard}>
-          <DetailRow
-            icon="calendar-outline"
-            label="Expiry date"
-            value={formatExpiryDate(item.expiryDate)}
-          />
+          <View style={styles.summaryDetails}>
+            <View style={styles.storagePill}>
+              <Text style={styles.storageText}>{STORAGE_LABELS[item.storageLocation]}</Text>
+            </View>
 
-          <View style={styles.divider} />
+            <Text accessibilityRole="header" style={styles.itemName}>
+              {item.name}
+            </Text>
 
-          {/*
-           * Tells apart two of the same product bought on different days. It is
-           * set when the item is saved and never edited.
-           */}
-          {addedDate ? (
-            <>
-              <DetailRow icon="time-outline" label="Added" value={addedDate} />
+            {itemMeta ? <Text style={styles.itemMeta}>{itemMeta}</Text> : null}
 
-              <View style={styles.divider} />
-            </>
-          ) : null}
-
-          {/* A resolved item's reminders were cancelled, so there is nothing to show. */}
-          {item.status === 'active' ? (
-            <>
-              <DetailRow
-                icon="notifications-outline"
-                label="Reminders"
-                value={
-                  /*
-                   * Web never schedules reminders, so "Not set" there would
-                   * send the student to Edit for nothing.
-                   */
-                  Platform.OS === 'web' ? 'Not available on web' : describeReminders(item)
-                }
-              />
-
-              <View style={styles.divider} />
-            </>
-          ) : null}
-
-          <DetailRow icon="cube-outline" label="Quantity" value={item.quantity} />
-
-          {item.notes ? (
-            <>
-              <View style={styles.divider} />
-
-              <DetailRow icon="document-text-outline" label="Notes" value={item.notes} />
-            </>
-          ) : null}
+            {isActive ? (
+              <View style={styles.statusBadge}>
+                <Text style={[styles.statusBadgeText, { color: expiry.foreground }]}>
+                  {getExpiryHeadline(daysLeft)}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.statusBadge}>
+                <Text style={styles.resolvedLabel}>{statusLabel}</Text>
+              </View>
+            )}
+          </View>
         </View>
 
-        <Text style={styles.sectionTitle}>ACTIONS</Text>
+        {isActive ? (
+          <>
+            <View style={[styles.expiryCard, { backgroundColor: expiry.background }]}>
+              <View style={styles.expiryHeading}>
+                <Ionicons name="warning-outline" size={25} color={expiry.foreground} />
+
+                <View style={styles.expiryHeadingDetails}>
+                  <Text style={styles.expiryTitle}>{getExpiryHeadline(daysLeft)}</Text>
+
+                  <Text style={styles.expiryDate}>Use by {formatExpiryDate(item.expiryDate)}</Text>
+                </View>
+              </View>
+
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: urgencyWidth,
+                      backgroundColor: expiry.foreground,
+                    },
+                  ]}
+                />
+              </View>
+
+              <View style={styles.expiryBottom}>
+                <Text style={styles.expiryHint}>{getExpiryHint(daysLeft)}</Text>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityHint={`Edits the expiry date of ${item.name}`}
+                  onPress={openEdit}
+                  style={({ pressed }) => [styles.changeDateButton, pressed && styles.pressed]}
+                >
+                  <Text style={styles.changeDate}>Change date</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.reminderCard}>
+              <View style={styles.reminderContent}>
+                <Text style={styles.sectionEyebrow}>ALERTS</Text>
+
+                {/*
+                 * Only what is actually scheduled: the chosen notice alone would
+                 * claim a reminder when notifications are off or the day has passed.
+                 */}
+                <View style={styles.reminderRow}>
+                  <Ionicons name="notifications-outline" size={21} color={COLORS.primary} />
+
+                  <View style={styles.reminderCopy}>
+                    <Text style={styles.reminderTitle}>Reminders</Text>
+
+                    <Text style={styles.reminderDescription}>{reminderDescription}</Text>
+                  </View>
+                </View>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityHint={`Edits the reminders for ${item.name}`}
+                  onPress={openEdit}
+                  style={({ pressed }) => [styles.reminderEdit, pressed && styles.pressed]}
+                >
+                  <Text style={styles.reminderEditText}>Edit reminder settings</Text>
+
+                  <Ionicons name="chevron-forward" size={18} color={COLORS.secondary} />
+                </Pressable>
+              </View>
+            </View>
+
+            <View style={styles.quickActions}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={actionsDisabled}
+                onPress={openRecipes}
+                style={({ pressed }) => [
+                  styles.quickActionButton,
+                  pressed && styles.pressed,
+                  actionsDisabled && styles.disabled,
+                ]}
+              >
+                <Ionicons name="book-outline" size={23} color={COLORS.primary} />
+
+                <Text style={styles.quickActionText}>Find recipes</Text>
+              </Pressable>
+
+              {canDonate ? (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isWorking}
+                  onPress={openDonationPoints}
+                  style={({ pressed }) => [
+                    styles.quickActionButton,
+                    pressed && styles.pressed,
+                    isWorking && styles.disabled,
+                  ]}
+                >
+                  <Ionicons name="location-outline" size={23} color={COLORS.primary} />
+
+                  <Text style={styles.quickActionText}>Donate it</Text>
+                </Pressable>
+              ) : null}
+            </View>
+
+            {deleteConfirm}
+          </>
+        ) : (
+          <>
+            <View style={styles.resolvedCard}>
+              <Ionicons name="checkmark-circle-outline" size={30} color={COLORS.secondary} />
+
+              <Text style={styles.resolvedTitle}>This item is no longer in your inventory.</Text>
+
+              <Text style={styles.resolvedDescription}>Status: {statusLabel}</Text>
+
+              {updatedOn ? (
+                <Text style={styles.resolvedDescription}>Updated {updatedOn}</Text>
+              ) : null}
+            </View>
+
+            {/*
+             * Resolved food still counts in the summary. Summary's thrown-out
+             * list opens it here, so a mistaken Thrown out can be undone by
+             * deleting it. Eaten and donated food is not listed anywhere.
+             */}
+            {deleteToggle}
+            {deleteConfirm}
+          </>
+        )}
+
+        {item.notes ? (
+          <>
+            <Text style={styles.sectionTitle}>NOTES</Text>
+
+            <View style={styles.notesCard}>
+              <Text style={styles.notesText}>{item.notes}</Text>
+            </View>
+          </>
+        ) : null}
 
         {actionError ? (
-          <View style={styles.banner}>
-            <Ionicons name="warning-outline" size={19} color="#8b2c25" />
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={20} color={COLORS.error} />
 
-            <Text style={styles.bannerText}>{actionError}</Text>
+            <Text style={styles.errorText}>{actionError}</Text>
           </View>
         ) : null}
 
         {!isStorageReady ? (
-          <View style={styles.notice}>
-            <Ionicons name="hourglass-outline" size={19} color="#8b6b1f" />
+          <View style={styles.storageNotice}>
+            <Ionicons name="hourglass-outline" size={19} color={COLORS.warning} />
 
-            <Text style={styles.noticeText}>
-              {storageError ??
-                'Loading your saved inventory. These actions will be enabled in a moment.'}
+            <Text style={styles.storageNoticeText}>
+              {storageError ?? 'Loading your saved inventory. Actions will be enabled shortly.'}
             </Text>
           </View>
         ) : null}
-
-        {isConfirmingDelete ? (
-          <View style={styles.confirmCard}>
-            <Text style={styles.confirmTitle}>{deletion.title}</Text>
-
-            <Text style={styles.confirmText}>{deletion.message}</Text>
-
-            <View style={styles.confirmButtons}>
-              <Pressable
-                accessibilityRole="button"
-                disabled={isWorking}
-                onPress={() => setIsConfirmingDelete(false)}
-                style={({ pressed }) => [
-                  styles.confirmCancelButton,
-                  pressed ? styles.pressedButton : null,
-                ]}
-              >
-                <Text style={styles.confirmCancelText}>Keep item</Text>
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                disabled={areActionsDisabled}
-                onPress={handleDelete}
-                style={({ pressed }) => [
-                  styles.confirmDeleteButton,
-                  pressed ? styles.pressedButton : null,
-                  areActionsDisabled ? styles.disabledButton : null,
-                ]}
-              >
-                <Text style={styles.confirmDeleteText}>{isWorking ? 'Deleting...' : 'Delete'}</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : (
-          <View style={styles.actionsCard}>
-            {item.status === 'active' ? (
-              <>
-                {/*
-                 * Goes back to the tabs already underneath rather than pushing
-                 * a second copy of them, and opens Recipes with this item ticked.
-                 */}
-                <ActionButton
-                  icon="book-outline"
-                  isDisabled={areActionsDisabled}
-                  label="Find recipes"
-                  onPress={() =>
-                    router.dismissTo({ pathname: '/recipes', params: { select: item.id } })
-                  }
-                />
-
-                <View style={styles.divider} />
-
-                {/*
-                 * The same way back to the tabs, for food the student can't
-                 * finish, listing the places near the phone. It saves nothing,
-                 * so only a save already running holds it back.
-                 */}
-                <ActionButton
-                  icon="location-outline"
-                  isDisabled={isWorking}
-                  label="Find donation point"
-                  onPress={() =>
-                    router.dismissTo({ pathname: '/donation-points', params: { near: 'phone' } })
-                  }
-                />
-
-                <View style={styles.divider} />
-
-                <ActionButton
-                  icon="create-outline"
-                  isDisabled={areActionsDisabled}
-                  label="Edit item"
-                  onPress={() =>
-                    router.push({ pathname: '/item/edit/[id]', params: { id: item.id } })
-                  }
-                />
-
-                <View style={styles.divider} />
-
-                <ActionButton
-                  icon="restaurant-outline"
-                  isDisabled={areActionsDisabled}
-                  label="Mark as eaten"
-                  onPress={() => handleResolve('eaten')}
-                />
-
-                <View style={styles.divider} />
-
-                <ActionButton
-                  icon="trash-bin-outline"
-                  isDisabled={areActionsDisabled}
-                  label="Mark as thrown out"
-                  onPress={() => handleResolve('discarded')}
-                />
-
-                <View style={styles.divider} />
-
-                <ActionButton
-                  icon="heart-outline"
-                  isDisabled={areActionsDisabled}
-                  label="Mark as donated"
-                  onPress={() => handleResolve('donated')}
-                />
-
-                <View style={styles.divider} />
-              </>
-            ) : null}
-
-            <ActionButton
-              icon="close-circle-outline"
-              isDanger
-              isDisabled={areActionsDisabled}
-              label="Delete item"
-              onPress={() => setIsConfirmingDelete(true)}
-            />
-          </View>
-        )}
       </ScrollView>
-    </>
-  );
-}
 
-function DetailRow({ icon, label, value }: { icon: IconName; label: string; value: string }) {
-  return (
-    <View style={styles.detailRow}>
-      <Ionicons name={icon} size={22} color="#537059" />
+      {isActive && (
+        <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+          <View style={styles.bottomButtons}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={actionsDisabled}
+              accessibilityHint={`Marks ${item.name} as eaten`}
+              accessibilityState={{ busy: pendingStatus === 'eaten' }}
+              onPress={() => handleResolve('eaten')}
+              style={({ pressed }) => [
+                styles.eatenButton,
+                pressed && styles.pressed,
+                actionsDisabled && styles.disabled,
+              ]}
+            >
+              <Text style={styles.eatenButtonText}>
+                {pendingStatus === 'eaten' ? 'Saving...' : 'Eaten'}
+              </Text>
+            </Pressable>
 
-      <View style={styles.detailText}>
-        <Text style={styles.detailLabel}>{label}</Text>
-        <Text style={styles.detailValue}>{value}</Text>
-      </View>
+            <Pressable
+              accessibilityRole="button"
+              disabled={actionsDisabled}
+              accessibilityHint={`Marks ${item.name} as thrown out`}
+              accessibilityState={{ busy: pendingStatus === 'discarded' }}
+              onPress={() => handleResolve('discarded')}
+              style={({ pressed }) => [
+                styles.discardButton,
+                pressed && styles.pressed,
+                actionsDisabled && styles.disabled,
+              ]}
+            >
+              <Text style={styles.discardButtonText}>
+                {pendingStatus === 'discarded' ? 'Saving...' : 'Thrown out'}
+              </Text>
+            </Pressable>
+          </View>
+
+          {deleteToggle}
+        </View>
+      )}
     </View>
   );
 }
 
-function ActionButton({
-  icon,
-  isDanger = false,
-  isDisabled,
-  label,
-  onPress,
-}: {
-  icon: IconName;
-  isDanger?: boolean;
-  isDisabled: boolean;
-  label: string;
-  onPress: () => void;
-}) {
-  const tint = isDanger ? '#9f2420' : '#2f6b34';
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      disabled={isDisabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.actionButton,
-        pressed ? styles.pressedButton : null,
-        isDisabled ? styles.disabledButton : null,
-      ]}
-    >
-      <Ionicons name={icon} size={22} color={tint} />
-
-      <Text style={[styles.actionLabel, { color: tint }]}>{label}</Text>
-
-      <Ionicons name="chevron-forward" size={18} color="#a2aea5" />
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  loadingContainer: {
+  screen: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    backgroundColor: '#f6f8f3',
+    backgroundColor: COLORS.background,
   },
-  loadingText: {
-    color: '#59635b',
-    fontSize: 15,
-  },
-  notFoundContainer: {
+  scroll: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f6f8f3',
-    padding: 24,
-  },
-  notFoundTitle: {
-    marginTop: 14,
-    color: '#172019',
-    fontSize: 22,
-    fontWeight: '700',
-  },
-  notFoundText: {
-    marginTop: 7,
-    color: '#687269',
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-  },
-  returnButton: {
-    minHeight: 50,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 20,
-    borderRadius: 14,
-    backgroundColor: '#2f7d32',
-    paddingHorizontal: 20,
-  },
-  returnButtonText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
   },
   content: {
     flexGrow: 1,
-    backgroundColor: '#f6f8f3',
-    padding: 20,
-    paddingBottom: 40,
+    paddingHorizontal: 20,
   },
-  summaryCard: {
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#dce4da',
-    borderRadius: 20,
-    backgroundColor: '#ffffff',
-    padding: 24,
-  },
-  itemIcon: {
+  centeredContainer: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: '#e7f4e8',
+    gap: 12,
+    backgroundColor: COLORS.background,
+    padding: 24,
   },
-  itemName: {
-    marginTop: 14,
-    marginBottom: 10,
-    color: '#172019',
-    fontSize: 25,
-    fontWeight: '800',
+  centeredText: {
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
     textAlign: 'center',
   },
-  resolvedLabel: {
-    color: '#5e6260',
-    fontSize: 14,
-    fontWeight: '700',
+  notFoundTitle: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 22,
   },
-  sectionTitle: {
-    marginTop: 26,
-    marginBottom: 9,
-    color: '#687269',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.9,
-  },
-  detailsCard: {
-    borderWidth: 1,
-    borderColor: '#dce4da',
+  backButton: {
+    marginTop: 8,
     borderRadius: 16,
-    backgroundColor: '#ffffff',
-    padding: 16,
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
+  backButtonText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 15,
   },
-  detailText: {
-    flex: 1,
-  },
-  detailLabel: {
-    color: '#718075',
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  detailValue: {
-    marginTop: 3,
-    color: '#253028',
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  divider: {
-    height: 1,
-    marginVertical: 14,
-    backgroundColor: '#e4e9e3',
-  },
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 12,
-    borderRadius: 12,
-    backgroundColor: '#fde7e5',
-    padding: 12,
-  },
-  bannerText: {
-    flex: 1,
-    color: '#8b2c25',
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  notice: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 12,
-    borderRadius: 12,
-    backgroundColor: '#fff0d5',
-    padding: 12,
-  },
-  noticeText: {
-    flex: 1,
-    color: '#8b6b1f',
-    fontSize: 13,
-    lineHeight: 18,
-  },
-  actionsCard: {
-    borderWidth: 1,
-    borderColor: '#dce4da',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-  },
-  actionButton: {
-    minHeight: 52,
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
+    paddingBottom: 20,
   },
-  actionLabel: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: '600',
+  loadingHeader: {
+    paddingHorizontal: 20,
+    paddingBottom: 0,
   },
-  confirmCard: {
-    borderWidth: 1,
-    borderColor: '#f0c9c4',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
+  headerButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+    backgroundColor: COLORS.surface,
+  },
+  headerSpacer: {
+    width: 48,
+  },
+  editButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+    backgroundColor: COLORS.surface,
+  },
+  summary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    borderRadius: 22,
     padding: 16,
   },
-  confirmTitle: {
-    color: '#172019',
-    fontSize: 17,
-    fontWeight: '700',
+  foodIcon: {
+    width: 84,
+    height: 88,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 22,
+    backgroundColor: COLORS.surface,
   },
-  confirmText: {
-    marginTop: 7,
-    color: '#687269',
+  summaryDetails: {
+    flex: 1,
+    alignItems: 'flex-start',
+  },
+  storagePill: {
+    marginBottom: 6,
+    borderRadius: 14,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  storageText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 13,
+  },
+  itemName: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 24,
+    lineHeight: 32,
+  },
+  itemMeta: {
+    marginTop: 4,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  statusBadge: {
+    marginTop: 9,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  statusBadgeText: {
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 13,
+  },
+  resolvedLabel: {
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 13,
+  },
+  expiryCard: {
+    marginTop: 16,
+    borderRadius: 20,
+    padding: 16,
+  },
+  expiryHeading: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  expiryHeadingDetails: {
+    flex: 1,
+  },
+  expiryTitle: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 18,
+    lineHeight: 25,
+  },
+  expiryDate: {
+    marginTop: 3,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 14,
+  },
+  progressTrack: {
+    height: 9,
+    overflow: 'hidden',
+    marginTop: 13,
+    borderRadius: 5,
+    backgroundColor: COLORS.surface,
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 5,
+  },
+  expiryBottom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginTop: 12,
+  },
+  expiryHint: {
+    flex: 1,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 13,
     lineHeight: 19,
+  },
+  changeDateButton: {
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 4,
+  },
+  changeDate: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 14,
+    textDecorationLine: 'underline',
+  },
+  reminderCard: {
+    marginTop: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+  },
+  reminderContent: {
+    padding: 16,
+  },
+  sectionEyebrow: {
+    marginBottom: 12,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 13,
+    letterSpacing: 1,
+  },
+  reminderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  reminderCopy: {
+    flex: 1,
+  },
+  reminderTitle: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 18,
+  },
+  reminderDescription: {
+    marginTop: 4,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  reminderEdit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingVertical: 4,
+  },
+  reminderEditText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 14,
+  },
+  quickActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+  },
+  quickActionButton: {
+    flex: 1,
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 10,
+  },
+  quickActionText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 14,
+  },
+  sectionTitle: {
+    marginTop: 24,
+    marginBottom: 12,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 16,
+    letterSpacing: 1.2,
+  },
+  notesCard: {
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    backgroundColor: COLORS.surface,
+    padding: 16,
+  },
+  notesText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  resolvedCard: {
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    padding: 20,
+  },
+  resolvedTitle: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 17,
+    textAlign: 'center',
+  },
+  resolvedDescription: {
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  deleteConfirmCard: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#EBC7C3',
+    borderRadius: 18,
+    backgroundColor: COLORS.surface,
+    padding: 16,
+  },
+  deleteConfirmTitle: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 17,
+  },
+  deleteConfirmText: {
+    marginTop: 7,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 14,
+    lineHeight: 20,
   },
   confirmButtons: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 16,
+    marginTop: 14,
   },
-  confirmCancelButton: {
+  cancelDeleteButton: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#cad4c9',
-    borderRadius: 12,
+    borderColor: COLORS.border,
+    borderRadius: 14,
   },
-  confirmCancelText: {
-    color: '#3c463e',
-    fontSize: 15,
-    fontWeight: '700',
+  cancelDeleteText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_500Medium',
   },
   confirmDeleteButton: {
     flex: 1,
-    minHeight: 48,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: '#9f2420',
+    borderRadius: 14,
+    backgroundColor: COLORS.error,
   },
   confirmDeleteText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: '700',
+    color: COLORS.surface,
+    fontFamily: 'Fredoka_600SemiBold',
   },
-  pressedButton: {
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 14,
+    borderRadius: 14,
+    backgroundColor: COLORS.errorSoft,
+    padding: 12,
+  },
+  errorText: {
+    flex: 1,
+    color: COLORS.error,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  storageNotice: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: 12,
+    borderRadius: 14,
+    backgroundColor: COLORS.warningSoft,
+    padding: 12,
+  },
+  storageNoticeText: {
+    flex: 1,
+    color: COLORS.warning,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  bottomBar: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  bottomButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  eatenButton: {
+    flex: 1,
+    minHeight: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    backgroundColor: COLORS.accent,
+  },
+  eatenButtonText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 17,
+  },
+  discardButton: {
+    flex: 1,
+    minHeight: 54,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
+  },
+  discardButtonText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 17,
+  },
+  deleteLink: {
+    alignSelf: 'center',
+    justifyContent: 'center',
+    minHeight: 44,
+    paddingHorizontal: 12,
+  },
+  deleteLinkText: {
+    color: COLORS.error,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 13,
+    textDecorationLine: 'underline',
+  },
+  pressed: {
     opacity: 0.72,
   },
-  disabledButton: {
-    opacity: 0.55,
+  disabled: {
+    opacity: 0.45,
   },
 });

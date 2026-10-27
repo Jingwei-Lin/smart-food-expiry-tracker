@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import { Alert, AlertButton, Platform } from 'react-native';
+import { Alert, AlertButton, Platform, StyleSheet } from 'react-native';
 
 import InventoryScreen from '@/app/(tabs)/index';
 import { InventoryProvider } from '@/context/inventory-context';
@@ -10,6 +10,18 @@ jest.mock('@/services/expiry-notifications', () => ({
   cancelExpiryReminders: jest.fn().mockResolvedValue(true),
   scheduleExpiryReminders: jest.fn().mockResolvedValue({ status: 'not-needed' }),
 }));
+
+jest.mock('@/components/food-category-icon', () => {
+  const { createElement } = jest.requireActual<typeof import('react')>('react');
+  const { Text } = jest.requireActual<typeof import('react-native')>('react-native');
+
+  return {
+    FoodCategoryIcon: ({ category }: { category?: string }) =>
+      createElement(Text, {
+        accessibilityLabel: `Food category icon: ${category ?? 'Others'}`,
+      }),
+  };
+});
 
 /* The latest focus effect, so a test can bring the tab back into view. */
 const mockFocus: { effect: (() => void) | null } = { effect: null };
@@ -64,17 +76,23 @@ jest.mock('react-native-safe-area-context', () => ({
 
 const STORAGE_KEY = '@smart-food-expiry-tracker/inventory-v1';
 
-function buildItem(id: string, expiryDate: string): FoodItem {
+function buildItem(
+  id: string,
+  expiryDate: string,
+  category: FoodItem['category'] = 'Others',
+): FoodItem {
   return {
     id,
     name: id,
     quantity: '1 item',
     expiryDate,
+    storageLocation: 'fridge',
     reminderDaysBefore: 1,
     reminderRuleVersion: 2,
     notes: '',
     createdAt: '2026-10-01T00:00:00.000Z',
     status: 'active',
+    category,
   };
 }
 
@@ -87,7 +105,7 @@ async function renderScreen(items: FoodItem[]) {
     </InventoryProvider>,
   );
 
-  await view.findByText('My Food Inventory');
+  await view.findByText("What's in my fridge?");
 
   return view;
 }
@@ -191,20 +209,83 @@ describe('deleting from the list', () => {
 });
 
 describe('InventoryScreen', () => {
-  it('groups food by the days it has left', async () => {
-    const view = await renderScreen([
-      buildItem('Yoghurt', '2026-10-15'),
-      buildItem('Milk', '2026-10-19'),
-      buildItem('Rice', '2026-12-01'),
-    ]);
+  it('shows the saved food category icon in the inventory list', async () => {
+    const view = await renderScreen([buildItem('Fish', '2026-10-19', 'Seafood')]);
 
-    expect(view.getByText('EXPIRED')).toBeTruthy();
-    expect(view.getByText('EAT SOON')).toBeTruthy();
-    expect(view.getByText('LATER')).toBeTruthy();
-    expect(view.getByText('Tomorrow')).toBeTruthy();
+    expect(view.getByLabelText('Food category icon: Seafood')).toBeTruthy();
   });
 
-  it('counts only the Eat soon section as "to eat soon", not expired food', async () => {
+  it('has a Fridge, Freezer and Pantry tab, each with how much is in it', async () => {
+    const view = await renderScreen([
+      buildItem('Milk', '2026-10-19'),
+      buildItem('Rice', '2026-12-01'),
+      { ...buildItem('Peas', '2026-12-01'), storageLocation: 'freezer' },
+    ]);
+
+    expect(view.getByRole('button', { name: 'Fridge, 2 items', selected: true })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Freezer, 1 item', selected: false })).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Pantry, 0 items', selected: false })).toBeTruthy();
+  });
+
+  it('lists the selected location by soonest expiry, with an expired item first and badged', async () => {
+    const view = await renderScreen([
+      buildItem('Rice', '2026-12-01'),
+      buildItem('Milk', '2026-10-19'),
+      buildItem('Yoghurt', '2026-10-15'),
+      { ...buildItem('Peas', '2026-11-01'), storageLocation: 'freezer' },
+    ]);
+    const listed = () =>
+      view.getAllByText(/^(Yoghurt|Milk|Rice|Peas)$/).map((name) => name.props.children);
+
+    expect(listed()).toEqual(['Yoghurt', 'Milk', 'Rice']);
+    expect(view.getByText('3 days over')).toBeTruthy();
+    expect(view.getByText('Tomorrow')).toBeTruthy();
+
+    await fireEvent.press(view.getByRole('button', { name: 'Freezer, 1 item' }));
+
+    expect(listed()).toEqual(['Peas']);
+    expect(view.queryByText('3 days over')).toBeNull();
+    expect(view.getByRole('header', { name: "What's in my freezer?" })).toBeTruthy();
+  });
+
+  it('colours food expiring today at least as urgently as food expiring tomorrow', async () => {
+    const view = await renderScreen([
+      buildItem('Yoghurt', '2026-10-18'),
+      buildItem('Milk', '2026-10-19'),
+    ]);
+    const colourOf = (text: string) => StyleSheet.flatten(view.getByText(text).props.style).color;
+
+    expect(colourOf('Today')).toBe(colourOf('Tomorrow'));
+  });
+
+  it('says a location is empty, and still offers to scan', async () => {
+    const view = await renderScreen([buildItem('Milk', '2026-10-19')]);
+
+    await fireEvent.press(view.getByRole('button', { name: 'Pantry, 0 items' }));
+
+    expect(view.getByText('Nothing in your pantry')).toBeTruthy();
+    expect(view.getByRole('button', { name: 'Scan a food item' })).toBeTruthy();
+  });
+
+  it('shows only the error, not an empty fridge, when the saved inventory could not be read', async () => {
+    jest.spyOn(AsyncStorage, 'getItem').mockRejectedValueOnce(new Error('unreadable'));
+
+    const view = await renderScreen([buildItem('Milk', '2026-10-19')]);
+
+    expect(view.getByText(/saved inventory could not be loaded/)).toBeTruthy();
+    expect(view.queryByText('Nothing in your fridge')).toBeNull();
+    expect(view.queryByRole('button', { name: 'Scan a food item' })).toBeNull();
+    expect(view.queryByRole('button', { name: /^Fridge/ })).toBeNull();
+  });
+
+  it('hides the decorative week strip from screen readers', async () => {
+    const view = await renderScreen([]);
+
+    expect(view.queryByText('Mon')).toBeNull();
+    expect(view.getByText('Mon', { includeHiddenElements: true })).toBeTruthy();
+  });
+
+  it('counts only food that has not expired as "to eat soon"', async () => {
     const view = await renderScreen([
       buildItem('Yoghurt', '2026-10-15'),
       buildItem('Milk', '2026-10-19'),

@@ -1,6 +1,6 @@
 # Smart Food Expiry Tracker: User Guide
 
-Smart Food Expiry Tracker helps you eat the food you buy before it goes off. You add your groceries when you unpack them, and the app keeps an eye on the dates for you. It reminds you before food expires, suggests recipes for what needs using up, and points you to a nearby food bank for anything you can't finish. A weekly summary shows what you ate, donated and threw away.
+Smart Food Expiry Tracker helps you eat the food you buy before it goes off. You add your groceries when you unpack them, and the app keeps an eye on the dates for you. It reminds you before food expires, suggests recipes for what needs using up, and points you to a nearby food bank for anything you can't finish. A summary shows what you ate, donated and threw away.
 
 This guide walks you through the main things you can do, step by step. You don't need an account: everything stays on your phone.
 
@@ -14,24 +14,24 @@ This guide walks you through the main things you can do, step by step. You don't
 4. [See what to eat first](#4-see-what-to-eat-first)
 5. [Get reminded before food expires](#5-get-reminded-before-food-expires)
 6. [Look at, change or delete an item](#6-look-at-change-or-delete-an-item)
-7. [Mark food as eaten, donated or thrown out](#7-mark-food-as-eaten-donated-or-thrown-out)
-8. [Check your weekly summary](#8-check-your-weekly-summary)
-9. [Find a place to donate food](#9-find-a-place-to-donate-food)
+7. [Mark food as eaten or thrown out](#7-mark-food-as-eaten-or-thrown-out)
+8. [Check your waste summary](#8-check-your-waste-summary)
+9. [Donate food you can't finish](#9-donate-food-you-cant-finish)
 10. [Get recipe ideas for food that needs using up](#10-get-recipe-ideas-for-food-that-needs-using-up)
 11. [If something doesn't work](#11-if-something-doesnt-work)
 
 ## 1. The Home screen
 
-When you open the app, you land on **My Food Inventory**. The first time, it's empty.
+When you open the app, you land on **What's in my fridge?**. Under the title are three tabs, **Fridge**, **Freezer** and **Pantry**, each showing how many items it holds. The first time, they're empty.
 
-<img src="images/01-home-empty.png" alt="The empty Home screen, with a &quot;Scan your first item&quot; button" width="250">
+<img src="images/01-home-empty.png" alt="The empty Home screen, with a &quot;Scan a food item&quot; button" width="250">
 
 The bar at the bottom takes you around the app:
 
 | Button | What it opens |
 | --- | --- |
-| **Home** (house) | Your food, grouped by how long it has left |
-| **Summary** (chart) | What happened to your food each week |
+| **Home** (house) | Your food, in the Fridge, Freezer and Pantry tabs |
+| **Summary** (chart) | What happened to your food this week or this month |
 | Round **+** button in the middle | The barcode scanner, to add food |
 | **Donation points** (map pin) | Places near you that take spare food |
 | **Recipes** (book) | Recipe ideas for the food you have |
@@ -40,14 +40,15 @@ The bar at the bottom takes you around the app:
 
 This is the quickest way to add packaged food.
 
-1. Tap the round **+** button in the middle of the bottom bar, or **Scan your first item** on an empty Home screen.
+1. Tap the round **+** button in the middle of the bottom bar, or **Scan a food item** on an empty Home screen.
 2. The first time, tap **Allow camera** and let the app use your camera.
-3. Point the camera at the barcode on the packet. The app reads it by itself, then shows **Looking this product up...**
-4. The **Add grocery item** form opens with the product's name and size filled in. When the app recognises the kind of food, it fills in an estimated expiry date too.
+3. Hold the barcode inside the frame. The app reads it by itself, then shows **Looking up your food...**
+4. The **Add food** form opens with the product's name, size and kind of food filled in, and a message saying it was found. When the app recognises the kind of food, it fills in an estimated expiry date too.
 5. **Check the expiry date against the packet.** An estimate is only a guess, and some products get none, so tap **Choose a date** if it's empty. Change anything that's wrong.
-6. Tap **Save item**.
+6. Under **Keep it in**, choose **Fridge**, **Freezer** or **Pantry**.
+7. Tap **Add to fridge** (or freezer, or pantry).
 
-<img src="images/02-scan.gif" alt="Scanning a barcode, then the add form filled in for you" width="250">
+<img src="images/02-scan.gif" alt="Scanning a barcode, then the Add food form filled in for you" width="250">
 
 If the app doesn't know the product, or you have no internet, the form opens empty with a message saying why. Just fill it in by hand, as in the next section.
 
@@ -57,29 +58,32 @@ Use this for loose fruit and vegetables, or anything without a barcode.
 
 1. Tap the round **+** button, then **Type it in instead**.
 2. Fill in the form:
-   - **Item name** (required), for example "Natural yoghurt".
+   - **Name** (required), for example "Natural yoghurt".
+   - **What kind of food?**: tap Veg, Fruit, Dairy, Meat, Bread, Seafood or Others. It sets the item's icon.
    - **Quantity** (optional), for example "1 tub" or "500 g". Leave it empty for one item.
-   - **Expiry date** (required). Tap **Choose a date**, then pick the date printed on the packet. On iPhone, tap **Done** when you've picked it. On Android, tap **OK**.
-   - **Remind me before expiry** (required): how many days before the expiry date you want a reminder, from 1 to 7. It starts at 1.
+   - **Expiry date** (required). Tap **Choose a date**, then pick the date printed on the packet. On iPhone, tap **Done** when you've picked it.
+   - **Keep it in**: Fridge, Freezer or Pantry.
+   - **Expiry reminder**: how many days before the expiry date you want a reminder. Tap **-** and **+** to choose from 1 to 7. It starts at 1.
    - **Notes** (optional), for example "Opened on Monday".
-3. Tap **Save item**.
+3. Tap **Add to fridge** (or freezer, or pantry).
 
-<img src="images/03-add-item.png" alt="The add form with a name, quantity and reminder filled in" width="250"> <img src="images/04-calendar.png" alt="Picking the expiry date from the calendar" width="250">
+<img src="images/03-add-item.png" alt="The Add food form with a name, kind of food, storage place and reminder filled in" width="250"> <img src="images/04-calendar.png" alt="Picking the expiry date from the calendar" width="250">
 
 ## 4. See what to eat first
 
-Back on **Home**, your food is sorted into groups, with the most urgent at the top:
+Back on **Home**, tap **Fridge**, **Freezer** or **Pantry** to see what's in each. The food that expires soonest is always at the top.
 
-| Group | What's in it |
+The line under the title tells you how much is there, for example "5 items · 2 to eat soon". Each row has a coloured badge for how urgent it is:
+
+| Badge | Means |
 | --- | --- |
-| **Expired** | Food past its expiry date |
-| **Eat soon** | Food that expires today or in the next 3 days |
-| **This week** | Food that expires within 7 days |
-| **Later** | Everything else |
+| Red | Expired, or expires within 3 days |
+| Amber | Expires within a week |
+| Grey | Expires later |
 
-The line under the title tells you how much you have, for example "5 items · 2 to eat soon". Each row shows when the food expires: "Today", "Tomorrow", a weekday, or a date.
+The row also says when it expires: "Today", "Tomorrow", a weekday, a date, or "2 days over" for food that has already expired.
 
-<img src="images/05-home-groups.png" alt="Home with food in the Expired, Eat soon, This week and Later groups" width="250">
+<img src="images/05-home-groups.png" alt="Home on the Fridge tab, soonest expiry first, with red, amber and grey badges" width="250">
 
 **Shortcut:** swipe a row to the left to show **Edit** and **Delete**. Delete always asks you to confirm first.
 
@@ -100,52 +104,66 @@ Tap a reminder to open that item in the app.
 
 <img src="images/07-reminder.png" alt="Two reminders in the notification shade: &quot;Bananas expires today&quot; and &quot;Use Milk soon&quot;" width="360">
 
-If you said no to notifications, you can turn them on later in your phone's settings. Then open the item, tap **Edit item** and save it again to set its reminders.
+If you said no to notifications, you can turn them on later in your phone's settings. Then open the item, tap **Edit reminder settings** and tap **Save changes** to set its reminders. The item's **Reminders** card always says which reminders are actually set.
 
 ## 6. Look at, change or delete an item
 
-Tap any item on Home to open it.
+Tap any item on Home to open it. Its screen shows:
 
-- **Item details** shows the expiry date, which reminders are set, the quantity, the day you added it and any notes. The date added helps you tell apart two of the same product.
-- **Edit item** opens the form again, so you can fix a date or a name. Tap **Save changes** when you're done.
-- **Delete item** removes it completely. The app asks you to confirm, and you can tap **Keep item** to back out.
+- where it's kept, its quantity and the day you added it. The date added helps you tell apart two of the same product;
+- when it expires, with **Change date** to correct it;
+- **Reminders**: which reminders are set, with **Edit reminder settings** to change the number of days;
+- any notes.
 
-<img src="images/08-item.png" alt="The item screen with the item's details" width="250">
+To change anything else, tap the pencil at the top right. The same form as **Add food** opens. Tap **Save changes** when you're done.
 
-## 7. Mark food as eaten, donated or thrown out
+To remove an item completely, tap **Delete item** at the bottom. The app asks you to confirm with **Delete**, and you can tap **Keep item** to back out.
 
-When the food is gone, open the item and tap one of these:
+<img src="images/08-item.png" alt="The item screen with its expiry date, reminders and notes" width="250">
 
-- **Mark as eaten**
-- **Mark as donated**
-- **Mark as thrown out**
+## 7. Mark food as eaten or thrown out
 
-<img src="images/08-item-actions.png" alt="The actions on an item's screen, including Mark as eaten, Mark as thrown out and Mark as donated" width="250">
+When the food is gone, open the item and tap one of the two buttons at the bottom:
 
-The item leaves your Home list, its reminders are cancelled, and it's counted in your weekly summary. Use these instead of **Delete item**: deleting removes the item without counting it.
+- **Eaten**
+- **Thrown out**
 
-## 8. Check your weekly summary
+<img src="images/08-item-actions.png" alt="The bottom of an item's screen: Eaten, Thrown out, and Delete item underneath" width="250">
 
-Tap **Summary** in the bottom bar to see what happened to your food this week, last week and the week before. Weeks run from Monday to Sunday.
+The item leaves your Home list, its reminders are cancelled, and it's counted in your summary. Use these instead of **Delete item**: deleting removes the item without counting it.
 
-Each week shows how many items were **Eaten**, **Donated** and **Discarded** (thrown out). Aim to keep the Discarded number low!
+Food you give away is marked as donated from the donation point's page instead (see [section 9](#9-donate-food-you-cant-finish)). A recipe can also mark the food it used (see [section 10](#10-get-recipe-ideas-for-food-that-needs-using-up)).
 
-<img src="images/09-summary.png" alt="The Weekly Summary with counts for three weeks" width="250">
+Marked something as thrown out by mistake? Open it from the **Thrown out** list on **Summary** and tap **Delete item**. That takes it out of the summary too.
 
-## 9. Find a place to donate food
+## 8. Check your waste summary
+
+Tap **Summary** in the bottom bar to see your **Waste summary**. Tap **Week** or **Month** at the top to choose the period. Weeks run from Monday to Sunday.
+
+- The big number says how many of your items were saved, meaning eaten or donated, out of all the food you marked.
+- Below it are the counts for **Eaten**, **Donated** and **Thrown out**. Aim to keep the thrown-out number low!
+- In the week view, **Day by day** shows a bar for each day.
+- **Thrown out** lists the food you threw away, newest first. Tap one to open it. If there are more than ten, tap **Show 2 more** (or however many there are) to see the rest.
+
+<img src="images/09-summary.png" alt="The Waste summary for this week, with the counts, the day-by-day chart and the thrown-out list" width="250">
+
+## 9. Donate food you can't finish
 
 If you can't finish something in time, someone else might.
 
-1. Open the item and tap **Find donation point**, or tap **Donation points** in the bottom bar.
-2. The first time, let the app use your location. The app uses it to sort the list and doesn't upload it to any server.
+1. Open the item and tap **Donate it**, or tap **Donation points** in the bottom bar. (Food that has already expired has no **Donate it**: donation points can't take it.)
+2. The first time, let the app use your location. It's used to sort the list and to name your suburb.
 3. You see food banks, soup kitchens and community pantries within 10 km, closest first, with their address and opening hours.
 4. To narrow the list, type in **Search donation points**, for example "pantry".
+5. Tap a place to open its page. It shows whether it's open now, its hours for the week, and **Directions** to it in your maps app.
+6. Under **Food to bring**, tick the food you're taking. All your food that's still in date is listed, soonest expiry first.
+7. Once you've handed it over, tap **Mark 1 item as donated** (or however many you ticked). The food leaves Home and counts as donated in your summary. Tap **Done**.
 
 <img src="images/10-donation-points.png" alt="Donation points within 10 km of Surry Hills, closest first, with addresses and opening hours" width="250">
 
-**Looking somewhere else?** Tap the place name at the top (it has a small arrow), type a suburb and its state, for example "Newtown NSW", and press search on the keyboard. Tap **Use my location** to come back to places near you.
+**Looking somewhere else?** Tap the place name at the top, type a suburb, and tap it in the list of suggestions. Tap **Use my current location** to come back to places near you.
 
-Most places listed are in or near the state capitals. If nothing is close by, try a nearby bigger suburb.
+Most places listed are in or near the state capitals. If nothing is close by, try a nearby bigger suburb. The list doesn't say what each place accepts, so check with the place before bringing fresh or chilled food.
 
 ## 10. Get recipe ideas for food that needs using up
 
@@ -162,14 +180,16 @@ The app can ask an AI model for simple recipes that use the food you pick. You n
 
 **Get recipes:**
 
-1. On **Recipes**, look at **Your food**. Food that expires in the next 3 days is already ticked for you. Tick or untick anything, up to 10 items.
-2. Tap **Suggest recipes**. After a few seconds, recipe cards appear. Each shows which of your food it uses, what else you need, and the steps.
-3. Tap the **star** on a recipe you like to keep it. Tap **Saved recipes** to find it later; tap a saved recipe to open its steps.
-4. Not inspired? Tap **Suggest different recipes** for new ideas.
+1. On **Recipes** (**What can I cook?**), look at **In your fridge**. It lists all your food, wherever it's kept. Food that expires in the next 3 days is already ticked for you. Tick or untick anything, up to 10 items, or tap **Select all**.
+2. Tap **Suggest recipes**. After a few seconds, recipe cards appear, each with its time and the food it uses.
+3. Tap a card to open the recipe. It shows the food it uses from your fridge, what else you'll need, and the steps.
+4. Tap the **star** on a recipe you like to keep it. Tap **Saved** at the top of the Recipes tab to find it later.
+5. Not inspired? Tap **More ideas** for new ones.
+6. Cooked it? On the recipe's page, tap **Mark as consumed** to mark the food it used as eaten, or **Mark as wasted** if it went in the bin. Both count in your summary.
 
-<img src="images/12-recipes.gif" alt="Ticking food, then getting and saving a recipe" width="250">
+<img src="images/12-recipes.gif" alt="Ticking food, getting recipes, opening one and saving it" width="250">
 
-If a recipe uses food that has already expired, the card shows a red warning. Check that food is still safe before cooking with it.
+If a recipe uses food that has already expired, it shows a red warning. Check that food is still safe before cooking with it.
 
 ## 11. If something doesn't work
 
@@ -177,8 +197,9 @@ If a recipe uses food that has already expired, the card shows a red warning. Ch
 | --- | --- |
 | The scanner shows "Camera access is off" | Turn on the camera for Expo Go in your phone's settings, or tap **Type it in instead** |
 | A scanned product isn't found | Add it by hand. The barcode is still saved with the item |
-| No reminders arrive | Turn on notifications for Expo Go in your phone's settings, then open the item and save it again from **Edit item** |
+| No reminders arrive | Turn on notifications for Expo Go in your phone's settings, then open the item, tap **Edit reminder settings** and **Save changes** |
 | Donation points says location is off | Allow location in your phone's settings, or tap **Search a suburb** |
+| Food marked as thrown out by mistake | Open it from the **Thrown out** list on **Summary** and tap **Delete item** |
 | "Couldn't reach" or "busy" on Recipes | Check your internet connection and tap **Try again**. Free AI models are sometimes busy for a few seconds |
 | "Google did not accept this key" in recipe settings | Copy the whole key again and paste it in |
 

@@ -10,7 +10,13 @@ import {
   useState,
 } from 'react';
 
-import { FoodItem, NewFoodItem, ResolvedFoodItemStatus } from '@/types/food-item';
+import {
+  FoodItem,
+  FoodStorageLocation,
+  getValidCategory,
+  NewFoodItem,
+  ResolvedFoodItemStatus,
+} from '@/types/food-item';
 import {
   cancelExpiryReminders,
   ReminderScheduleResult,
@@ -34,10 +40,13 @@ type InventoryContextValue = {
 
 const InventoryContext = createContext<InventoryContextValue | null>(null);
 
+const VALID_STORAGE_LOCATIONS: FoodStorageLocation[] = ['fridge', 'freezer', 'pantry'];
+
 /**
  * Validates a stored item. Items saved by v1.0 have no reminder fields, so they
  * receive the one-day default and rule version 1 until their reminders are
- * scheduled at launch.
+ * scheduled at launch. Records without a storageLocation or category default to
+ * the fridge and Others.
  */
 function normalizeFoodItem(value: unknown): FoodItem | null {
   if (!value || typeof value !== 'object') {
@@ -77,6 +86,12 @@ function normalizeFoodItem(value: unknown): FoodItem | null {
     return null;
   }
 
+  const storageLocation: FoodStorageLocation =
+    typeof item.storageLocation === 'string' &&
+    VALID_STORAGE_LOCATIONS.includes(item.storageLocation as FoodStorageLocation)
+      ? (item.storageLocation as FoodStorageLocation)
+      : 'fridge';
+
   let notificationIds: string[] | undefined;
 
   if (
@@ -93,6 +108,7 @@ function normalizeFoodItem(value: unknown): FoodItem | null {
     name: item.name,
     quantity: item.quantity,
     expiryDate: item.expiryDate,
+    storageLocation,
     reminderDaysBefore,
     reminderRuleVersion,
     notes: item.notes,
@@ -102,6 +118,7 @@ function normalizeFoodItem(value: unknown): FoodItem | null {
       ? { statusUpdatedAt: item.statusUpdatedAt }
       : null),
     ...(typeof item.barcode === 'string' ? { barcode: item.barcode } : null),
+    category: getValidCategory(item.category),
     ...(notificationIds && notificationIds.length > 0 ? { notificationIds } : null),
   };
 }
@@ -358,7 +375,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   }, [isStorageReady, persistItems]);
 
   /*
-   * Convert manual-entry values into a complete FoodItem and save it.
+   * Convert form values into a complete FoodItem, schedule its reminders and
+   * save it.
    */
   const addItem = useCallback(
     async (input: NewFoodItem) => {
@@ -367,6 +385,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         name: input.name,
         quantity: input.quantity,
         expiryDate: input.expiryDate,
+        storageLocation: input.storageLocation ?? 'fridge',
+        category: input.category ?? 'Others',
         reminderDaysBefore: input.reminderDaysBefore,
         reminderRuleVersion: 2,
         notes: input.notes,
@@ -402,7 +422,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
   /*
    * Apply an edit from the item form. Only the fields the form owns are
-   * replaced, so createdAt and status survive the edit.
+   * replaced, so createdAt and status survive the edit. A category or storage
+   * location the input leaves out keeps its stored value.
    */
   const updateItem = useCallback(
     async (id: string, input: NewFoodItem) => {
@@ -412,7 +433,13 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const editedItem = { ...currentItem, ...input, reminderRuleVersion: 2 as const };
+      const editedItem: FoodItem = {
+        ...currentItem,
+        ...input,
+        category: input.category ?? currentItem.category,
+        storageLocation: input.storageLocation ?? currentItem.storageLocation,
+        reminderRuleVersion: 2,
+      };
 
       /*
        * Only the name, expiry date and notice change what a reminder says or
@@ -431,10 +458,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
       }
 
       const reminderResult = await scheduleExpiryReminders(editedItem);
+
       const updatedItem = setNotificationIds(
         editedItem,
         reminderResult.status === 'scheduled' ? reminderResult.notificationIds : undefined,
       );
+
       const nextItems = itemsRef.current.map((item) => (item.id === id ? updatedItem : item));
 
       try {
@@ -480,13 +509,14 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   );
 
   /*
-   * Record that an item was eaten, thrown out or donated. The timestamp is what the
-   * weekly waste summary will group by, so it is written here rather than
-   * being inferred from the expiry date later.
+   * Record that an item was eaten, thrown out or donated. The timestamp is what
+   * the summary groups by, so it is written here rather than being inferred
+   * from the expiry date later.
    */
   const resolveItem = useCallback(
     async (id: string, status: ResolvedFoodItemStatus) => {
       const resolvedItem = itemsRef.current.find((item) => item.id === id);
+
       const nextItems = itemsRef.current.map((item) => {
         if (item.id !== id) {
           return item;

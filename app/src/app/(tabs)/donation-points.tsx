@@ -16,15 +16,26 @@ import {
 import bundledSnapshot from '@/data/donation-points-au.json';
 import { parseSnapshot, pointsNear } from '@/utils/donation-snapshot';
 import { formatDayMonthYear } from '@/utils/expiry-date';
-import { type DonationPoint, type PointType, SEARCH_RADIUS_KM } from '@/utils/overpass';
+import { type DonationPoint, SEARCH_RADIUS_KM } from '@/utils/overpass';
+import { ScreenHeader } from '@/components/screen-header';
+import { TYPE_LOOK } from '@/utils/donation-look';
+import { findSuburbs, type Suburb } from '@/utils/suburb-search';
 
-type IconName = keyof typeof Ionicons.glyphMap;
-
-/* Each kind of place gets its own tint and icon, in place of a photo. */
-const TYPE_LOOK: Record<PointType, { icon: IconName; tint: string; accent: string }> = {
-  'Food bank': { icon: 'basket-outline', tint: '#e7f4e8', accent: '#2f7d32' },
-  'Soup kitchen': { icon: 'restaurant-outline', tint: '#fbf0dc', accent: '#9a5b12' },
-  'Community pantry': { icon: 'file-tray-stacked-outline', tint: '#e3edf7', accent: '#2b5f8a' },
+const COLORS = {
+  background: '#FFFDF5',
+  surface: '#FFFFFF',
+  primary: '#1E2A16',
+  secondary: '#55614D',
+  border: '#E4E5D4',
+  divider: '#EEEFE5',
+  accent: '#A6D45A',
+  accentSoft: '#F0F7DB',
+  link: '#4E7A1F', // dark lime, for green text and icons on cream
+  urgent: '#A92E26',
+  urgentSoft: '#FBEFF2',
+  warning: '#8B6B1F',
+  warningSoft: '#FFF0D5',
+  error: '#8B2C25',
 };
 
 /* The phone's geocoder rate-limits, so only the closest places get an address looked up. */
@@ -50,33 +61,50 @@ const DATA_DATE = SNAPSHOT ? formatDayMonthYear(new Date(SNAPSHOT.fetchedAt)) : 
 const RECENT_POSITION_MS = 10 * 60 * 1000;
 const RECENT_POSITION_ACCURACY_M = 500;
 
-function DonationPointRow({ point }: { point: DonationPoint }) {
+function DonationPointRow({ point, isFirst }: { point: DonationPoint; isFirst: boolean }) {
   const look = TYPE_LOOK[point.type];
 
+  function openDetail() {
+    router.push({
+      pathname: '/donation-point/[id]',
+      params: {
+        id: point.id.replace('/', '-'),
+        distanceKm: point.distanceKm.toFixed(1),
+        address: point.address,
+      },
+    });
+  }
+
   return (
-    <View style={styles.row}>
+    <Pressable
+      accessibilityHint="Opens the opening hours, directions and what to bring"
+      accessibilityRole="button"
+      onPress={openDetail}
+      style={({ pressed }) => [
+        styles.row,
+        isFirst ? null : styles.rowDivider,
+        pressed ? styles.rowPressed : null,
+      ]}
+    >
       <View style={[styles.rowIcon, { backgroundColor: look.tint }]}>
-        <Ionicons name={look.icon} size={24} color={look.accent} />
+        <Ionicons name={look.icon} size={22} color={look.accent} />
       </View>
 
       <View style={styles.rowText}>
-        <View style={styles.rowTop}>
-          <Text numberOfLines={2} style={styles.rowName}>
-            {point.name}
-          </Text>
+        <Text numberOfLines={2} style={styles.rowName}>
+          {point.name}
+        </Text>
 
-          <Text style={styles.distance}>{point.distanceKm.toFixed(1)} km</Text>
-        </View>
-
-        <Text style={[styles.rowType, { color: look.accent }]}>{point.type}</Text>
-
-        <Text numberOfLines={2} style={styles.address}>
-          {point.address}
+        <Text numberOfLines={1} style={styles.rowMeta}>
+          <Text style={styles.rowType}>{point.type}</Text>
+          {` · ${point.address}`}
         </Text>
 
         <Text style={styles.hours}>{point.hours}</Text>
       </View>
-    </View>
+
+      <Text style={styles.distance}>{point.distanceKm.toFixed(1)} km</Text>
+    </Pressable>
   );
 }
 
@@ -102,7 +130,8 @@ async function lookUpAddress(latitude: number, longitude: number): Promise<strin
  * Donation points tab: food banks and soup kitchens from the bundled
  * OpenStreetMap list within 10 km of the phone, or of a suburb the student
  * types in. Nothing is downloaded, so the list shows as soon as the location
- * is known, and the location never leaves the phone.
+ * is known. Only the phone's own geocoder sees the location, to name the
+ * suburb and fill in missing addresses.
  *
  * Search narrows the list by name, kind of place or address. Only the newest
  * load is shown, so a slow GPS load can't overwrite a suburb search made while
@@ -120,6 +149,11 @@ export default function DonationPointsScreen() {
   const [isEditingSuburb, setIsEditingSuburb] = useState(false);
   /* The suburb the list is for, or null while it is around the phone. */
   const [searchedSuburb, setSearchedSuburb] = useState<string | null>(null);
+  /* Where the list is centred, so suburb suggestions can put the nearest first. */
+  const [center, setCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+  /* How far down the screen the floating suburb panel starts. */
+  const [panelTop, setPanelTop] = useState(insets.top + 140);
+  const locationRef = useRef<React.ComponentRef<typeof View>>(null);
 
   const latestRequest = useRef(0);
 
@@ -210,6 +244,8 @@ export default function DonationPointsScreen() {
       fail("The list of donation points couldn't be read. Please update the app.");
       return;
     }
+
+    setCenter({ latitude, longitude });
 
     void showPoints(
       pointsNear(SNAPSHOT, latitude, longitude, SEARCH_RADIUS_KM),
@@ -311,6 +347,30 @@ export default function DonationPointsScreen() {
     void loadNearPhone();
   }
 
+  /** Opens the suburb panel just under the location line. */
+  function openSuburbPanel() {
+    setIsEditingSuburb(true);
+    locationRef.current?.measureInWindow((_x, y, _width, height) => {
+      if (height > 0) {
+        setPanelTop(y + height + 8);
+      }
+    });
+  }
+
+  function closeSuburbPanel() {
+    setIsEditingSuburb(false);
+    setSuburbQuery('');
+  }
+
+  /** Picking a suggestion: its location is already known, so no geocoder lookup. */
+  function chooseSuburb(suburb: Suburb) {
+    closeSuburbPanel();
+    setSearchedSuburb(`${suburb.name} ${suburb.state}`);
+    setPlaceName(suburb.name);
+    showLoading();
+    showPointsNear(suburb.latitude, suburb.longitude, startRequest());
+  }
+
   /** Repeats whichever load failed: the phone's location or the last suburb. */
   function retry() {
     if (searchedSuburb) {
@@ -322,7 +382,7 @@ export default function DonationPointsScreen() {
   }
 
   /*
-   * "Find donation point" on an item's screen opens this tab with near=phone.
+   * "Donate it" on an item's screen opens this tab with near=phone.
    * The tab stays mounted once opened, so without this it would still show
    * whatever it showed last: another suburb, a search or an error. It is
    * applied while rendering, React's pattern for state that follows a changing
@@ -331,7 +391,7 @@ export default function DonationPointsScreen() {
    */
   const { near } = useLocalSearchParams<{ near?: string }>();
   const [appliedNear, setAppliedNear] = useState(near ?? null);
-  /* Each change starts a load near the phone: the first when the tab opens, then one per "Find donation point". */
+  /* Each change starts a load near the phone: the first when the tab opens, then one per "Donate it". */
   const [phoneLoads, setPhoneLoads] = useState(0);
 
   if ((near ?? null) !== appliedNear) {
@@ -344,7 +404,7 @@ export default function DonationPointsScreen() {
     }
   }
 
-  /* Clear the param, so the next "Find donation point" counts as a change. */
+  /* Clear the param, so the next "Donate it" counts as a change. */
   useEffect(() => {
     if (appliedNear) {
       router.setParams({ near: undefined });
@@ -369,9 +429,13 @@ export default function DonationPointsScreen() {
   }, [phoneLoads]);
 
   const search = query.trim().toLowerCase();
+  const suburbMatches = findSuburbs(suburbQuery, center);
   const matches = points.filter((point) =>
     `${point.name} ${point.type} ${point.address}`.toLowerCase().includes(search),
   );
+
+  /* The same words the student sees, so the button's spoken label matches them. */
+  const shownPlace = isLoading && !searchedSuburb ? 'Finding your location…' : placeName;
 
   function renderSection(title: string, sectionPoints: DonationPoint[]) {
     if (sectionPoints.length === 0) {
@@ -390,8 +454,8 @@ export default function DonationPointsScreen() {
         <Text style={styles.sectionTitle}>{`${title} · ${count}`.toUpperCase()}</Text>
 
         <View style={styles.list} testID="donation-points-list">
-          {sectionPoints.map((point) => (
-            <DonationPointRow key={point.id} point={point} />
+          {sectionPoints.map((point, index) => (
+            <DonationPointRow key={point.id} isFirst={index === 0} point={point} />
           ))}
         </View>
       </View>
@@ -399,312 +463,402 @@ export default function DonationPointsScreen() {
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + 124 }}
-      keyboardDismissMode="on-drag"
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-      style={styles.screen}
-    >
-      <View style={styles.header}>
-        <Text accessibilityRole="header" style={styles.title}>
-          Donation Points
-        </Text>
+    <View style={styles.screen}>
+      <ScrollView
+        contentContainerStyle={{ paddingTop: insets.top + 24, paddingBottom: insets.bottom + 124 }}
+        keyboardDismissMode="on-drag"
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        style={styles.scroll}
+      >
+        <View style={styles.header}>
+          <ScreenHeader
+            style={styles.screenHeader}
+            title="Give it away"
+            subtitle={
+              <Pressable
+                ref={locationRef}
+                accessibilityLabel={`Change suburb, currently ${shownPlace}`}
+                accessibilityRole="button"
+                onPress={() => (isEditingSuburb ? closeSuburbPanel() : openSuburbPanel())}
+                style={styles.locationLine}
+              >
+                <Ionicons name="navigate" size={16} color={COLORS.link} />
 
-        <Text style={styles.subtitle}>Places near you that take spare food.</Text>
+                <Text style={styles.locationName}>{shownPlace}</Text>
 
-        <Pressable
-          accessibilityLabel="Change suburb"
-          accessibilityRole="button"
-          onPress={() => setIsEditingSuburb(!isEditingSuburb)}
-          style={styles.locationLine}
-        >
-          <Ionicons name="navigate" size={16} color="#2f7d32" />
+                <Text style={styles.locationRadius}>· within {SEARCH_RADIUS_KM} km</Text>
 
-          <Text style={styles.locationName}>
-            {isLoading && !searchedSuburb ? 'Finding your location…' : placeName}
-          </Text>
-
-          <Ionicons
-            name={isEditingSuburb ? 'chevron-up' : 'chevron-down'}
-            size={16}
-            color="#2f7d32"
+                <Ionicons
+                  name={isEditingSuburb ? 'chevron-up' : 'chevron-down'}
+                  size={16}
+                  color={COLORS.link}
+                />
+              </Pressable>
+            }
           />
-        </Pressable>
 
-        <Text style={styles.locationRadius}>within {SEARCH_RADIUS_KM} km</Text>
-
-        {isEditingSuburb ? (
           <View style={styles.searchBox}>
-            <Ionicons name="location-outline" size={20} color="#687269" />
+            <Ionicons name="search-outline" size={20} color={COLORS.secondary} />
 
             <TextInput
-              accessibilityLabel="Suburb"
-              autoFocus
-              onChangeText={setSuburbQuery}
-              onSubmitEditing={() => void searchSuburb(suburbQuery)}
-              placeholder="Enter a suburb and state, e.g. Newtown NSW"
-              placeholderTextColor="#7b857d"
+              accessibilityLabel="Search donation points"
+              autoCorrect={false}
+              onChangeText={setQuery}
+              placeholder="Search donation points"
+              placeholderTextColor={COLORS.secondary}
               returnKeyType="search"
               style={styles.searchInput}
-              value={suburbQuery}
+              value={query}
             />
+
+            {query.length > 0 ? (
+              <Pressable
+                accessibilityLabel="Clear search"
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => setQuery('')}
+              >
+                <Ionicons name="close-circle" size={18} color={COLORS.secondary} />
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+
+        {renderSection(searchedSuburb ? `Closest to ${placeName}` : 'Closest to you', matches)}
+
+        {isLoading ? (
+          <ActivityIndicator color={COLORS.link} size="large" style={styles.spinner} />
+        ) : null}
+
+        {error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+
+            <View style={styles.errorActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={retry}
+                style={({ pressed }) => [styles.primaryButton, pressed ? styles.pressed : null]}
+              >
+                <Text style={styles.primaryButtonText}>Try again</Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={openSuburbPanel}
+                style={({ pressed }) => [styles.secondaryButton, pressed ? styles.pressed : null]}
+              >
+                <Text style={styles.secondaryButtonText}>Search a suburb</Text>
+              </Pressable>
+            </View>
           </View>
         ) : null}
 
-        {isEditingSuburb && searchedSuburb ? (
-          <Pressable
-            accessibilityRole="button"
-            onPress={backToMyLocation}
-            style={({ pressed }) => [styles.myLocationButton, pressed ? styles.pressed : null]}
-          >
-            <Ionicons name="navigate" size={16} color="#2f7d32" />
+        {!isLoading && !error && matches.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <View style={styles.emptyIcon}>
+              <Ionicons name="search-outline" size={32} color={COLORS.link} />
+            </View>
 
-            <Text style={styles.myLocationText}>Use my location</Text>
-          </Pressable>
+            {search ? (
+              <>
+                <Text style={styles.emptyTitle}>No matches</Text>
+
+                <Text style={styles.emptyText}>
+                  Try a different name or another kind of place, such as a food bank.
+                </Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.emptyTitle}>No donation points nearby</Text>
+
+                <Text style={styles.emptyText}>
+                  None are listed within {SEARCH_RADIUS_KM} km of{' '}
+                  {searchedSuburb ? placeName : 'you'}. Try searching another suburb.
+                </Text>
+              </>
+            )}
+          </View>
         ) : null}
 
-        <View style={styles.searchBox}>
-          <Ionicons name="search-outline" size={20} color="#687269" />
+        {!isLoading && !error && DATA_DATE ? (
+          <Text style={styles.attribution}>
+            Data © OpenStreetMap contributors, as of {DATA_DATE}
+          </Text>
+        ) : null}
+      </ScrollView>
 
-          <TextInput
-            accessibilityLabel="Search donation points"
-            autoCorrect={false}
-            onChangeText={setQuery}
-            placeholder="Search donation points"
-            placeholderTextColor="#7b857d"
-            returnKeyType="search"
-            style={styles.searchInput}
-            value={query}
+      {isEditingSuburb ? (
+        <>
+          {/* Dims the list. Tapping it closes the panel. */}
+          <Pressable
+            accessibilityLabel="Close suburb search"
+            onPress={closeSuburbPanel}
+            style={[styles.scrim, { top: panelTop - 4 }]}
           />
 
-          {query.length > 0 ? (
-            <Pressable
-              accessibilityLabel="Clear search"
-              accessibilityRole="button"
-              hitSlop={8}
-              onPress={() => setQuery('')}
-            >
-              <Ionicons name="close-circle" size={18} color="#7b857d" />
-            </Pressable>
-          ) : null}
-        </View>
-      </View>
+          <View style={[styles.suburbPanel, { top: panelTop }]}>
+            <View style={[styles.searchBox, styles.suburbBox]}>
+              <Ionicons name="search-outline" size={20} color={COLORS.secondary} />
 
-      {renderSection(searchedSuburb ? `Closest to ${placeName}` : 'Closest to you', matches)}
-
-      {isLoading ? <ActivityIndicator color="#2f7d32" size="large" style={styles.spinner} /> : null}
-
-      {error ? (
-        <View style={styles.errorBox}>
-          <Text style={styles.errorText}>{error}</Text>
-
-          <View style={styles.errorActions}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={retry}
-              style={({ pressed }) => [styles.primaryButton, pressed ? styles.pressed : null]}
-            >
-              <Text style={styles.primaryButtonText}>Try again</Text>
-            </Pressable>
+              <TextInput
+                accessibilityLabel="Suburb"
+                autoCorrect={false}
+                autoFocus
+                onChangeText={setSuburbQuery}
+                onSubmitEditing={() => void searchSuburb(suburbQuery)}
+                placeholder="Search a suburb"
+                placeholderTextColor={COLORS.secondary}
+                returnKeyType="search"
+                style={styles.searchInput}
+                value={suburbQuery}
+              />
+            </View>
 
             <Pressable
               accessibilityRole="button"
-              onPress={() => setIsEditingSuburb(true)}
-              style={({ pressed }) => [styles.secondaryButton, pressed ? styles.pressed : null]}
+              onPress={backToMyLocation}
+              style={({ pressed }) => [styles.suburbRow, pressed ? styles.pressed : null]}
             >
-              <Text style={styles.secondaryButtonText}>Search a suburb</Text>
+              <Ionicons name="navigate" size={18} color={COLORS.link} />
+              <Text style={styles.currentLocationText}>Use my current location</Text>
             </Pressable>
+
+            {suburbMatches.length > 0 ? (
+              <View style={styles.suburbList}>
+                <Text style={styles.sectionTitle}>SUBURBS</Text>
+
+                {suburbMatches.map((suburb) => (
+                  <Pressable
+                    key={`${suburb.name}-${suburb.state}`}
+                    accessibilityLabel={`${suburb.name}, ${suburb.state} ${suburb.postcode}`}
+                    accessibilityRole="button"
+                    onPress={() => chooseSuburb(suburb)}
+                    style={({ pressed }) => [styles.suburbRow, pressed ? styles.pressed : null]}
+                  >
+                    <Ionicons name="location-outline" size={20} color={COLORS.secondary} />
+
+                    <Text numberOfLines={1} style={styles.suburbName}>
+                      <Text style={styles.suburbNameMatch}>
+                        {suburb.name.slice(0, suburbQuery.trim().length)}
+                      </Text>
+                      {suburb.name.slice(suburbQuery.trim().length)}
+                    </Text>
+
+                    <Text style={styles.suburbPostcode}>
+                      {suburb.state} {suburb.postcode}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
           </View>
-        </View>
+        </>
       ) : null}
-
-      {!isLoading && !error && matches.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <View style={styles.emptyIcon}>
-            <Ionicons name="search-outline" size={32} color="#2f7d32" />
-          </View>
-
-          {search ? (
-            <>
-              <Text style={styles.emptyTitle}>No matches</Text>
-
-              <Text style={styles.emptyText}>
-                Try a different name or another kind of place, such as a food bank.
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={styles.emptyTitle}>No donation points nearby</Text>
-
-              <Text style={styles.emptyText}>
-                None are listed within {SEARCH_RADIUS_KM} km of {searchedSuburb ? placeName : 'you'}
-                . Try searching another suburb.
-              </Text>
-            </>
-          )}
-        </View>
-      ) : null}
-
-      {!isLoading && !error && DATA_DATE ? (
-        <Text style={styles.attribution}>Data © OpenStreetMap contributors, as of {DATA_DATE}</Text>
-      ) : null}
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f6f8f3',
+    backgroundColor: COLORS.background,
+  },
+  scroll: {
+    flex: 1,
   },
   header: {
     paddingHorizontal: 20,
   },
-  title: {
-    color: '#172019',
-    fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: -0.4,
-  },
-  subtitle: {
-    marginTop: 5,
-    color: '#59635b',
-    fontSize: 15,
-    lineHeight: 22,
-  },
+
+  /* Location line under the title */
   locationLine: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 18,
+    marginBottom: 6,
   },
   locationName: {
-    color: '#2f7d32',
+    color: COLORS.link,
     fontSize: 16,
-    fontWeight: '800',
+    fontFamily: 'Fredoka_600SemiBold',
   },
   locationRadius: {
-    marginTop: 2,
-    marginLeft: 22,
-    color: '#687269',
+    color: COLORS.link,
     fontSize: 13,
+    fontFamily: 'Fredoka_600SemiBold',
   },
+
+  /* Search boxes */
   searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     minHeight: 48,
-    marginTop: 16,
+    marginTop: 0,
     borderWidth: 1,
-    borderColor: '#dce4da',
+    borderColor: COLORS.border,
     borderRadius: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 14,
-  },
-  myLocationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    minHeight: 44,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#2f7d32',
-    borderRadius: 12,
-    backgroundColor: '#e7f4e8',
-  },
-  myLocationText: {
-    color: '#1f5a22',
-    fontSize: 15,
-    fontWeight: '700',
   },
   searchInput: {
     flex: 1,
     paddingVertical: 12,
-    color: '#172019',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 15,
   },
+
+  /* Floating suburb panel */
+  scrim: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(30, 42, 22, 0.28)',
+  },
+  suburbPanel: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    gap: 6,
+    padding: 14,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    shadowColor: COLORS.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  suburbBox: {
+    marginTop: 0,
+    borderWidth: 1.5,
+    borderColor: COLORS.primary,
+    backgroundColor: COLORS.background,
+  },
+  suburbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    minHeight: 44,
+    paddingHorizontal: 4,
+  },
+  currentLocationText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 15,
+  },
+  suburbList: {
+    marginTop: 4,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.divider,
+  },
+  suburbName: {
+    flex: 1,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 16,
+  },
+  suburbNameMatch: {
+    fontFamily: 'Fredoka_600SemiBold',
+  },
+  suburbPostcode: {
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 13,
+  },
+
+  /* The list of places */
   section: {
     marginTop: 22,
     paddingHorizontal: 20,
   },
   sectionTitle: {
     marginBottom: 10,
-    color: '#687269',
+    color: COLORS.secondary,
     fontSize: 11,
-    fontWeight: '800',
+    fontFamily: 'Fredoka_500Medium',
     letterSpacing: 0.9,
   },
   list: {
-    gap: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
   },
   row: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
-    borderWidth: 1,
-    borderColor: '#dce4da',
-    borderRadius: 16,
-    backgroundColor: '#ffffff',
-    padding: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  rowPressed: {
+    backgroundColor: COLORS.divider,
+  },
+  rowDivider: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.divider,
   },
   rowIcon: {
     alignItems: 'center',
     justifyContent: 'center',
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 14,
   },
   rowText: {
     flex: 1,
-    gap: 3,
-  },
-  rowTop: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 10,
+    gap: 2,
   },
   rowName: {
-    flex: 1,
-    color: '#172019',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
     fontSize: 16,
-    fontWeight: '800',
+  },
+  rowMeta: {
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 13,
   },
   rowType: {
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  address: {
-    color: '#172019',
-    fontSize: 14,
-    lineHeight: 19,
+    fontFamily: 'Fredoka_500Medium',
   },
   hours: {
-    color: '#687269',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 13,
   },
   distance: {
-    color: '#2f7d32',
+    color: COLORS.link,
     fontSize: 16,
-    fontWeight: '800',
+    fontFamily: 'Fredoka_600SemiBold',
   },
   attribution: {
     marginTop: 10,
     paddingHorizontal: 20,
-    color: '#687269',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 12,
   },
   pressed: {
     opacity: 0.72,
   },
+
+  /* Empty and error states */
   emptyCard: {
     alignItems: 'center',
     marginHorizontal: 20,
     marginTop: 34,
     borderWidth: 1,
-    borderColor: '#dce4da',
-    borderRadius: 18,
-    backgroundColor: '#ffffff',
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 28,
     paddingVertical: 34,
   },
@@ -714,17 +868,18 @@ const styles = StyleSheet.create({
     width: 66,
     height: 66,
     borderRadius: 33,
-    backgroundColor: '#e7f4e8',
+    backgroundColor: COLORS.accentSoft,
   },
   emptyTitle: {
     marginTop: 16,
-    color: '#172019',
+    color: COLORS.primary,
     fontSize: 19,
-    fontWeight: '700',
+    fontFamily: 'Fredoka_600SemiBold',
   },
   emptyText: {
     marginTop: 8,
-    color: '#687269',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
@@ -738,7 +893,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
   },
   errorText: {
-    color: '#9f2420',
+    color: COLORS.error,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 14,
     lineHeight: 20,
     textAlign: 'center',
@@ -752,27 +908,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     minHeight: 44,
     borderRadius: 999,
-    backgroundColor: '#2f7d32',
+    backgroundColor: COLORS.accent,
     paddingHorizontal: 18,
     paddingVertical: 10,
   },
   primaryButtonText: {
-    color: '#ffffff',
+    color: COLORS.primary,
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: 'Fredoka_600SemiBold',
   },
   secondaryButton: {
     justifyContent: 'center',
     minHeight: 44,
     borderWidth: 1,
-    borderColor: '#2f7d32',
+    borderColor: COLORS.accent,
     borderRadius: 999,
     paddingHorizontal: 18,
     paddingVertical: 10,
   },
   secondaryButtonText: {
-    color: '#2f7d32',
+    color: COLORS.link,
     fontSize: 14,
-    fontWeight: '700',
+    fontFamily: 'Fredoka_600SemiBold',
+  },
+  screenHeader: {
+    marginBottom: 4,
   },
 });

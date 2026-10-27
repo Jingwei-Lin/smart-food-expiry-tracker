@@ -13,6 +13,35 @@ jest.mock('@react-native-async-storage/async-storage', () =>
  */
 const mockSecureStoreItems = new Map<string, string>();
 
+/*
+ * The icon font cannot load under Jest. The stand-in is an empty View rather
+ * than text, so an icon's name can never be matched by a getByText query.
+ */
+jest.mock('@expo/vector-icons', () => {
+  const { createElement } = jest.requireActual<typeof import('react')>('react');
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+
+  return { Ionicons: () => createElement(View) };
+});
+
+/*
+ * lucide-react-native ships only as an ES module, which Jest on older Node
+ * versions cannot load. Any icon imported from it becomes an empty View.
+ */
+jest.mock('lucide-react-native', () => {
+  const { createElement } = jest.requireActual<typeof import('react')>('react');
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
+
+  const MockIcon = () => createElement(View, null);
+
+  return new Proxy(
+    {},
+    {
+      get: (_target, name) => (name === '__esModule' ? false : MockIcon),
+    },
+  );
+});
+
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(async (key: string) => mockSecureStoreItems.get(key) ?? null),
   setItemAsync: jest.fn(async (key: string, value: string) => {

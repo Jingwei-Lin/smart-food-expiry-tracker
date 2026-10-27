@@ -12,7 +12,7 @@ jest.mock('react-native-safe-area-context', () => ({
 const mockSearchParams: { near?: string } = {};
 
 jest.mock('expo-router', () => ({
-  router: { setParams: jest.fn() },
+  router: { push: jest.fn(), setParams: jest.fn() },
   useLocalSearchParams: () => mockSearchParams,
 }));
 
@@ -95,7 +95,7 @@ function shownPlaces(view: Awaited<ReturnType<typeof render>>): string[] {
 
 async function searchSuburb(view: Awaited<ReturnType<typeof render>>, suburb: string) {
   if (!view.queryByLabelText('Suburb')) {
-    await fireEvent.press(view.getByLabelText('Change suburb'));
+    await fireEvent.press(view.getByLabelText(/^Change suburb/));
   }
 
   const input = view.getByLabelText('Suburb');
@@ -141,8 +141,19 @@ describe('DonationPointsScreen', () => {
     const view = await render(<DonationPointsScreen />);
     await view.findByText('Close Pantry');
 
-    expect(view.getByRole('header', { name: 'Donation Points' })).toBeTruthy();
-    expect(view.getByText('Places near you that take spare food.')).toBeTruthy();
+    expect(view.getByRole('header', { name: 'Give it away' })).toBeTruthy();
+  });
+
+  it('opens a place with its id, distance and address', async () => {
+    const view = await render(<DonationPointsScreen />);
+    await view.findByText(/1 George Street/);
+
+    await fireEvent.press(view.getByText('Close Pantry'));
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/donation-point/[id]',
+      params: { id: 'node-1', distanceKm: '1.0', address: '1 George Street' },
+    });
   });
 
   it('shows every place in one list, each with its kind', async () => {
@@ -283,19 +294,20 @@ describe('DonationPointsScreen', () => {
     ).toBeTruthy();
   });
 
+  it('names the current place in the label of the button that changes it', async () => {
+    const view = await render(<DonationPointsScreen />);
+    await view.findByText('Close Pantry');
+
+    expect(view.getByLabelText('Change suburb, currently Sydney, NSW')).toBeTruthy();
+  });
+
   describe('going back to the phone after a suburb search', () => {
-    it('only offers "Use my location" once a suburb has been searched', async () => {
+    it('offers "Use my current location" in the suburb panel', async () => {
       const view = await render(<DonationPointsScreen />);
       await view.findByText('Close Pantry');
 
-      await fireEvent.press(view.getByLabelText('Change suburb'));
-      expect(view.queryByText('Use my location')).toBeNull();
-
-      await searchSuburb(view, 'Fitzroy VIC');
-      await view.findByText('Fitzroy Pantry');
-      await fireEvent.press(view.getByLabelText('Change suburb'));
-
-      expect(view.getByText('Use my location')).toBeTruthy();
+      await fireEvent.press(view.getByLabelText(/^Change suburb/));
+      expect(view.getByText('Use my current location')).toBeTruthy();
     });
 
     it('lists the places around the phone again', async () => {
@@ -304,14 +316,14 @@ describe('DonationPointsScreen', () => {
       await searchSuburb(view, 'Fitzroy VIC');
       await view.findByText('Fitzroy Pantry');
 
-      await fireEvent.press(view.getByLabelText('Change suburb'));
-      await fireEvent.press(view.getByText('Use my location'));
+      await fireEvent.press(view.getByLabelText(/^Change suburb/));
+      await fireEvent.press(view.getByText('Use my current location'));
 
       expect(await view.findByText('Close Pantry')).toBeTruthy();
       expect(view.getByText('CLOSEST TO YOU · 2 PLACES')).toBeTruthy();
       expect(shownPlaces(view)).toEqual(['Close Pantry', 'Soup Hall']);
       expect(location.getLastKnownPositionAsync).toHaveBeenCalledTimes(2);
-      expect(view.queryByText('Use my location')).toBeNull();
+      expect(view.queryByText('Use my current location')).toBeNull();
     });
 
     it('retries near the phone, not the old suburb, after going back', async () => {
@@ -321,8 +333,8 @@ describe('DonationPointsScreen', () => {
       await view.findByText('Fitzroy Pantry');
 
       location.hasServicesEnabledAsync.mockResolvedValue(false);
-      await fireEvent.press(view.getByLabelText('Change suburb'));
-      await fireEvent.press(view.getByText('Use my location'));
+      await fireEvent.press(view.getByLabelText(/^Change suburb/));
+      await fireEvent.press(view.getByText('Use my current location'));
       await view.findByText(/Location services are turned off/);
 
       location.hasServicesEnabledAsync.mockResolvedValue(true);
@@ -373,6 +385,29 @@ describe('DonationPointsScreen', () => {
 
       expect(location.getLastKnownPositionAsync).toHaveBeenCalledTimes(2);
     });
+  });
+
+  it('loads a suggested suburb without asking the geocoder', async () => {
+    const view = await render(<DonationPointsScreen />);
+    await view.findByText('Close Pantry');
+
+    await fireEvent.press(view.getByLabelText(/^Change suburb/));
+    await fireEvent.changeText(view.getByLabelText('Suburb'), 'Fitzr');
+    await fireEvent.press(view.getByLabelText('Fitzroy, VIC 3065'));
+
+    expect(await view.findByText('Fitzroy Pantry')).toBeTruthy();
+    expect(location.geocodeAsync).not.toHaveBeenCalled();
+    expect(view.getByText('CLOSEST TO FITZROY · 1 PLACE')).toBeTruthy();
+  });
+
+  it('closes the suburb panel when the dimmed area is tapped', async () => {
+    const view = await render(<DonationPointsScreen />);
+    await view.findByText('Close Pantry');
+
+    await fireEvent.press(view.getByLabelText(/^Change suburb/));
+    await fireEvent.press(view.getByLabelText('Close suburb search'));
+
+    expect(view.queryByLabelText('Suburb')).toBeNull();
   });
 
   describe('the place named at the top', () => {

@@ -1,14 +1,25 @@
-import { router, Stack } from 'expo-router';
+import { router, SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useFonts } from 'expo-font';
+
+import {
+  Fredoka_400Regular,
+  Fredoka_500Medium,
+  Fredoka_600SemiBold,
+  Fredoka_700Bold,
+} from '@expo-google-fonts/fredoka';
 
 import { InventoryProvider } from '@/context/inventory-context';
 import { configureExpiryNotificationHandler } from '@/services/expiry-notifications';
-import * as Notifications from '@/services/local-notifications';
+import * as Notifications from 'expo-notifications';
 
 configureExpiryNotificationHandler();
+
+// The layout renders nothing until the fonts are ready, so keep the splash screen up until then.
+void SplashScreen.preventAutoHideAsync();
 
 function openItemFromNotification(notification: Notifications.Notification): boolean {
   const itemId = notification.request.content.data?.itemId;
@@ -49,18 +60,28 @@ function useNotificationNavigation(): void {
   }, []);
 }
 
-/**
- * Root navigation layout for the whole app.
- *
- * Everything is a stack over the inventory: the inventory is the only
- * destination, so adding an item and looking at one both push over it. The
- * inventory draws its own title block, so it is rendered without a header.
- *
- * The root view is the gesture handler's, so the swipe on an inventory row is
- * recognised on every platform.
- */
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts({
+    Fredoka_400Regular,
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+  });
+
+  const fontsSettled = fontsLoaded || fontError !== null;
+
   useNotificationNavigation();
+
+  useEffect(() => {
+    if (fontsSettled) {
+      // A font that fails to load falls back to the system font, so the app still opens.
+      void SplashScreen.hideAsync();
+    }
+  }, [fontsSettled]);
+
+  if (!fontsSettled) {
+    return null;
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -69,22 +90,21 @@ export default function RootLayout() {
           <Stack>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-            <Stack.Screen name="scan" options={{ title: 'Scan barcode' }} />
+            <Stack.Screen name="scan" options={{ headerShown: false }} />
 
-            <Stack.Screen name="add" options={{ title: 'Add item' }} />
+            <Stack.Screen name="add" options={{ headerShown: false }} />
 
-            <Stack.Screen
-              name="item/[id]"
-              options={{
-                title: 'Item',
-              }}
-            />
+            <Stack.Screen name="item/[id]" options={{ headerShown: false }} />
 
-            <Stack.Screen name="item/edit/[id]" options={{ title: 'Edit item' }} />
+            <Stack.Screen name="item/edit/[id]" options={{ headerShown: false }} />
 
-            <Stack.Screen name="recipe-settings" options={{ title: 'Recipe settings' }} />
+            <Stack.Screen name="donation-point/[id]" options={{ headerShown: false }} />
 
-            <Stack.Screen name="saved-recipes" options={{ title: 'Saved recipes' }} />
+            <Stack.Screen name="recipe/[id]" options={{ headerShown: false }} />
+
+            <Stack.Screen name="recipe-settings" options={{ headerShown: false }} />
+
+            <Stack.Screen name="saved-recipes" options={{ headerShown: false }} />
           </Stack>
 
           <StatusBar style="auto" />

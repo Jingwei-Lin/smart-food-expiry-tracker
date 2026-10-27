@@ -1,28 +1,39 @@
-import { useLocalSearchParams } from 'expo-router';
-import { useHeaderHeight } from 'expo-router/react-navigation';
+import { useState } from 'react';
+import { ArrowLeft } from 'lucide-react-native';
+import { router, useLocalSearchParams } from 'expo-router';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
-  ScrollView,
+  Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { FoodCategoryIcon } from '@/components/food-category-icon';
 import { ItemForm, ItemFormValues } from '@/components/item-form';
 import { useInventory } from '@/context/inventory-context';
+import type { FoodCategory } from '@/types/food-item';
 import { returnToInventory } from '@/utils/navigation';
 
-/**
- * Edit an item already in the inventory.
- *
- * Lives beside the detail screen rather than inside it so that cancelling an
- * edit is just a back press, with nothing saved.
- */
+const COLORS = {
+  background: '#FFFDF5',
+  surface: '#FFFFFF',
+  primary: '#1E2A16',
+  secondary: '#55614D',
+  border: '#E4E5D4',
+  divider: '#EEEFE5',
+  accent: '#A6D45A',
+  accentSoft: '#F0F7DB',
+};
+
 export default function EditItemScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const insets = useSafeAreaInsets();
+  const [selectedCategory, setSelectedCategory] = useState<FoodCategory | undefined>();
+
   const { items, isLoading, isStorageReady, storageError, updateItem } = useInventory();
-  const headerHeight = useHeaderHeight();
 
   const item = items.find((candidate) => candidate.id === id);
 
@@ -32,10 +43,18 @@ export default function EditItemScreen() {
     returnToInventory();
   }
 
+  function handleGoBack() {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      returnToInventory();
+    }
+  }
+
   if (isLoading) {
     return (
       <View style={styles.centeredContainer}>
-        <ActivityIndicator size="large" color="#2f7d32" />
+        <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.centeredText}>Loading item...</Text>
       </View>
     );
@@ -44,9 +63,19 @@ export default function EditItemScreen() {
   if (!item) {
     return (
       <View style={styles.centeredContainer}>
+        <Text style={styles.title}>Item not found</Text>
+
         <Text style={styles.centeredText}>
           This item may have been removed, so there is nothing to edit.
         </Text>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={returnToInventory}
+          style={({ pressed }) => [styles.returnButton, pressed && styles.pressedButton]}
+        >
+          <Text style={styles.returnButtonText}>Back to inventory</Text>
+        </Pressable>
       </View>
     );
   }
@@ -54,44 +83,52 @@ export default function EditItemScreen() {
   return (
     /*
      * Android draws edge to edge, so the window no longer shrinks for the
-     * keyboard and the padding is needed there too. The view measures itself
-     * from below the header, so the header's height is added back.
+     * keyboard and the padding is needed there too.
      */
-    <KeyboardAvoidingView
-      behavior="padding"
-      keyboardVerticalOffset={headerHeight}
-      style={styles.screen}
-    >
-      <ScrollView
-        contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={styles.eyebrow}>EDIT ITEM</Text>
-        <Text style={styles.title}>{item.name}</Text>
+    <KeyboardAvoidingView behavior="padding" style={styles.screen}>
+      <ItemForm
+        topContent={
+          <View style={[styles.heading, { paddingTop: insets.top + 10 }]}>
+            <View style={styles.headingRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+                onPress={handleGoBack}
+                style={({ pressed }) => [styles.backButton, pressed && styles.pressedButton]}
+              >
+                <ArrowLeft size={23} color={COLORS.primary} strokeWidth={2} />
+              </Pressable>
 
-        <Text style={styles.subtitle}>
-          Correct the details or push the expiry date back after checking the package.
-        </Text>
+              <Text style={styles.title}>Edit item</Text>
+            </View>
 
-        <ItemForm
-          blockedReason={
-            isStorageReady
-              ? null
-              : (storageError ??
-                'Loading your saved inventory. Saving will be enabled in a moment.')
-          }
-          initialValues={{
-            name: item.name,
-            quantity: item.quantity,
-            expiryDate: item.expiryDate,
-            reminderDaysBefore: item.reminderDaysBefore,
-            notes: item.notes,
-          }}
-          onSubmit={handleSubmit}
-          submitLabel="Save changes"
-        />
-      </ScrollView>
+            <View style={styles.itemInfo}>
+              <FoodCategoryIcon category={selectedCategory ?? item.category} size={22} />
+
+              <Text style={styles.subtitle} numberOfLines={2}>
+                Update the details for {item.name}.
+              </Text>
+            </View>
+          </View>
+        }
+        blockedReason={
+          isStorageReady
+            ? null
+            : (storageError ?? 'Loading your saved inventory. Saving will be enabled in a moment.')
+        }
+        initialValues={{
+          name: item.name,
+          quantity: item.quantity,
+          expiryDate: item.expiryDate,
+          reminderDaysBefore: item.reminderDaysBefore,
+          notes: item.notes,
+          storageLocation: item.storageLocation,
+          category: item.category,
+        }}
+        onSubmit={handleSubmit}
+        onCategoryChange={setSelectedCategory}
+        submitLabel="Save changes"
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -99,43 +136,75 @@ export default function EditItemScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f6f8f3',
+    backgroundColor: COLORS.background,
   },
   centeredContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
-    backgroundColor: '#f6f8f3',
-    padding: 24,
+    backgroundColor: COLORS.background,
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  heading: {
+    gap: 12,
+    paddingBottom: 14,
+  },
+  headingRow: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  backButton: {
+    width: 52,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.divider,
+    borderRadius: 26,
+    backgroundColor: COLORS.surface,
+  },
+  itemInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  title: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 26,
+    lineHeight: 34,
+  },
+  subtitle: {
+    flex: 1,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 15,
+    lineHeight: 22,
   },
   centeredText: {
-    color: '#59635b',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
   },
-  content: {
+  returnButton: {
+    marginTop: 8,
     paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 40,
+    paddingVertical: 12,
+    borderRadius: 24,
+    backgroundColor: COLORS.accent,
   },
-  eyebrow: {
-    color: '#2f7d32',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1.2,
-  },
-  title: {
-    marginTop: 6,
-    color: '#172019',
-    fontSize: 30,
-    fontWeight: '800',
-  },
-  subtitle: {
-    marginTop: 7,
-    color: '#59635b',
+  returnButtonText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_500Medium',
     fontSize: 15,
-    lineHeight: 22,
+  },
+  pressedButton: {
+    opacity: 0.72,
   },
 });

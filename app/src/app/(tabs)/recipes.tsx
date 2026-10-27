@@ -14,14 +14,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { RecipeCard } from '@/components/recipe-card';
 import { RecipeChecklist } from '@/components/recipe-checklist';
-import { SavedRecipesBox } from '@/components/saved-recipes-box';
+import { SavedStar } from '@/components/saved-star';
+import { ScreenHeader } from '@/components/screen-header';
 import { useInventory } from '@/context/inventory-context';
 import { useToday } from '@/hooks/use-today';
+import { EAT_SOON_DAYS } from '@/utils/expiry-date';
 import { fetchRecipeSuggestions, RecipeSuggestionResult } from '@/utils/recipe-client';
 import { getRecipeCredentials, RecipeCredentials } from '@/utils/recipe-credentials';
 import {
   defaultRecipeSelection,
-  findRecipeIngredients,
+  findStockedIngredients,
   listRecipeCandidates,
   RecipeIngredient,
   toRecipeIngredients,
@@ -34,6 +36,7 @@ import {
 import {
   loadRecipeSnapshot,
   loadSavedRecipes,
+  RecipeResult,
   RecipeScreenSnapshot,
   SavedRecipe,
   saveRecipe,
@@ -45,6 +48,23 @@ import {
 
 type IconName = ComponentProps<typeof Ionicons>['name'];
 
+/* The app's palette, as on the other redesigned tabs. */
+const COLORS = {
+  background: '#FFFDF5',
+  surface: '#FFFFFF',
+  primary: '#1E2A16',
+  secondary: '#55614D',
+  border: '#E4E5D4',
+  subtle: '#F2F3EA',
+  divider: '#EEEFE5',
+  accent: '#A6D45A',
+  accentSoft: '#F0F7DB',
+  link: '#4E7A1F',
+  error: '#8B2C25',
+  errorSoft: '#FDE7E5',
+  pinkSoft: '#F9D3DD',
+};
+
 type FailedOutcome = Exclude<RecipeSuggestionResult['outcome'], 'ok'>;
 
 /*
@@ -55,8 +75,8 @@ type FailedOutcome = Exclude<RecipeSuggestionResult['outcome'], 'ok'>;
 type RequestState =
   | { status: 'idle' }
   | { status: 'loading' }
-  | { status: 'done'; recipes: SuggestedRecipe[]; forNames: string[] }
-  | { status: 'error'; outcome: FailedOutcome; forNames: string[] };
+  | ({ status: 'done' } & RecipeResult)
+  | { status: 'error'; outcome: FailedOutcome; forNames: string[]; forIds: string[] };
 
 type ErrorCopy = {
   icon: IconName;
@@ -113,7 +133,7 @@ function describeFailure(outcome: FailedOutcome, company: string): ErrorCopy {
   }
 }
 
-/* The set-up card's three promises (design 5). */
+/* What the set-up card promises about the key and the data sent. */
 const SETUP_FACTS: { icon: IconName; text: string }[] = [
   { icon: 'lock-closed-outline', text: 'Your key stays on this phone.' },
   { icon: 'list-outline', text: 'Only the names and dates of the food you tick are sent.' },
@@ -123,6 +143,23 @@ const SETUP_FACTS: { icon: IconName; text: string }[] = [
 /* The parser keeps at most two recipes, and Matilda often returns only one. */
 function describeResults(count: number): string {
   return count === 1 ? 'One idea for the food you ticked.' : 'Two ideas for the food you ticked.';
+}
+
+/** "Using up" chips: dark for today, pink for the next few days, light red once expired. */
+function usingUpChip(daysLeft: number): { background: string; color: string } {
+  if (daysLeft < 0) {
+    return { background: COLORS.errorSoft, color: COLORS.error };
+  }
+
+  if (daysLeft === 0) {
+    return { background: COLORS.primary, color: COLORS.surface };
+  }
+
+  if (daysLeft <= 3) {
+    return { background: COLORS.pinkSoft, color: COLORS.primary };
+  }
+
+  return { background: COLORS.subtle, color: COLORS.primary };
 }
 
 /** Whether two reads of the saved key name the same model and the same key. */
@@ -180,7 +217,11 @@ export default function RecipesScreen() {
   const shownTitles = useRef<string[]>([]);
 
   /* What the last request asked for, so Try again repeats it exactly. */
-  const lastAsk = useRef<{ ingredients: RecipeIngredient[]; avoidTitles: string[] } | null>(null);
+  const lastAsk = useRef<{
+    ingredients: RecipeIngredient[];
+    avoidTitles: string[];
+    forIds: string[];
+  } | null>(null);
 
   /* ---- Checklist rows and ticks ---- */
 
@@ -309,12 +350,17 @@ export default function RecipesScreen() {
   /* ---- Actions ---- */
 
   /* Sends food to the provider and shows whatever comes back. */
-  async function requestRecipes(ingredients: RecipeIngredient[], avoidTitles: string[]) {
+  /** `forIds` are the ticked items the food came from, so a recipe can be matched to them later. */
+  async function requestRecipes(
+    ingredients: RecipeIngredient[],
+    avoidTitles: string[],
+    forIds: string[],
+  ) {
     if (!credentials || ingredients.length === 0) {
       return;
     }
 
-    lastAsk.current = { ingredients, avoidTitles };
+    lastAsk.current = { ingredients, avoidTitles, forIds };
 
     /* Only one request at a time: a new tap cancels the one still running. */
     pendingRequest.current?.abort();
@@ -343,13 +389,13 @@ export default function RecipesScreen() {
         shownTitles.current,
         recipes.map((recipe) => recipe.title),
       );
-      lastResult.current = { recipes, forNames };
-      setRequest({ status: 'done', recipes, forNames });
+      lastResult.current = { recipes, forNames, forIds };
+      setRequest({ status: 'done', recipes, forNames, forIds });
       setIsChecklistOpen(false);
       void saveRecipeSnapshot({ selectedIds, lastResult: lastResult.current });
     } else {
       /* Errors are not saved: after a restart the last good result, or the checklist, shows. */
-      setRequest({ status: 'error', outcome: result.outcome, forNames });
+      setRequest({ status: 'error', outcome: result.outcome, forNames, forIds });
       setIsChecklistOpen(false);
     }
   }
@@ -369,12 +415,16 @@ export default function RecipesScreen() {
   }
 
   function suggestForTickedFood() {
-    void requestRecipes(toRecipeIngredients(candidates, selectedIds), currentAvoidTitles());
+    void requestRecipes(
+      toRecipeIngredients(candidates, selectedIds),
+      currentAvoidTitles(),
+      selectedIds,
+    );
   }
 
   /* New ideas for the same food as the recipes on screen. */
-  function suggestDifferentRecipes(ingredients: RecipeIngredient[]) {
-    void requestRecipes(ingredients, currentAvoidTitles());
+  function suggestDifferentRecipes(ingredients: RecipeIngredient[], forIds: string[]) {
+    void requestRecipes(ingredients, currentAvoidTitles(), forIds);
   }
 
   /* The star fills or empties only once the change is saved. */
@@ -391,7 +441,9 @@ export default function RecipesScreen() {
   /* A retry repeats what failed, so a failed "different" request stays different. */
   function tryAgain() {
     if (lastAsk.current) {
-      void requestRecipes(lastAsk.current.ingredients, lastAsk.current.avoidTitles);
+      const { ingredients, avoidTitles, forIds } = lastAsk.current;
+
+      void requestRecipes(ingredients, avoidTitles, forIds);
     }
   }
 
@@ -409,16 +461,38 @@ export default function RecipesScreen() {
     subtitle = 'Ideas for the food you already have.';
   } else if (request.status === 'done' && !isChecklistOpen) {
     subtitle = describeResults(request.recipes.length);
+  } else if (chosenIds === null && selectedIds.length > 0) {
+    /* Nothing changed yet, so the ticks are the eat-soon defaults. */
+    subtitle = `Food expiring within ${EAT_SOON_DAYS} days is ticked for you.`;
   }
 
+  /* Saved recipes need neither a key nor any food, so this is on every state of the tab. */
+  const savedLabel =
+    savedRecipes.length === 0 ? 'Nothing saved yet' : `${savedRecipes.length} saved`;
+  const savedButton = (
+    <Pressable
+      accessibilityLabel={`Saved recipes, ${savedLabel}`}
+      accessibilityRole="button"
+      onPress={() => router.push('/saved-recipes')}
+      style={({ pressed }) => [styles.savedButton, pressed ? styles.pressed : null]}
+    >
+      <SavedStar size={18} />
+      <Text style={styles.savedButtonText}>
+        {savedRecipes.length === 0 ? 'Saved' : `Saved · ${savedRecipes.length}`}
+      </Text>
+    </Pressable>
+  );
+
   const header = (
-    <View style={styles.header}>
-      <View style={styles.headerText}>
-        <Text accessibilityRole="header" style={styles.title}>
-          Recipes
-        </Text>
-        <Text style={styles.subtitle}>{subtitle}</Text>
-      </View>
+    <View>
+      <ScreenHeader
+        right={savedButton}
+        style={styles.screenHeader}
+        subtitle="Recipes"
+        title="What can I cook?"
+      />
+
+      <Text style={styles.subtitle}>{subtitle}</Text>
 
       {/* Settings stay closed while a request runs, so the key cannot change under it. */}
       {credentials ? (
@@ -429,21 +503,24 @@ export default function RecipesScreen() {
           disabled={isLoading}
           onPress={openSettings}
           style={({ pressed }) => [
-            styles.modelPill,
+            styles.modelRow,
             isLoading ? styles.disabledButton : null,
             pressed ? styles.pressed : null,
           ]}
         >
-          <Text style={styles.modelPillText}>{credentials.provider.label}</Text>
-          <Ionicons color="#263229" name="options-outline" size={18} />
+          <Ionicons color={COLORS.primary} name="sparkles-outline" size={18} />
+
+          <Text style={styles.modelText}>
+            Using <Text style={styles.modelName}>{credentials.provider.label}</Text>
+          </Text>
+
+          {/* Looks like a button, but the whole row is the one tap target. */}
+          <View style={styles.modelChange}>
+            <Text style={styles.modelChangeText}>Change</Text>
+          </View>
         </Pressable>
       ) : null}
     </View>
-  );
-
-  /* Under the header on every state: saved recipes need neither a key nor any food. */
-  const savedBox = (
-    <SavedRecipesBox count={savedRecipes.length} onPress={() => router.push('/saved-recipes')} />
   );
 
   /* ---- Screens that replace the whole tab ---- */
@@ -461,7 +538,7 @@ export default function RecipesScreen() {
   if (isInventoryLoading || credentials === undefined || !isSnapshotRead) {
     return (
       <View style={styles.centred}>
-        <ActivityIndicator color="#2f7d32" size="large" />
+        <ActivityIndicator color={COLORS.primary} size="large" />
       </View>
     );
   }
@@ -476,11 +553,10 @@ export default function RecipesScreen() {
     return (
       <ScrollView contentContainerStyle={contentStyle} style={styles.screen}>
         {header}
-        {savedBox}
 
         <View style={styles.infoCard}>
           <View style={styles.infoIcon}>
-            <Ionicons color="#2f7d32" name="key-outline" size={32} />
+            <Ionicons color={COLORS.link} name="key-outline" size={32} />
           </View>
 
           <Text style={styles.infoTitle}>Set up recipe suggestions</Text>
@@ -492,7 +568,7 @@ export default function RecipesScreen() {
           <View style={styles.setupFacts}>
             {SETUP_FACTS.map((fact) => (
               <View key={fact.text} style={styles.setupFact}>
-                <Ionicons color="#2f7d32" name={fact.icon} size={18} />
+                <Ionicons color={COLORS.link} name={fact.icon} size={18} />
                 <Text style={styles.setupFactText}>{fact.text}</Text>
               </View>
             ))}
@@ -515,11 +591,10 @@ export default function RecipesScreen() {
     return (
       <ScrollView contentContainerStyle={contentStyle} style={styles.screen}>
         {header}
-        {savedBox}
 
         <View style={styles.infoCard}>
           <View style={styles.infoIcon}>
-            <Ionicons color="#2f7d32" name="basket-outline" size={34} />
+            <Ionicons color={COLORS.link} name="basket-outline" size={34} />
           </View>
 
           <Text style={styles.infoTitle}>Nothing to cook with yet</Text>
@@ -546,12 +621,99 @@ export default function RecipesScreen() {
   /* The food a finished or failed request was for, shown as chips in place of the checklist. */
   const askedFor =
     request.status === 'done' || request.status === 'error'
-      ? findRecipeIngredients(request.forNames, candidates)
+      ? findStockedIngredients(request.forNames, candidates, request.forIds)
       : null;
   const failure =
     request.status === 'error'
       ? describeFailure(request.outcome, credentials.provider.company)
       : null;
+
+  /* ---- Results: the suggestions get the screen to themselves, with a way back to the food ---- */
+
+  if (request.status === 'done' && askedFor && !isChecklistOpen) {
+    const count = request.recipes.length;
+
+    return (
+      <ScrollView
+        contentContainerStyle={contentStyle}
+        showsVerticalScrollIndicator={false}
+        style={styles.screen}
+      >
+        <View style={styles.resultsHeader}>
+          <Pressable
+            accessibilityLabel="Change the food to cook with"
+            accessibilityRole="button"
+            hitSlop={6}
+            onPress={() => setIsChecklistOpen(true)}
+            style={({ pressed }) => [styles.backButton, pressed ? styles.pressed : null]}
+          >
+            <Ionicons color={COLORS.primary} name="chevron-back" size={24} />
+          </Pressable>
+
+          <Text accessibilityRole="header" style={styles.resultsHeading}>
+            {count === 1 ? 'One idea for tonight' : `${count} ideas for tonight`}
+          </Text>
+        </View>
+
+        {/* The food these ideas use up, coloured by how soon it goes off. */}
+        <View style={styles.usingUp}>
+          <Text style={styles.usingUpLabel}>Using up</Text>
+
+          {askedFor.map((ingredient) => {
+            const chip = usingUpChip(ingredient.daysLeft);
+
+            return (
+              <View
+                key={ingredient.name}
+                style={[styles.usingUpChip, { backgroundColor: chip.background }]}
+              >
+                {ingredient.daysLeft < 0 ? (
+                  <Ionicons color={COLORS.error} name="warning-outline" size={13} />
+                ) : null}
+                <Text style={[styles.usingUpChipText, { color: chip.color }]}>
+                  {ingredient.daysLeft < 0 ? `${ingredient.name} · expired` : ingredient.name}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Each card has the app's own red warning if the recipe uses expired food. */}
+        <View style={styles.cards}>
+          {request.recipes.map((recipe, index) => (
+            <RecipeCard
+              key={recipe.id}
+              index={index}
+              onOpen={() =>
+                router.push({
+                  pathname: '/recipe/[id]',
+                  params: { id: recipe.id, tint: String(index) },
+                })
+              }
+              expiredNames={findExpiredIngredients(recipe, askedFor)}
+              isSaved={savedRecipes.some((entry) => entry.id === recipe.id)}
+              onToggleSaved={() => void toggleSaved(recipe)}
+              recipe={recipe}
+            />
+          ))}
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => suggestDifferentRecipes(askedFor, request.forIds)}
+          style={({ pressed }) => [styles.differentButton, pressed ? styles.pressed : null]}
+        >
+          <Text style={styles.differentButtonText}>More ideas</Text>
+        </Pressable>
+
+        <Text style={styles.hintText}>New ideas replace the ones you haven&apos;t saved.</Text>
+
+        <Text style={[styles.footnote, styles.resultsFootnote]}>
+          AI-generated. Check ingredients for allergies before cooking.
+        </Text>
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView
@@ -560,15 +722,15 @@ export default function RecipesScreen() {
       style={styles.screen}
     >
       {header}
-      {savedBox}
 
-      {/* After results or an error: the food asked for folds into "cooking with" chips. */}
+      {/* After an error: the food asked for folds into "cooking with" chips. */}
       {askedFor && !isChecklistOpen ? (
         <View>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>COOKING WITH</Text>
 
             <Pressable
+              accessibilityLabel="Change the food to cook with"
               accessibilityRole="button"
               onPress={() => setIsChecklistOpen(true)}
               style={({ pressed }) => [styles.textButton, pressed ? styles.pressed : null]}
@@ -586,7 +748,9 @@ export default function RecipesScreen() {
                   key={ingredient.name}
                   style={[styles.chip, isExpired ? styles.expiredChip : null]}
                 >
-                  {isExpired ? <Ionicons color="#9f2420" name="warning-outline" size={14} /> : null}
+                  {isExpired ? (
+                    <Ionicons color={COLORS.error} name="warning-outline" size={14} />
+                  ) : null}
                   <Text style={[styles.chipText, isExpired ? styles.expiredChipText : null]}>
                     {isExpired ? `${ingredient.name} · expired` : ingredient.name}
                   </Text>
@@ -611,24 +775,40 @@ export default function RecipesScreen() {
             disabled={isLoading || tickedCount === 0}
             onPress={suggestForTickedFood}
             style={({ pressed }) => [
-              styles.primaryButton,
-              isLoading || tickedCount === 0 ? styles.disabledButton : null,
+              styles.suggestButton,
+              tickedCount === 0 ? styles.suggestButtonEmpty : null,
               pressed ? styles.pressed : null,
             ]}
           >
-            {isLoading ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Ionicons color="#ffffff" name="restaurant-outline" size={20} />
-            )}
-            <Text style={styles.primaryButtonText}>
+            {/* The count is above the list ("3 of 10 ticked"), so the button just says what it does. */}
+            {isLoading ? <ActivityIndicator color={COLORS.primary} /> : null}
+            <Text
+              style={[
+                styles.suggestButtonText,
+                tickedCount === 0 ? styles.suggestButtonTextEmpty : null,
+              ]}
+            >
               {isLoading
                 ? 'Finding recipes…'
                 : tickedCount === 0
                   ? 'Tick at least one food'
-                  : `Suggest recipes (${tickedCount})`}
+                  : 'Suggest recipes'}
             </Text>
           </Pressable>
+
+          {/* Came back to change the food: the last ideas are one tap away, without asking again. */}
+          {request.status === 'done' ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setIsChecklistOpen(false)}
+              style={({ pressed }) => [styles.backToIdeas, pressed ? styles.pressed : null]}
+            >
+              <Text style={styles.backToIdeasText}>
+                Back to the last {request.recipes.length === 1 ? 'idea' : 'ideas'}
+              </Text>
+              <Ionicons color={COLORS.primary} name="chevron-forward" size={16} />
+            </Pressable>
+          ) : null}
         </View>
       )}
 
@@ -636,7 +816,7 @@ export default function RecipesScreen() {
       {failure ? (
         <View accessibilityLiveRegion="polite" style={styles.infoCard}>
           <View style={[styles.infoIcon, styles.errorIcon]}>
-            <Ionicons color="#9f2420" name={failure.icon} size={32} />
+            <Ionicons color={COLORS.error} name={failure.icon} size={32} />
           </View>
 
           <Text style={styles.infoTitle}>{failure.title}</Text>
@@ -648,46 +828,12 @@ export default function RecipesScreen() {
             style={({ pressed }) => [styles.outlineButton, pressed ? styles.pressed : null]}
           >
             {failure.action === 'retry' ? (
-              <Ionicons color="#2f7d32" name="refresh-outline" size={17} />
+              <Ionicons color={COLORS.link} name="refresh-outline" size={17} />
             ) : null}
             <Text style={styles.outlineButtonText}>
               {failure.action === 'retry' ? 'Try again' : 'Update key'}
             </Text>
           </Pressable>
-        </View>
-      ) : null}
-
-      {/* The suggested recipes, each with the app's own red warning if it uses expired food. */}
-      {request.status === 'done' && askedFor ? (
-        <View style={styles.results}>
-          <Text style={[styles.sectionTitle, styles.resultsTitle]}>SUGGESTIONS</Text>
-
-          <View style={styles.cards}>
-            {request.recipes.map((recipe) => (
-              <RecipeCard
-                key={recipe.id}
-                expiredNames={findExpiredIngredients(recipe, askedFor)}
-                isSaved={savedRecipes.some((entry) => entry.id === recipe.id)}
-                onToggleSaved={() => void toggleSaved(recipe)}
-                recipe={recipe}
-              />
-            ))}
-          </View>
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => suggestDifferentRecipes(askedFor)}
-            style={({ pressed }) => [styles.differentButton, pressed ? styles.pressed : null]}
-          >
-            <Ionicons color="#2f7d32" name="refresh-outline" size={19} />
-            <Text style={styles.differentButtonText}>Suggest different recipes</Text>
-          </Pressable>
-
-          <Text style={styles.hintText}>New ideas replace the ones you haven&apos;t saved.</Text>
-
-          <Text style={[styles.footnote, styles.resultsFootnote]}>
-            AI-generated. Check ingredients for allergies before cooking.
-          </Text>
         </View>
       ) : null}
     </ScrollView>
@@ -697,17 +843,18 @@ export default function RecipesScreen() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f6f8f3',
+    backgroundColor: COLORS.background,
   },
   centred: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f6f8f3',
+    backgroundColor: COLORS.background,
     paddingHorizontal: 32,
   },
   noticeText: {
-    color: '#59635b',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
@@ -715,42 +862,62 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  headerText: {
-    flex: 1,
-    gap: 5,
-  },
-  title: {
-    color: '#172019',
-    fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: -0.4,
+  screenHeader: {
+    marginBottom: 0,
   },
   subtitle: {
-    color: '#59635b',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 15,
-    lineHeight: 22,
+    lineHeight: 21,
   },
-  modelPill: {
+  savedButton: {
     minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 2,
+    gap: 7,
     borderWidth: 1,
-    borderColor: '#dce4da',
+    borderColor: COLORS.border,
     borderRadius: 999,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 12,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 14,
   },
-  modelPillText: {
-    color: '#263229',
-    fontSize: 13,
-    fontWeight: '700',
+  savedButtonText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 15,
+  },
+  modelRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 16,
+    borderRadius: 16,
+    backgroundColor: COLORS.subtle,
+    paddingLeft: 16,
+    paddingRight: 8,
+  },
+  modelText: {
+    flex: 1,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 15,
+  },
+  modelName: {
+    fontFamily: 'Fredoka_600SemiBold',
+  },
+  modelChange: {
+    minHeight: 40,
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 14,
+  },
+  modelChangeText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 14,
   },
   checklist: {
     marginTop: 18,
@@ -763,9 +930,9 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     flex: 1,
-    color: '#687269',
-    fontSize: 11,
-    fontWeight: '800',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_500Medium',
+    fontSize: 12,
     letterSpacing: 0.9,
   },
   textButton: {
@@ -774,18 +941,18 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
   },
   textButtonText: {
-    color: '#2f7d32',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
     fontSize: 14,
-    fontWeight: '700',
   },
   chipCard: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
     borderWidth: 1,
-    borderColor: '#dce4da',
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
     padding: 14,
   },
   chip: {
@@ -793,20 +960,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 5,
     borderRadius: 999,
-    backgroundColor: '#e7f4e8',
-    paddingHorizontal: 11,
-    paddingVertical: 6,
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   expiredChip: {
-    backgroundColor: '#fde7e5',
+    backgroundColor: COLORS.errorSoft,
   },
   chipText: {
-    color: '#27652a',
+    color: COLORS.surface,
+    fontFamily: 'Fredoka_500Medium',
     fontSize: 14,
-    fontWeight: '600',
   },
   expiredChipText: {
-    color: '#9f2420',
+    color: COLORS.error,
   },
   primaryButton: {
     minHeight: 54,
@@ -814,58 +981,95 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginTop: 16,
+    marginTop: 20,
     alignSelf: 'stretch',
-    borderRadius: 14,
-    backgroundColor: '#2f7d32',
+    borderRadius: 18,
+    backgroundColor: COLORS.accent,
     paddingHorizontal: 18,
   },
   primaryButtonText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '700',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 17,
   },
   disabledButton: {
     opacity: 0.55,
   },
+  suggestButton: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginTop: 20,
+    borderRadius: 18,
+    backgroundColor: COLORS.accent,
+    paddingHorizontal: 18,
+  },
+  /* Nothing ticked: grey, so it doesn't look like it can be pressed. */
+  suggestButtonEmpty: {
+    backgroundColor: COLORS.divider,
+  },
+  suggestButtonText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 17,
+  },
+  suggestButtonTextEmpty: {
+    color: COLORS.secondary,
+  },
   outlineButton: {
-    minHeight: 46,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     marginTop: 20,
     borderWidth: 1,
-    borderColor: '#2f7d32',
-    borderRadius: 12,
-    backgroundColor: '#ffffff',
+    borderColor: COLORS.border,
+    borderRadius: 16,
+    backgroundColor: COLORS.surface,
     paddingHorizontal: 22,
   },
   outlineButtonText: {
-    color: '#2f7d32',
-    fontSize: 14,
-    fontWeight: '700',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 15,
   },
   differentButton: {
-    minHeight: 52,
+    minHeight: 54,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     marginTop: 18,
     borderWidth: 1,
-    borderColor: '#2f7d32',
-    borderRadius: 14,
-    backgroundColor: '#ffffff',
+    borderColor: COLORS.border,
+    borderRadius: 18,
+    backgroundColor: COLORS.surface,
   },
   differentButtonText: {
-    color: '#2f7d32',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 16,
+  },
+  backToIdeas: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    marginTop: 8,
+  },
+  backToIdeasText: {
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
     fontSize: 15,
-    fontWeight: '700',
   },
   hintText: {
     marginTop: 10,
-    color: '#59635b',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 13,
     lineHeight: 18,
     textAlign: 'center',
@@ -874,11 +1078,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 22,
     borderWidth: 1,
-    borderColor: '#dce4da',
-    borderRadius: 18,
-    backgroundColor: '#ffffff',
-    paddingHorizontal: 26,
-    paddingVertical: 30,
+    borderColor: COLORS.border,
+    borderRadius: 20,
+    backgroundColor: COLORS.surface,
+    paddingHorizontal: 24,
+    paddingVertical: 28,
   },
   infoIcon: {
     width: 66,
@@ -886,31 +1090,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 33,
-    backgroundColor: '#e7f4e8',
+    backgroundColor: COLORS.accentSoft,
   },
   errorIcon: {
-    backgroundColor: '#fde7e5',
+    backgroundColor: COLORS.errorSoft,
   },
   infoTitle: {
     marginTop: 16,
-    color: '#172019',
-    fontSize: 19,
-    fontWeight: '700',
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 20,
     textAlign: 'center',
   },
   infoText: {
     marginTop: 8,
-    color: '#59635b',
-    fontSize: 14,
-    lineHeight: 20,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 15,
+    lineHeight: 21,
     textAlign: 'center',
   },
   setupFacts: {
     alignSelf: 'stretch',
     gap: 10,
     marginTop: 20,
-    borderRadius: 12,
-    backgroundColor: '#f6f8f3',
+    borderRadius: 16,
+    backgroundColor: COLORS.subtle,
     padding: 14,
   },
   setupFact: {
@@ -920,21 +1125,63 @@ const styles = StyleSheet.create({
   },
   setupFactText: {
     flex: 1,
-    color: '#263229',
-    fontSize: 13,
-    lineHeight: 18,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 14,
+    lineHeight: 19,
   },
-  results: {
-    marginTop: 26,
+  resultsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
   },
-  resultsTitle: {
-    marginBottom: 10,
+  backButton: {
+    width: 48,
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+    backgroundColor: COLORS.subtle,
+  },
+  resultsHeading: {
+    flex: 1,
+    color: COLORS.primary,
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 26,
+    lineHeight: 32,
+  },
+  usingUp: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 16,
+    marginBottom: 14,
+  },
+  usingUpLabel: {
+    marginRight: 2,
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
+    fontSize: 15,
+  },
+  usingUpChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  usingUpChipText: {
+    fontFamily: 'Fredoka_600SemiBold',
+    fontSize: 14,
   },
   cards: {
-    gap: 16,
+    gap: 12,
   },
   footnote: {
-    color: '#687269',
+    color: COLORS.secondary,
+    fontFamily: 'Fredoka_400Regular',
     fontSize: 12,
     lineHeight: 17,
     textAlign: 'center',

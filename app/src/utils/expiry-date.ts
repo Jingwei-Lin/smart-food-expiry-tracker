@@ -2,6 +2,9 @@ import type { FoodItem } from '@/types/food-item';
 
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
+/* Shared with recipe suggestions, so "eat soon" means the same thing on every screen. */
+export const EAT_SOON_DAYS = 3;
+
 /**
  * Parses a date written as YYYY-MM-DD.
  */
@@ -208,18 +211,17 @@ export function getExpiryPresentation(value: string, today = new Date()): Expiry
     background: '#e7f4e8',
   };
 }
+
 export type ExpiryListPresentation = {
   /** The right-hand column of an inventory row: a weekday nearby, a date later on. */
   meta: string;
-  /** The colour rail down the left of an inventory row. */
-  railColor: string;
 };
 
 /**
- * Describes an item the way the grouped inventory list shows it.
+ * Describes when an item expires, the way an inventory row shows it.
  *
- * The section heading already says how urgent the item is, so the row itself
- * answers "when?" — the weekday while that still means something to a student
+ * The row's badge already says how urgent the item is, so this answers
+ * "when?" — the weekday while that still means something to a student
  * planning their week, and a date once it does not.
  */
 export function getExpiryListPresentation(
@@ -229,7 +231,7 @@ export function getExpiryListPresentation(
   const expiryDate = parseExpiryDate(value);
 
   if (!expiryDate) {
-    return { meta: 'No date', railColor: '#c2cbc3' };
+    return { meta: 'No date' };
   }
 
   const days = daysUntilExpiry(value, today);
@@ -237,31 +239,22 @@ export function getExpiryListPresentation(
   if (days < 0) {
     const elapsedDays = Math.abs(days);
 
-    return {
-      meta: `${elapsedDays} ${elapsedDays === 1 ? 'day' : 'days'} over`,
-      railColor: '#c8352c',
-    };
+    return { meta: `${elapsedDays} ${elapsedDays === 1 ? 'day' : 'days'} over` };
   }
 
   if (days === 0) {
-    return { meta: 'Today', railColor: '#c8352c' };
+    return { meta: 'Today' };
   }
 
   if (days === 1) {
-    return { meta: 'Tomorrow', railColor: '#d9922f' };
+    return { meta: 'Tomorrow' };
   }
 
-  const railColor = days <= 3 ? '#d9922f' : '#7fb183';
-
   if (days < 7) {
-    return {
-      meta: new Intl.DateTimeFormat('en-AU', { weekday: 'short' }).format(expiryDate),
-      railColor,
-    };
+    return { meta: new Intl.DateTimeFormat('en-AU', { weekday: 'short' }).format(expiryDate) };
   }
 
   return {
     meta: new Intl.DateTimeFormat('en-AU', { day: 'numeric', month: 'short' }).format(expiryDate),
-    railColor,
   };
 }

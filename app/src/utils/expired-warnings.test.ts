@@ -1,8 +1,20 @@
 import {
   describeExpiredInRecipe,
-  describeExpiredInSaved,
   describeExpiredTicked,
+  joinNames,
 } from '@/utils/expired-warnings';
+
+describe('joinNames', () => {
+  it('joins names with commas and a final "and"', () => {
+    expect(joinNames(['Milk'])).toBe('Milk');
+    expect(joinNames(['Milk', 'Spinach'])).toBe('Milk and Spinach');
+    expect(joinNames(['Milk', 'Spinach', 'Eggs'])).toBe('Milk, Spinach and Eggs');
+  });
+
+  it('gives an empty string for no names', () => {
+    expect(joinNames([])).toBe('');
+  });
+});
 
 describe('describeExpiredTicked', () => {
   it('names one expired food', () => {
@@ -28,20 +40,6 @@ describe('describeExpiredInRecipe', () => {
   it('names two expired foods with "and"', () => {
     expect(describeExpiredInRecipe(['Cheddar', 'Milk'])).toBe(
       'Uses Cheddar and Milk, which are past their date. Check they look and smell fine before cooking with them.',
-    );
-  });
-});
-
-describe('describeExpiredInSaved', () => {
-  it('says which of a saved recipe’s foods has expired since', () => {
-    expect(describeExpiredInSaved(['Cheddar'])).toBe(
-      'Your Cheddar is now past its date. Check it looks and smells fine before cooking with it.',
-    );
-  });
-
-  it('names several foods in one sentence', () => {
-    expect(describeExpiredInSaved(['Cheddar', 'Milk'])).toBe(
-      'Your Cheddar and Milk are now past their date. Check they look and smell fine before cooking with them.',
     );
   });
 });

@@ -45,6 +45,11 @@ export type ShelfLifeEstimate = {
   label: string;
 };
 
+/** Tags arrive as "en:fresh-vegetables"; the language prefix is not ours to rely on. */
+export function normalizeCategoryTag(tag: string): string {
+  return tag.replace(/^[a-z]{2}:/, '').toLowerCase();
+}
+
 /**
  * Estimates how long a scanned product keeps, from its category tags.
  *
@@ -52,8 +57,7 @@ export type ShelfLifeEstimate = {
  * in themselves rather than showing them a number we invented.
  */
 export function estimateShelfLife(categoryTags: string[]): ShelfLifeEstimate | null {
-  /* Tags arrive as "en:fresh-vegetables"; the language prefix is not ours to rely on. */
-  const tags = categoryTags.map((tag) => tag.replace(/^[a-z]{2}:/, '').toLowerCase());
+  const tags = categoryTags.map(normalizeCategoryTag);
 
   const rule = SHELF_LIFE_RULES.find((candidate) => tags.includes(candidate.categoryTag));
 
