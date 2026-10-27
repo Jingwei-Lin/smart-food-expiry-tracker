@@ -73,6 +73,7 @@ function buildFood(id: string, name: string, daysLeft: number): FoodItem {
     name,
     quantity: '1 item',
     expiryDate: daysFromToday(daysLeft),
+    storageLocation: 'fridge',
     reminderDaysBefore: 1,
     reminderRuleVersion: 2,
     notes: '',

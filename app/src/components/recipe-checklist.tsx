@@ -38,7 +38,7 @@ type DaysLeftPresentation = {
 };
 
 /*
- * The badges follow the design: dark for today, pink for the next few days,
+ * The badges are dark for today, pink for the next few days,
  * soft grey within a week and just an outline after that. The wording says
  * how long is left rather than a weekday, because here the student is
  * choosing what to cook now.
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     backgroundColor: COLORS.surface,
   },
-  /* Ticked food is tinted lime, as in the design. */
+  /* Ticked food is tinted lime. */
   rowChecked: {
     backgroundColor: COLORS.accentSoft,
   },
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  /* Drawn rather than an icon, to match the design's rounded 24 px boxes. */
+  /* Drawn as a box rather than an icon so the tick can fill it. */
   tickBox: {
     width: 24,
     height: 24,
@@ -299,7 +299,7 @@ const styles = StyleSheet.create({
   dimmed: {
     opacity: 0.45,
   },
-  /* The whole list while a request runs, as in the design's loading state. */
+  /* The whole list while a request runs. */
   busy: {
     opacity: 0.55,
   },

@@ -1,14 +1,6 @@
-
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import {
-  Alert,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Alert, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import ReanimatedSwipeable, {
   SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
@@ -51,13 +43,6 @@ function getExpiryBadgeStyle(item: FoodItem, today: Date) {
     };
   }
 
-  if (days === 0) {
-    return {
-      backgroundColor: COLORS.accentSoft,
-      color: COLORS.primary,
-    };
-  }
-
   if (days <= 3) {
     return {
       backgroundColor: '#FFF1F5',
@@ -84,13 +69,6 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
   const { meta } = getExpiryListPresentation(item.expiryDate, today);
   const expiry = getExpiryPresentation(item.expiryDate, today);
   const badge = getExpiryBadgeStyle(item, today);
-
-    // TEMPORARY DEBUG: check which category reaches the inventory row
-  console.log(
-    'Inventory category:',
-    item.name,
-    JSON.stringify(item.category),
-  );
 
   function openItem() {
     router.push({
@@ -149,11 +127,7 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
     ]);
   }
 
-  function renderActions(
-    _progress: unknown,
-    _translation: unknown,
-    swipeable: SwipeableMethods,
-  ) {
+  function renderActions(_progress: unknown, _translation: unknown, swipeable: SwipeableMethods) {
     return (
       <View style={styles.actions}>
         <Pressable
@@ -166,11 +140,7 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
             pressed && styles.actionPressed,
           ]}
         >
-          <Ionicons
-            name="create-outline"
-            size={20}
-            color="#FFFFFF"
-          />
+          <Ionicons name="create-outline" size={20} color="#FFFFFF" />
           <Text style={styles.actionLabel}>Edit</Text>
         </Pressable>
 
@@ -184,11 +154,7 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
             pressed && styles.actionPressed,
           ]}
         >
-          <Ionicons
-            name="trash-outline"
-            size={20}
-            color="#FFFFFF"
-          />
+          <Ionicons name="trash-outline" size={20} color="#FFFFFF" />
           <Text style={styles.actionLabel}>Delete</Text>
         </Pressable>
       </View>
@@ -208,10 +174,7 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
         accessibilityHint="Opens the item"
         accessibilityLabel={`${item.name}, ${expiry.label}`}
         onPress={openItem}
-        style={({ pressed }) => [
-          styles.row,
-          pressed && styles.rowPressed,
-        ]}
+        style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
       >
         <View style={styles.iconBox}>
           <FoodCategoryIcon
@@ -234,20 +197,8 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
           ) : null}
         </View>
 
-        <View
-          style={[
-            styles.expiryBadge,
-            { backgroundColor: badge.backgroundColor },
-          ]}
-        >
-          <Text
-            style={[
-              styles.expiryText,
-              { color: badge.color },
-            ]}
-          >
-            {meta}
-          </Text>
+        <View style={[styles.expiryBadge, { backgroundColor: badge.backgroundColor }]}>
+          <Text style={[styles.expiryText, { color: badge.color }]}>{meta}</Text>
         </View>
       </Pressable>
     </ReanimatedSwipeable>

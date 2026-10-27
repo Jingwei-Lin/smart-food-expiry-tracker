@@ -1,19 +1,11 @@
-
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ItemForm, ItemFormValues } from '@/components/item-form';
 import { useInventory } from '@/context/inventory-context';
-import type { FoodCategory } from '@/types/food-item';
+import { getValidCategory } from '@/types/food-item';
 import { returnToInventory } from '@/utils/navigation';
 
 type ScanParams = {
@@ -25,31 +17,6 @@ type ScanParams = {
   category?: string;
   lookupOutcome?: string;
 };
-
-const FOOD_CATEGORIES: FoodCategory[] = [
-  'Veg',
-  'Fruit',
-  'Dairy',
-  'Meat',
-  'Bread',
-  'Seafood',
-  'Others',
-];
-
-/**
- * Only allow categories that exist in the Add form.
- * Unknown or missing values fall back to Others.
- */
-function getValidCategory(category?: string): FoodCategory {
-  if (
-    category &&
-    FOOD_CATEGORIES.includes(category as FoodCategory)
-  ) {
-    return category as FoodCategory;
-  }
-
-  return 'Others';
-}
 
 function describeScan(
   params: ScanParams,
@@ -64,10 +31,7 @@ function describeScan(
     };
   }
 
-  if (
-    params.lookupOutcome === 'unavailable' ||
-    params.lookupOutcome === 'error'
-  ) {
+  if (params.lookupOutcome === 'unavailable' || params.lookupOutcome === 'error') {
     return {
       tone: 'manual',
       title: 'Could not look up this barcode',
@@ -101,19 +65,12 @@ export default function AddItemScreen() {
   const insets = useSafeAreaInsets();
 
   const scanNotice = describeScan(params);
-  const scannedCategory = params.category
-    ? getValidCategory(params.category)
-    : undefined;
+  const scannedCategory = params.category ? getValidCategory(params.category) : undefined;
 
   async function handleSubmit(values: ItemFormValues) {
     await addItem({
       ...values,
-      category: getValidCategory(values.category ?? scannedCategory),
-      storageLocation: values.storageLocation ?? 'fridge',
-      barcode:
-        typeof params.barcode === 'string'
-          ? params.barcode
-          : undefined,
+      barcode: typeof params.barcode === 'string' ? params.barcode : undefined,
     });
 
     returnToInventory();
@@ -132,16 +89,9 @@ export default function AddItemScreen() {
               returnToInventory();
             }
           }}
-          style={({ pressed }) => [
-            styles.backButton,
-            pressed && styles.pressedButton,
-          ]}
+          style={({ pressed }) => [styles.backButton, pressed && styles.pressedButton]}
         >
-          <Ionicons
-            name="chevron-back"
-            size={25}
-            color={COLORS.primary}
-          />
+          <Ionicons name="chevron-back" size={25} color={COLORS.primary} />
         </Pressable>
 
         <Text style={styles.title}>Add food</Text>
@@ -150,9 +100,7 @@ export default function AddItemScreen() {
       <View
         style={[
           styles.noticeCard,
-          scanNotice?.tone === 'manual'
-            ? styles.warningCard
-            : styles.successCard,
+          scanNotice?.tone === 'manual' ? styles.warningCard : styles.successCard,
         ]}
       >
         <View style={styles.noticeIcon}>
@@ -165,18 +113,12 @@ export default function AddItemScreen() {
                   : 'information-circle-outline'
             }
             size={22}
-            color={
-              scanNotice?.tone === 'manual'
-                ? COLORS.pinkText
-                : COLORS.green
-            }
+            color={scanNotice?.tone === 'manual' ? COLORS.pinkText : COLORS.green}
           />
         </View>
 
         <View style={styles.noticeContent}>
-          <Text style={styles.noticeTitle}>
-            {scanNotice?.title ?? 'Add your groceries'}
-          </Text>
+          <Text style={styles.noticeTitle}>{scanNotice?.title ?? 'Add your groceries'}</Text>
 
           <Text style={styles.noticeText}>
             {scanNotice?.text ??
@@ -191,10 +133,7 @@ export default function AddItemScreen() {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={0}
-      style={[
-        styles.screen,
-        { paddingTop: insets.top + 10 },
-      ]}
+      style={[styles.screen, { paddingTop: insets.top + 10 }]}
     >
       <ItemForm
         key={JSON.stringify([
@@ -208,8 +147,7 @@ export default function AddItemScreen() {
         blockedReason={
           isStorageReady
             ? null
-            : storageError ??
-              'Loading your saved inventory. Saving will be enabled in a moment.'
+            : (storageError ?? 'Loading your saved inventory. Saving will be enabled in a moment.')
         }
         clearOnSubmit
         expiryHelpText={
@@ -227,7 +165,7 @@ export default function AddItemScreen() {
           category: scannedCategory ?? 'Others',
         }}
         onSubmit={handleSubmit}
-        submitLabel="Add to fridge"
+        submitLabel={(storageLocation) => `Add to ${storageLocation}`}
       />
     </KeyboardAvoidingView>
   );

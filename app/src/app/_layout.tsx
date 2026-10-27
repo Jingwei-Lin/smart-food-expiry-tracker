@@ -1,4 +1,3 @@
-
 import { router, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -19,9 +18,7 @@ import * as Notifications from '@/services/local-notifications';
 
 configureExpiryNotificationHandler();
 
-function openItemFromNotification(
-  notification: Notifications.Notification,
-): boolean {
+function openItemFromNotification(notification: Notifications.Notification): boolean {
   const itemId = notification.request.content.data?.itemId;
 
   if (typeof itemId !== 'string' || !itemId) {
@@ -39,11 +36,7 @@ function useNotificationNavigation(): void {
 
     void Notifications.getLastNotificationResponseAsync()
       .then((response) => {
-        if (
-          isMounted &&
-          response &&
-          openItemFromNotification(response.notification)
-        ) {
+        if (isMounted && response && openItemFromNotification(response.notification)) {
           return Notifications.clearLastNotificationResponseAsync();
         }
 
@@ -51,14 +44,11 @@ function useNotificationNavigation(): void {
       })
       .catch(() => undefined);
 
-    const subscription =
-      Notifications.addNotificationResponseReceivedListener((response) => {
-        if (openItemFromNotification(response.notification)) {
-          void Notifications.clearLastNotificationResponseAsync().catch(
-            () => undefined,
-          );
-        }
-      });
+    const subscription = Notifications.addNotificationResponseReceivedListener((response) => {
+      if (openItemFromNotification(response.notification)) {
+        void Notifications.clearLastNotificationResponseAsync().catch(() => undefined);
+      }
+    });
 
     return () => {
       isMounted = false;
@@ -86,50 +76,23 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <InventoryProvider>
           <Stack>
-            <Stack.Screen
-              name="(tabs)"
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-            <Stack.Screen
-              name="scan"
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="scan" options={{ headerShown: false }} />
 
-            <Stack.Screen
-              name="add"
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="add" options={{ headerShown: false }} />
 
-            <Stack.Screen
-              name="item/[id]"
-              options={{ title: 'Item' }}
-            />
+            <Stack.Screen name="item/[id]" options={{ title: 'Item' }} />
 
-            <Stack.Screen
-              name="item/edit/[id]"
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="item/edit/[id]" options={{ headerShown: false }} />
 
-            <Stack.Screen
-              name="donation-point/[id]"
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="donation-point/[id]" options={{ headerShown: false }} />
 
-            <Stack.Screen
-              name="recipe/[id]"
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="recipe/[id]" options={{ headerShown: false }} />
 
-            <Stack.Screen
-              name="recipe-settings"
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="recipe-settings" options={{ headerShown: false }} />
 
-            <Stack.Screen
-              name="saved-recipes"
-              options={{ headerShown: false }}
-            />
+            <Stack.Screen name="saved-recipes" options={{ headerShown: false }} />
           </Stack>
 
           <StatusBar style="auto" />

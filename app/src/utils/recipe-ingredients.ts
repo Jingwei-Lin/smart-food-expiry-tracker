@@ -1,6 +1,5 @@
 import { FoodItem } from '@/types/food-item';
-import { daysUntilExpiry } from '@/utils/expiry-date';
-import { EAT_SOON_DAYS } from '@/utils/inventory-sections';
+import { daysUntilExpiry, EAT_SOON_DAYS } from '@/utils/expiry-date';
 
 /* Enough for a varied meal without the prompt turning into a shopping list. */
 export const MAX_RECIPE_INGREDIENTS = 10;

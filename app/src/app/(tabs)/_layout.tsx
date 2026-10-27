@@ -3,7 +3,6 @@ import { router } from 'expo-router';
 import { Tabs, type BottomTabBarProps } from 'expo-router/js-tabs';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-/* Use '#2f7d32' for BUTTON_COLOR if you would rather have the app's green. */
 const BUTTON_COLOR = '#A6D45A';
 const ACTIVE_COLOR = '#1E2A16';
 const INACTIVE_COLOR = '#55614D';
@@ -96,7 +95,7 @@ function TabBar({ state, emitter, navigateToTab, insets }: BottomTabBarProps) {
           onPress={() => router.push('/scan')}
           style={({ pressed }) => [styles.button, pressed ? styles.pressed : null]}
         >
-          <Ionicons color="#ffffff" name="add" size={40} />
+          <Ionicons color={ACTIVE_COLOR} name="add" size={40} />
         </Pressable>
       </View>
     </View>

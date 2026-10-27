@@ -18,7 +18,7 @@ import { SavedStar } from '@/components/saved-star';
 import { ScreenHeader } from '@/components/screen-header';
 import { useInventory } from '@/context/inventory-context';
 import { useToday } from '@/hooks/use-today';
-import { EAT_SOON_DAYS } from '@/utils/inventory-sections';
+import { EAT_SOON_DAYS } from '@/utils/expiry-date';
 import { fetchRecipeSuggestions, RecipeSuggestionResult } from '@/utils/recipe-client';
 import { getRecipeCredentials, RecipeCredentials } from '@/utils/recipe-credentials';
 import {
@@ -132,7 +132,7 @@ function describeFailure(outcome: FailedOutcome, company: string): ErrorCopy {
   }
 }
 
-/* The set-up card's three promises (design 5). */
+/* What the set-up card promises about the key and the data sent. */
 const SETUP_FACTS: { icon: IconName; text: string }[] = [
   { icon: 'lock-closed-outline', text: 'Your key stays on this phone.' },
   { icon: 'list-outline', text: 'Only the names and dates of the food you tick are sent.' },

@@ -6,3 +6,5 @@ android/
 ios/
 assets/
 package-lock.json
+# Generated data, not hand-formatted.
+src/data/au-suburbs.json

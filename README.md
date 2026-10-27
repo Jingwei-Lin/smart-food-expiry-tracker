@@ -14,7 +14,6 @@ You scan a product's barcode when you unpack your shopping, and the app fills in
 
 - [Key features](#key-features)
 - [Getting started](#getting-started)
-- [Fonts and icons](#fonts-and-icons)
 - [Demo account and test data](#demo-account-and-test-data)
 - [How the app is built](#how-the-app-is-built)
 - [Data formats](#data-formats)
@@ -36,8 +35,8 @@ You scan a product's barcode when you unpack your shopping, and the app fills in
 | **Barcode scanning**      | Scan a product and look up its name in Open Food Facts. The app provides a guessed expiry estimate that you can correct                                                                                                                                                | iOS; Android not tested                                               |
 | **Manual entry**          | Add, edit and delete items by hand, for loose produce or anything without a barcode. The expiry date is picked from a calendar. Swipe a row left to edit or delete it straight from the list                                                                         | iOS; Android not tested                                               |
 | **Expiry reminders**      | Choose 1 to 7 days' notice and get a second reminder on the expiry day, at 9 am. Reminders follow every edit, resolve and delete, and tapping one opens the item. The item's screen says which reminders are actually set                                            | iOS; Android not tested                                               |
-| **Donation point finder** | Food banks, soup kitchens and community pantries within 10 km of you, or of any suburb you type, closest first. "Find donation point" on an item opens it, and "Mark as donated" counts the item in the summary                                                      | iOS; Android not tested                                               |
-| **Weekly waste summary**  | Counts the food you marked eaten, donated or thrown out in each of the last three weeks (Monday to Sunday)                                                                                                                                                           | iOS; Android not tested                                               |
+| **Donation point finder** | Food banks, soup kitchens and community pantries within 10 km of you, or of any suburb you type, closest first. "Donate it" on an item opens it, and ticking food on a place's page and marking it as donated counts it in the summary                                                      | iOS; Android not tested                                               |
+| **Weekly waste summary**  | Counts the food you marked eaten, donated or thrown out this week (Monday to Sunday) or this month, with a day-by-day chart for the week                                                                                                                                                           | iOS; Android not tested                                               |
 | **Recipe suggestions**    | Tick the food you want to cook with (food expiring within 3 days is ticked for you) and get simple recipes from an AI model you choose, using your own API key. Save the ones you like, ask for different ideas, and your last suggestions come back after a restart | iOS; Android not tested; Gemini, Matilda and DeepSeek tested          |
 
 Also worth knowing:
@@ -95,34 +94,6 @@ Also worth knowing:
 
 The app's own launcher icon and splash screen only show in a development build (`npx expo run:ios`, which needs Xcode). Expo Go shows its own icon. The app itself can be run in Expo Go.
 
-## Fonts and icons
-
-The app already includes the Fredoka font, Expo's Ionicons, and Lucide icons. You do not need to install them again to run the app. When adding a different font or icon library, install its packages from `app/` and register/use them in the source:
-
-### Adding a Google font
-
-Install Expo's font loader and the font package. For example, to add Fredoka to a new project:
-
-```bash
-npx expo install expo-font @expo-google-fonts/fredoka
-```
-
-Import the font weights you need in `src/app/_layout.tsx`, add them to the `useFonts` map, and wait for the fonts to load before rendering screens. Then use the corresponding family name in a component's `fontFamily` style. Fredoka is already configured this way in this app.
-
-For another Google font, replace `fredoka` with that font's package name and import the font weights exported by that package.
-
-### Adding icons
-
-- **Ionicons:** `@expo/vector-icons` is already installed. Import `Ionicons` from `@expo/vector-icons` and use an icon name from the Ionicons set.
-- **Lucide:** this project uses `lucide-react-native` for outline icons. For a new project, install it and its native SVG peer dependency:
-  ```bash
-  npm install lucide-react-native
-  npx expo install react-native-svg
-  ```
-  Import the required icon component from `lucide-react-native` and render it with `size` and `color` props. Expo may require a development build to use native modules not included in Expo Go.
-
-After adding native dependencies, restart Expo. If Metro still reports a missing module, clear its cache with `npx expo start -c`.
-
 ## Demo account and test data
 
 **There are no accounts and no login.** Everything is stored on the phone, so a fresh install starts with an empty inventory and you can try every feature straight away.
@@ -138,10 +109,10 @@ The key is never stored in this repository.
 **A quick tour of every feature:**
 
 1. **Scan:** tap the round scan button in the middle of the tab bar and scan any packaged grocery. If Open Food Facts doesn't know it, the add form opens empty with a message saying so.
-2. **Add by hand:** fill in a name and pick an expiry date one or two days away. The item appears under **Eat soon** on Home.
+2. **Add by hand:** fill in a name and pick an expiry date one or two days away. The item appears on Home, in the Fridge, Freezer or Pantry tab you chose, with the soonest expiry first.
 3. **Reminder:** an item that expires today, saved after 9 am, gets its reminder about a minute later. Tap the reminder to open the item.
-4. **Resolve:** open an item and tap **Mark as eaten**, **Mark as thrown out** or **Mark as donated**. The **Summary** tab counts it under this week.
-5. **Donate:** on an active item, tap **Find donation point**.
+4. **Resolve:** open an item and tap **Eaten** or **Thrown out**. The **Summary** tab counts it under this week.
+5. **Donate:** on an active item, tap **Donate it**. To count food as donated, open a place, tick the food you are taking and tap **Mark … as donated**.
    - If you deny location, search a suburb with its state, e.g. "Newtown NSW".
    - Most listed places are in the state capitals.
 6. **Recipes:** with the test key saved, tick some food on the **Recipes** tab and tap **Suggest recipes**. Star one to save it.
@@ -156,14 +127,16 @@ Navigation uses [Expo Router](https://docs.expo.dev/router/introduction/): every
 
 | Route           | File                         | What it is                                                  |
 | --------------- | ---------------------------- | ----------------------------------------------------------- |
-| Home            | `(tabs)/index.tsx`           | The inventory, grouped into Expired, Eat soon and Later     |
-| Summary         | `(tabs)/summary.tsx`         | The weekly waste summary                                    |
+| Home            | `(tabs)/index.tsx`           | The inventory, in Fridge, Freezer and Pantry tabs           |
+| Summary         | `(tabs)/summary.tsx`         | The waste summary, for the week or the month                |
 | Donation Points | `(tabs)/donation-points.tsx` | Nearby donation points                                      |
 | Recipes         | `(tabs)/recipes.tsx`         | Ingredient checklist, suggestions and the saved recipes box |
 | Scanner         | `scan.tsx`                   | The camera, opened by the centre button in the tab bar      |
 | Add item        | `add.tsx`                    | The add form, pre-filled from a scan when there is one      |
 | Item            | `item/[id].tsx`              | One item: details, reminders and its actions                |
 | Edit item       | `item/edit/[id].tsx`         | The same form as Add, for an existing item                  |
+| Donation point  | `donation-point/[id].tsx`    | One place: hours, directions, and marking food as donated   |
+| Recipe          | `recipe/[id].tsx`            | One suggested recipe, and what it uses from your food       |
 | Recipe settings | `recipe-settings.tsx`        | Choose a model and manage API keys                          |
 | Saved recipes   | `saved-recipes.tsx`          | Every starred recipe                                        |
 
@@ -195,13 +168,14 @@ Every change is written to storage first and only then shown. The stored list is
 - **Reminders.**
   - `services/expiry-notifications.ts` plans an advance reminder and an expiry-day reminder at 9 am, and schedules them locally. A time that has already passed becomes a reminder one minute from now.
   - It imports `expo-notifications` only through `services/local-notifications.ts`.
-- **Expiry dates.** `utils/expiry-date.ts` reads and writes the stored `YYYY-MM-DD` dates, counts the days left in local calendar days, and produces the badges and labels. `utils/inventory-sections.ts` groups the Home list.
-- **Weekly summary.** `utils/weekly-summary.ts` counts resolved items into Monday-to-Sunday weeks by `statusUpdatedAt`, and is correct in the week the clocks change. `hooks/use-today.ts` moves the tabs on to a new day when they come back into view.
+- **Expiry dates.** `utils/expiry-date.ts` reads and writes the stored `YYYY-MM-DD` dates, counts the days left in local calendar days, and produces the badges and labels. Home sorts each storage location by the days left.
+- **Weekly summary.** `utils/weekly-summary.ts` counts resolved items by the day of their `statusUpdatedAt`, for the Monday-to-Sunday week or the calendar month, and is correct in the week the clocks change. `hooks/use-today.ts` moves the tabs on to a new day when they come back into view.
 - **Donation points.**
   - The places ship with the app in `src/data/donation-points-au.json`.
   - `utils/donation-snapshot.ts` reads that file and keeps the places within 10 km.
   - `utils/overpass.ts` turns the OpenStreetMap data into cards, with distances and readable opening hours.
-  - The screen gets the phone's position with `expo-location`, or geocodes a typed suburb. It fills in missing addresses with the phone's reverse geocoder, one request at a time.
+  - `utils/opening-hours.ts` reads OpenStreetMap's `opening_hours` text, so a place can say whether it is open now.
+  - The screen gets the phone's position with `expo-location`. Suggestions for a typed suburb come from `src/data/au-suburbs.json`, a bundled list of Australian suburbs and their positions; a suburb submitted without choosing a suggestion is geocoded. It fills in missing addresses with the phone's reverse geocoder, one request at a time.
 - **Recipes.**
   1. `utils/recipe-ingredients.ts` builds the checklist (eat-soon food ticked, at most 10).
   2. `utils/recipe-prompt.ts` writes the prompt and validates the reply. A recipe that uses food you didn't tick is dropped.
@@ -228,6 +202,8 @@ A food item, as stored (`src/types/food-item.ts`):
   "name": "Greek yoghurt",
   "quantity": "1 tub",
   "expiryDate": "2026-10-24",
+  "storageLocation": "fridge",
+  "category": "Dairy",
   "reminderDaysBefore": 2,
   "reminderRuleVersion": 2,
   "notes": "Opened on Monday",
@@ -241,6 +217,8 @@ A food item, as stored (`src/types/food-item.ts`):
 | Field                 | Meaning                                                                                                               |
 | --------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `status`              | `active`, `eaten`, `discarded` or `donated`                                                                           |
+| `storageLocation`     | `fridge`, `freezer` or `pantry`; items saved without one load as `fridge`                                              |
+| `category`            | `Veg`, `Fruit`, `Dairy`, `Meat`, `Bread`, `Seafood` or `Others`; items saved without one load as `Others`             |
 | `statusUpdatedAt`     | Set when an item is resolved; the summary counts by it                                                                |
 | `barcode`             | Only on scanned items                                                                                                 |
 | `notificationIds`     | The scheduled reminders, absent when none are set                                                                     |
@@ -355,7 +333,7 @@ The script is `scripts/update-donation-snapshot.ts`, and it uses `src/utils/over
   - Add an entry to `RECIPE_PROVIDERS` in `src/utils/recipe-providers.ts`, with its id, label, model, `baseUrl`, key link and any request options, and add the id to `RecipeProviderId`.
   - An OpenAI-compatible provider with JSON mode needs nothing else. Others need an adapter like `matilda.ts`.
 - **Improve shelf-life estimates.** Add a rule to `SHELF_LIFE_RULES` in `src/utils/shelf-life.ts`, with a test.
-- **Add a font or icon set.** Follow [Fonts and icons](#fonts-and-icons); use `npx expo install` for Expo/native packages and keep font registration in the root layout.
+- **Add a font or icon set.** Use `npx expo install` for Expo/native packages, and register a new font in the `useFonts` call in `src/app/_layout.tsx`.
 - **Add a tab.** Add a file to `src/app/(tabs)/`, and add it to `TABS` in `(tabs)/_layout.tsx`.
 - **Change what an item stores.**
   - Update `FoodItem` in `src/types/food-item.ts` and `normalizeFoodItem` in the inventory context, which validates stored items.
@@ -387,7 +365,7 @@ The tests cover:
 - each AI provider's replies and errors, and key storage;
 - the Home, Recipes, recipe settings, saved recipes, item, weekly summary and donation points screens;
 - the tabs moving on to a new day after midnight;
-- the weekly summary's counts and week boundaries, including the week the clocks change.
+- the summary's counts and its week and month boundaries, including the week the clocks change.
 
 None of the tests need an API key or an internet connection.
 
@@ -404,7 +382,7 @@ app/                  Expo project (run every command from here)
   src/utils/          expiry dates, shelf-life estimates, Open Food Facts lookup,
                       OpenStreetMap donation points, recipe prompts, AI providers,
                       saved recipes
-  src/data/           the bundled list of donation points
+  src/data/           the bundled donation points and Australian suburbs
   src/types/          the food item data model
   src/__tests__/      screen tests (kept out of src/app/, where every file becomes a route)
   scripts/            npm run snapshot:donation-points, which regenerates that list

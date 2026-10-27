@@ -14,40 +14,30 @@ jest.mock('@react-native-async-storage/async-storage', () =>
 const mockSecureStoreItems = new Map<string, string>();
 
 /*
- * Mock Expo icons so Jest doesn't try to load native font assets.
+ * The icon font cannot load under Jest. The stand-in is an empty View rather
+ * than text, so an icon's name can never be matched by a getByText query.
  */
 jest.mock('@expo/vector-icons', () => {
-  const React = require('react');
-  const { Text } = require('react-native');
+  const { createElement } = jest.requireActual<typeof import('react')>('react');
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
 
-  const MockIcon = (props: { name?: string }) =>
-    React.createElement(Text, null, props.name ?? 'icon');
-
-  return {
-    Ionicons: MockIcon,
-    MaterialIcons: MockIcon,
-    MaterialCommunityIcons: MockIcon,
-    FontAwesome: MockIcon,
-    Feather: MockIcon,
-  };
+  return { Ionicons: () => createElement(View) };
 });
 
 /*
- * Mock lucide icons so Jest doesn't try to load ESM/native SVG modules.
+ * lucide-react-native ships only as an ES module, which Jest on older Node
+ * versions cannot load. Any icon imported from it becomes an empty View.
  */
 jest.mock('lucide-react-native', () => {
-  const React = require('react');
-  const { View } = require('react-native');
+  const { createElement } = jest.requireActual<typeof import('react')>('react');
+  const { View } = jest.requireActual<typeof import('react-native')>('react-native');
 
-  const MockIcon = () => React.createElement(View, null);
+  const MockIcon = () => createElement(View, null);
 
   return new Proxy(
     {},
     {
-      get: (_target, name) =>
-        name === '__esModule'
-          ? false
-          : MockIcon,
+      get: (_target, name) => (name === '__esModule' ? false : MockIcon),
     },
   );
 });

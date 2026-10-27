@@ -6,14 +6,22 @@ export type ResolvedFoodItemStatus = Exclude<FoodItemStatus, 'active'>;
 /** Where the food item is stored in the user's home. */
 export type FoodStorageLocation = 'fridge' | 'freezer' | 'pantry';
 
-export type FoodCategory =
-  | 'Veg'
-  | 'Fruit'
-  | 'Dairy'
-  | 'Meat'
-  | 'Bread'
-  | 'Seafood'
-  | 'Others';
+export const FOOD_CATEGORIES = [
+  'Veg',
+  'Fruit',
+  'Dairy',
+  'Meat',
+  'Bread',
+  'Seafood',
+  'Others',
+] as const;
+
+export type FoodCategory = (typeof FOOD_CATEGORIES)[number];
+
+/** Narrows a loose value, such as a route param, to a category, falling back to Others. */
+export function getValidCategory(category?: string): FoodCategory {
+  return FOOD_CATEGORIES.find((valid) => valid === category) ?? 'Others';
+}
 
 export type FoodItem = {
   id: string;
@@ -48,12 +56,8 @@ export type FoodItem = {
 
 export type NewFoodItem = Pick<
   FoodItem,
-  | 'name'
-  | 'quantity'
-  | 'expiryDate'
-  | 'reminderDaysBefore'
-  | 'notes'
-  | 'barcode'
-  | 'storageLocation'
-  | 'category'
->;
+  'name' | 'quantity' | 'expiryDate' | 'reminderDaysBefore' | 'notes' | 'barcode' | 'category'
+> & {
+  /** Left out, the item goes in the fridge. */
+  storageLocation?: FoodStorageLocation;
+};

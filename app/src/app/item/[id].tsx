@@ -3,6 +3,7 @@ import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,10 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FoodCategoryIcon } from '@/components/food-category-icon';
 import { useInventory } from '@/context/inventory-context';
 import { returnToInventory } from '@/utils/navigation';
-import type {
-  FoodStorageLocation,
-  ResolvedFoodItemStatus,
-} from '@/types/food-item';
+import type { FoodStorageLocation, ResolvedFoodItemStatus } from '@/types/food-item';
 import { describeDeletion } from '@/utils/delete-confirm';
 import {
   daysUntilExpiry,
@@ -56,12 +54,13 @@ const STATUS_LABELS: Record<ResolvedFoodItemStatus, string> = {
   donated: 'Donated',
 };
 
-function formatStoredDate(value: string | undefined): string {
-  if (!value) return 'Not available';
+/** Null for a missing or unreadable timestamp, so the line can be left out. */
+function formatStoredDate(value: string | undefined): string | null {
+  if (!value) return null;
 
   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) return 'Not available';
+  if (Number.isNaN(date.getTime())) return null;
 
   return formatDayMonthYear(date);
 }
@@ -96,90 +95,22 @@ function getExpiryHint(days: number): string {
   return 'Keep an eye on the expiry date.';
 }
 
-type DetailRowProps = {
-  icon:
-    | 'calendar-outline'
-    | 'time-outline'
-    | 'notifications-outline'
-    | 'cube-outline';
-  label: string;
-  value: string;
-};
-
-function DetailRow({ icon, label, value }: DetailRowProps) {
-  return (
-    <View style={styles.detailRow}>
-      <Ionicons name={icon} size={24} color={COLORS.secondary} />
-
-      <View style={styles.detailCopy}>
-        <Text style={styles.detailLabel}>{label}</Text>
-        <Text style={styles.detailValue}>{value}</Text>
-      </View>
-    </View>
-  );
-}
-
-type ActionRowProps = {
-  icon: 'book-outline' | 'location-outline' | 'create-outline';
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-};
-
-function ActionRow({
-  icon,
-  label,
-  onPress,
-  disabled = false,
-}: ActionRowProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.actionRow,
-        pressed && styles.pressed,
-        disabled && styles.disabled,
-      ]}
-    >
-      <Ionicons name={icon} size={24} color={COLORS.primary} />
-
-      <Text style={styles.actionLabel}>{label}</Text>
-
-      <Ionicons
-        name="chevron-forward"
-        size={22}
-        color={COLORS.secondary}
-      />
-    </Pressable>
-  );
-}
-
 export default function ItemDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
 
-  const {
-    items,
-    isLoading,
-    isStorageReady,
-    storageError,
-    deleteItem,
-    resolveItem,
-  } = useInventory();
+  const { items, isLoading, isStorageReady, storageError, deleteItem, resolveItem } =
+    useInventory();
 
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<ResolvedFoodItemStatus | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const item = items.find((candidate) => candidate.id === id);
   const actionsDisabled = isWorking || !isStorageReady;
 
-  async function runAction(
-    action: () => Promise<void>,
-    failureMessage: string,
-  ) {
+  async function runAction(action: () => Promise<void>, failureMessage: string) {
     setActionError(null);
     setIsWorking(true);
 
@@ -190,10 +121,13 @@ export default function ItemDetailScreen() {
       setActionError(failureMessage);
     } finally {
       setIsWorking(false);
+      setPendingStatus(null);
     }
   }
 
   function handleResolve(status: ResolvedFoodItemStatus) {
+    setPendingStatus(status);
+
     void runAction(
       () => resolveItem(id, status),
       'This item could not be updated. Please try again.',
@@ -201,10 +135,7 @@ export default function ItemDetailScreen() {
   }
 
   function handleDelete() {
-    void runAction(
-      () => deleteItem(id),
-      'This item could not be deleted. Please try again.',
-    );
+    void runAction(() => deleteItem(id), 'This item could not be deleted. Please try again.');
   }
 
   function openEdit() {
@@ -246,17 +177,8 @@ export default function ItemDetailScreen() {
       <>
         <Stack.Screen options={{ headerShown: false }} />
 
-        <View
-          style={[
-            styles.centeredContainer,
-            { paddingTop: insets.top + 24 },
-          ]}
-        >
-          <Ionicons
-            name="alert-circle-outline"
-            size={42}
-            color={COLORS.secondary}
-          />
+        <View style={[styles.centeredContainer, { paddingTop: insets.top + 24 }]}>
+          <Ionicons name="alert-circle-outline" size={42} color={COLORS.secondary} />
 
           <Text style={styles.notFoundTitle}>Item not found</Text>
 
@@ -277,12 +199,23 @@ export default function ItemDetailScreen() {
   }
 
   const isActive = item.status === 'active';
-  const statusLabel =
-    item.status === 'active' ? null : STATUS_LABELS[item.status];
+  const statusLabel = item.status === 'active' ? null : STATUS_LABELS[item.status];
   const daysLeft = daysUntilExpiry(item.expiryDate);
   const expiry = getExpiryPresentation(item.expiryDate);
   const deletion = describeDeletion(item);
-  const reminderDescription = describeReminders(item);
+  const addedOn = formatStoredDate(item.createdAt);
+  const updatedOn = formatStoredDate(item.statusUpdatedAt);
+
+  /* An item can have no quantity, and the separator belongs only between two parts. */
+  const itemMeta = [item.quantity.trim(), addedOn ? `Added ${addedOn}` : '']
+    .filter(Boolean)
+    .join(' · ');
+  /*
+   * Web never schedules reminders, so "Not set" there would send the student
+   * to Edit for nothing.
+   */
+  const reminderDescription =
+    Platform.OS === 'web' ? 'Not available on web' : describeReminders(item);
 
   // This is a qualitative urgency indicator, not a shelf-life percentage.
   const urgencyWidth = !Number.isFinite(daysLeft)
@@ -307,20 +240,12 @@ export default function ItemDetailScreen() {
           contentContainerStyle={[
             styles.content,
             {
-              paddingBottom: isActive
-                ? 145 + insets.bottom
-                : 24 + insets.bottom,
+              paddingBottom: isActive ? 145 + insets.bottom : 24 + insets.bottom,
             },
           ]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Header */}
-          <View
-            style={[
-              styles.header,
-              { paddingTop: insets.top + 10 },
-            ]}
-          >
+          <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Back to inventory"
@@ -331,16 +256,9 @@ export default function ItemDetailScreen() {
                   returnToInventory();
                 }
               }}
-              style={({ pressed }) => [
-                styles.headerButton,
-                pressed && styles.pressed,
-              ]}
+              style={({ pressed }) => [styles.headerButton, pressed && styles.pressed]}
             >
-              <Ionicons
-                name="chevron-back"
-                size={25}
-                color={COLORS.primary}
-              />
+              <Ionicons name="chevron-back" size={25} color={COLORS.primary} />
             </Pressable>
 
             <View style={styles.headerSpacer} />
@@ -350,30 +268,20 @@ export default function ItemDetailScreen() {
                 accessibilityRole="button"
                 accessibilityLabel="Edit item"
                 onPress={openEdit}
-                style={({ pressed }) => [
-                  styles.editButton,
-                  pressed && styles.pressed,
-                ]}
+                style={({ pressed }) => [styles.editButton, pressed && styles.pressed]}
               >
-                <Ionicons
-                  name="create-outline"
-                  size={23}
-                  color={COLORS.primary}
-                />
+                <Ionicons name="create-outline" size={23} color={COLORS.primary} />
               </Pressable>
             ) : (
               <View style={styles.headerSpacer} />
             )}
           </View>
 
-          {/* Food summary */}
           <View
             style={[
               styles.summary,
               {
-                backgroundColor: isActive
-                  ? expiry.background
-                  : COLORS.accentSoft,
+                backgroundColor: isActive ? expiry.background : COLORS.accentSoft,
               },
             ]}
           >
@@ -388,33 +296,22 @@ export default function ItemDetailScreen() {
 
             <View style={styles.summaryDetails}>
               <View style={styles.storagePill}>
-                <Text style={styles.storageText}>
-                  {STORAGE_LABELS[item.storageLocation]}
-                </Text>
+                <Text style={styles.storageText}>{STORAGE_LABELS[item.storageLocation]}</Text>
               </View>
 
               <Text style={styles.itemName}>{item.name}</Text>
 
-              <Text style={styles.itemMeta}>
-                {item.quantity} · Added {formatStoredDate(item.createdAt)}
-              </Text>
+              {itemMeta ? <Text style={styles.itemMeta}>{itemMeta}</Text> : null}
 
               {isActive ? (
                 <View style={styles.statusBadge}>
-                  <Text
-                    style={[
-                      styles.statusBadgeText,
-                      { color: expiry.foreground },
-                    ]}
-                  >
+                  <Text style={[styles.statusBadgeText, { color: expiry.foreground }]}>
                     {getExpiryHeadline(daysLeft)}
                   </Text>
                 </View>
               ) : (
                 <View style={styles.statusBadge}>
-                  <Text style={styles.resolvedLabel}>
-                    {statusLabel}
-                  </Text>
+                  <Text style={styles.resolvedLabel}>{statusLabel}</Text>
                 </View>
               )}
             </View>
@@ -422,24 +319,12 @@ export default function ItemDetailScreen() {
 
           {isActive ? (
             <>
-              {/* Expiry card */}
-              <View
-                style={[
-                  styles.expiryCard,
-                  { backgroundColor: expiry.background },
-                ]}
-              >
+              <View style={[styles.expiryCard, { backgroundColor: expiry.background }]}>
                 <View style={styles.expiryHeading}>
-                  <Ionicons
-                    name="warning-outline"
-                    size={25}
-                    color={expiry.foreground}
-                  />
+                  <Ionicons name="warning-outline" size={25} color={expiry.foreground} />
 
                   <View style={styles.expiryHeadingDetails}>
-                    <Text style={styles.expiryTitle}>
-                      {getExpiryHeadline(daysLeft)}
-                    </Text>
+                    <Text style={styles.expiryTitle}>{getExpiryHeadline(daysLeft)}</Text>
 
                     <Text style={styles.expiryDate}>
                       Use by {formatExpiryDate(item.expiryDate)}
@@ -460,23 +345,18 @@ export default function ItemDetailScreen() {
                 </View>
 
                 <View style={styles.expiryBottom}>
-                  <Text style={styles.expiryHint}>
-                    {getExpiryHint(daysLeft)}
-                  </Text>
+                  <Text style={styles.expiryHint}>{getExpiryHint(daysLeft)}</Text>
 
                   <Pressable
                     accessibilityRole="button"
                     onPress={openEdit}
-                    style={({ pressed }) =>
-                      pressed ? styles.pressed : undefined
-                    }
+                    style={({ pressed }) => (pressed ? styles.pressed : undefined)}
                   >
                     <Text style={styles.changeDate}>Change date</Text>
                   </Pressable>
                 </View>
               </View>
 
-              {/* Reminder information */}
               <View style={styles.reminderCard}>
                 <View style={styles.reminderContent}>
                   <Text style={styles.sectionEyebrow}>ALERTS</Text>
@@ -486,61 +366,38 @@ export default function ItemDetailScreen() {
                       <Text style={styles.reminderTitle}>Remind me</Text>
 
                       <Text style={styles.reminderDescription}>
-                        {item.reminderDaysBefore}{' '}
-                        {item.reminderDaysBefore === 1 ? 'day' : 'days'} before
-                        it expires
+                        {item.reminderDaysBefore} {item.reminderDaysBefore === 1 ? 'day' : 'days'}{' '}
+                        before it expires
                       </Text>
                     </View>
 
                     <View style={styles.reminderValue}>
-                      <Ionicons
-                        name="notifications-outline"
-                        size={20}
-                        color={COLORS.primary}
-                      />
+                      <Ionicons name="notifications-outline" size={20} color={COLORS.primary} />
 
-                      <Text style={styles.reminderValueText}>
-                        {item.reminderDaysBefore}
-                      </Text>
+                      <Text style={styles.reminderValueText}>{item.reminderDaysBefore}</Text>
                     </View>
                   </View>
 
                   <View style={styles.divider} />
 
                   <View style={styles.reminderStatusRow}>
-                    <Ionicons
-                      name="notifications-outline"
-                      size={21}
-                      color={COLORS.secondary}
-                    />
+                    <Ionicons name="notifications-outline" size={21} color={COLORS.secondary} />
 
-                    <Text style={styles.reminderStatus}>
-                      {reminderDescription}
-                    </Text>
+                    <Text style={styles.reminderStatus}>{reminderDescription}</Text>
                   </View>
 
                   <Pressable
                     accessibilityRole="button"
                     onPress={openEdit}
-                    style={({ pressed }) => [
-                      styles.reminderEdit,
-                      pressed && styles.pressed,
-                    ]}
+                    style={({ pressed }) => [styles.reminderEdit, pressed && styles.pressed]}
                   >
-                    <Text style={styles.reminderEditText}>
-                      Edit reminder settings
-                    </Text>
+                    <Text style={styles.reminderEditText}>Edit reminder settings</Text>
 
-                    <Ionicons
-                      name="chevron-forward"
-                      size={18}
-                      color={COLORS.secondary}
-                    />
+                    <Ionicons name="chevron-forward" size={18} color={COLORS.secondary} />
                   </Pressable>
                 </View>
               </View>
 
-              {/* Quick actions */}
               <View style={styles.quickActions}>
                 <Pressable
                   accessibilityRole="button"
@@ -552,11 +409,7 @@ export default function ItemDetailScreen() {
                     actionsDisabled && styles.disabled,
                   ]}
                 >
-                  <Ionicons
-                    name="book-outline"
-                    size={23}
-                    color={COLORS.primary}
-                  />
+                  <Ionicons name="book-outline" size={23} color={COLORS.primary} />
 
                   <Text style={styles.quickActionText}>Find recipes</Text>
                 </Pressable>
@@ -571,26 +424,17 @@ export default function ItemDetailScreen() {
                     isWorking && styles.disabled,
                   ]}
                 >
-                  <Ionicons
-                    name="location-outline"
-                    size={23}
-                    color={COLORS.primary}
-                  />
+                  <Ionicons name="location-outline" size={23} color={COLORS.primary} />
 
                   <Text style={styles.quickActionText}>Donate it</Text>
                 </Pressable>
               </View>
 
-              {/* Delete confirmation */}
               {isConfirmingDelete && (
                 <View style={styles.deleteConfirmCard}>
-                  <Text style={styles.deleteConfirmTitle}>
-                    {deletion.title}
-                  </Text>
+                  <Text style={styles.deleteConfirmTitle}>{deletion.title}</Text>
 
-                  <Text style={styles.deleteConfirmText}>
-                    {deletion.message}
-                  </Text>
+                  <Text style={styles.deleteConfirmText}>{deletion.message}</Text>
 
                   <View style={styles.confirmButtons}>
                     <Pressable
@@ -599,19 +443,14 @@ export default function ItemDetailScreen() {
                       onPress={() => setIsConfirmingDelete(false)}
                       style={styles.cancelDeleteButton}
                     >
-                      <Text style={styles.cancelDeleteText}>
-                        Keep item
-                      </Text>
+                      <Text style={styles.cancelDeleteText}>Keep item</Text>
                     </Pressable>
 
                     <Pressable
                       accessibilityRole="button"
                       disabled={actionsDisabled}
                       onPress={handleDelete}
-                      style={[
-                        styles.confirmDeleteButton,
-                        actionsDisabled && styles.disabled,
-                      ]}
+                      style={[styles.confirmDeleteButton, actionsDisabled && styles.disabled]}
                     >
                       <Text style={styles.confirmDeleteText}>
                         {isWorking ? 'Deleting...' : 'Delete'}
@@ -623,24 +462,14 @@ export default function ItemDetailScreen() {
             </>
           ) : (
             <View style={styles.resolvedCard}>
-              <Ionicons
-                name="checkmark-circle-outline"
-                size={30}
-                color={COLORS.secondary}
-              />
+              <Ionicons name="checkmark-circle-outline" size={30} color={COLORS.secondary} />
 
-              <Text style={styles.resolvedTitle}>
-                This item is no longer in your inventory.
-              </Text>
+              <Text style={styles.resolvedTitle}>This item is no longer in your inventory.</Text>
 
-              <Text style={styles.resolvedDescription}>
-                Status: {statusLabel}
-              </Text>
+              <Text style={styles.resolvedDescription}>Status: {statusLabel}</Text>
 
-              {item.statusUpdatedAt ? (
-                <Text style={styles.resolvedDescription}>
-                  Updated {formatStoredDate(item.statusUpdatedAt)}
-                </Text>
+              {updatedOn ? (
+                <Text style={styles.resolvedDescription}>Updated {updatedOn}</Text>
               ) : null}
             </View>
           )}
@@ -657,11 +486,7 @@ export default function ItemDetailScreen() {
 
           {actionError ? (
             <View style={styles.errorBanner}>
-              <Ionicons
-                name="alert-circle-outline"
-                size={20}
-                color={COLORS.error}
-              />
+              <Ionicons name="alert-circle-outline" size={20} color={COLORS.error} />
 
               <Text style={styles.errorText}>{actionError}</Text>
             </View>
@@ -669,28 +494,17 @@ export default function ItemDetailScreen() {
 
           {!isStorageReady ? (
             <View style={styles.storageNotice}>
-              <Ionicons
-                name="hourglass-outline"
-                size={19}
-                color={COLORS.warning}
-              />
+              <Ionicons name="hourglass-outline" size={19} color={COLORS.warning} />
 
               <Text style={styles.storageNoticeText}>
-                {storageError ??
-                  'Loading your saved inventory. Actions will be enabled shortly.'}
+                {storageError ?? 'Loading your saved inventory. Actions will be enabled shortly.'}
               </Text>
             </View>
           ) : null}
         </ScrollView>
 
-        {/* Fixed bottom actions */}
         {isActive && (
-          <View
-            style={[
-              styles.bottomBar,
-              { paddingBottom: Math.max(insets.bottom, 12) },
-            ]}
-          >
+          <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
             <View style={styles.bottomButtons}>
               <Pressable
                 accessibilityRole="button"
@@ -703,7 +517,7 @@ export default function ItemDetailScreen() {
                 ]}
               >
                 <Text style={styles.eatenButtonText}>
-                  {isWorking ? 'Saving...' : 'Eaten'}
+                  {pendingStatus === 'eaten' ? 'Saving...' : 'Eaten'}
                 </Text>
               </Pressable>
 
@@ -717,16 +531,16 @@ export default function ItemDetailScreen() {
                   actionsDisabled && styles.disabled,
                 ]}
               >
-                <Text style={styles.discardButtonText}>Thrown out</Text>
+                <Text style={styles.discardButtonText}>
+                  {pendingStatus === 'discarded' ? 'Saving...' : 'Thrown out'}
+                </Text>
               </Pressable>
             </View>
 
             <Pressable
               accessibilityRole="button"
               disabled={actionsDisabled}
-              onPress={() =>
-                setIsConfirmingDelete((current) => !current)
-              }
+              onPress={() => setIsConfirmingDelete((current) => !current)}
               style={styles.deleteLink}
             >
               <Text style={styles.deleteLinkText}>
@@ -1216,46 +1030,5 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.45,
-  },
-
-  // Kept for the existing helper components.
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
-  },
-  detailCopy: {
-    flex: 1,
-  },
-  detailLabel: {
-    color: COLORS.secondary,
-    fontFamily: 'Fredoka_600SemiBold',
-    fontSize: 13,
-    letterSpacing: 0.5,
-  },
-  detailValue: {
-    marginTop: 4,
-    color: COLORS.primary,
-    fontFamily: 'Fredoka_400Regular',
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  actionRow: {
-    minHeight: 58,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.divider,
-  },
-  actionLabel: {
-    flex: 1,
-    color: COLORS.primary,
-    fontFamily: 'Fredoka_500Medium',
-    fontSize: 16,
   },
 });

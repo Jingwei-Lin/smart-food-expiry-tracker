@@ -1,4 +1,3 @@
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   createContext,
@@ -61,34 +60,18 @@ type InventoryContextValue = {
   addItem: (input: NewFoodItem) => Promise<FoodItem>;
   updateItem: (id: string, input: NewFoodItem) => Promise<void>;
   deleteItem: (id: string) => Promise<void>;
-  resolveItem: (
-    id: string,
-    status: ResolvedFoodItemStatus,
-  ) => Promise<void>;
+  resolveItem: (id: string, status: ResolvedFoodItemStatus) => Promise<void>;
 };
 
 const InventoryContext = createContext<InventoryContextValue | null>(null);
 
-const VALID_STORAGE_LOCATIONS: FoodStorageLocation[] = [
-  'fridge',
-  'freezer',
-  'pantry',
-];
-
-const VALID_FOOD_CATEGORIES: FoodCategory[] = [
-  'Veg',
-  'Fruit',
-  'Dairy',
-  'Meat',
-  'Bread',
-  'Seafood',
-  'Others',
-];
+const VALID_STORAGE_LOCATIONS: FoodStorageLocation[] = ['fridge', 'freezer', 'pantry'];
 
 /**
- * Validates a stored item.
- * Older records without storageLocation default to the fridge.
- * Existing reminder migration behaviour is preserved.
+ * Validates a stored item. Items saved by v1.0 have no reminder fields, so they
+ * receive the one-day default and rule version 1 until their reminders are
+ * scheduled at launch. Records without a storageLocation or category default to
+ * the fridge and Others.
  */
 function normalizeFoodItem(value: unknown): FoodItem | null {
   if (!value || typeof value !== 'object') {
@@ -130,9 +113,7 @@ function normalizeFoodItem(value: unknown): FoodItem | null {
 
   const storageLocation: FoodStorageLocation =
     typeof item.storageLocation === 'string' &&
-    VALID_STORAGE_LOCATIONS.includes(
-      item.storageLocation as FoodStorageLocation,
-    )
+    VALID_STORAGE_LOCATIONS.includes(item.storageLocation as FoodStorageLocation)
       ? (item.storageLocation as FoodStorageLocation)
       : 'fridge';
 
@@ -161,20 +142,13 @@ function normalizeFoodItem(value: unknown): FoodItem | null {
     ...(typeof item.statusUpdatedAt === 'string'
       ? { statusUpdatedAt: item.statusUpdatedAt }
       : null),
-    ...(typeof item.barcode === 'string'
-      ? { barcode: item.barcode }
-      : null),
+    ...(typeof item.barcode === 'string' ? { barcode: item.barcode } : null),
     category: normalizeFoodCategory(item.category),
-    ...(notificationIds && notificationIds.length > 0
-      ? { notificationIds }
-      : null),
+    ...(notificationIds && notificationIds.length > 0 ? { notificationIds } : null),
   };
 }
 
-function setNotificationIds(
-  item: FoodItem,
-  notificationIds?: string[],
-): FoodItem {
+function setNotificationIds(item: FoodItem, notificationIds?: string[]): FoodItem {
   const nextItem = { ...item };
 
   delete nextItem.notificationIds;
@@ -186,9 +160,7 @@ function setNotificationIds(
   return nextItem;
 }
 
-function describeReminderResult(
-  result: ReminderScheduleResult,
-): string | null {
+function describeReminderResult(result: ReminderScheduleResult): string | null {
   if (result.status === 'permission-denied') {
     return 'This item was saved, but expiry reminders are off. Enable notifications in your device settings, then edit the item to schedule its reminders.';
   }
@@ -200,9 +172,11 @@ function describeReminderResult(
   return null;
 }
 
-function describeUpgradeFailure(
-  result: ReminderScheduleResult,
-): string | null {
+/**
+ * A v1.0 item whose reminders fail to schedule stays on rule version 1, so
+ * scheduling is simply tried again on the next launch.
+ */
+function describeUpgradeFailure(result: ReminderScheduleResult): string | null {
   if (result.status === 'permission-denied') {
     return 'Expiry reminders are off. Enable notifications in your device settings and your reminders will be set up the next time you open the app.';
   }
@@ -214,6 +188,9 @@ function describeUpgradeFailure(
   return null;
 }
 
+/**
+ * Produces an identifier suitable for locally stored prototype data.
+ */
 function createItemId(): string {
   const timestamp = Date.now();
   const randomPart = Math.random().toString(36).slice(2, 10);
@@ -221,16 +198,16 @@ function createItemId(): string {
   return `${timestamp}-${randomPart}`;
 }
 
-export function InventoryProvider({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export function InventoryProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<FoodItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [reminderNotice, setReminderNotice] = useState<string | null>(null);
 
+  /*
+   * Saving is only safe once the stored inventory has been read. Writing before
+   * that point would replace the saved list with one the app never loaded.
+   */
   const [isStorageReady, setIsStorageReady] = useState(false);
   const isStorageReadyRef = useRef(false);
 
@@ -239,6 +216,10 @@ export function InventoryProvider({
     setIsStorageReady(true);
   }, []);
 
+  /*
+   * The ref always contains the latest items. This prevents save operations
+   * from using an older copy of the inventory.
+   */
   const itemsRef = useRef<FoodItem[]>([]);
   const hasReconciledRemindersRef = useRef(false);
 
@@ -307,16 +288,11 @@ export function InventoryProvider({
   const persistItems = useCallback(
     async (nextItems: FoodItem[]) => {
       if (!isStorageReadyRef.current) {
-        throw new Error(
-          'Unable to save inventory before it has been loaded.',
-        );
+        throw new Error('Unable to save inventory before it has been loaded.');
       }
 
       try {
-        await AsyncStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify(nextItems),
-        );
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(nextItems));
 
         setCurrentItems(nextItems);
         setStorageError(null);
@@ -329,7 +305,8 @@ export function InventoryProvider({
   );
 
   /*
-   * Schedule reminders for legacy items that still use rule version 1.
+   * Items saved by v1.0 load on rule version 1 with no reminders. Schedule
+   * theirs at launch rather than waiting for each one to be edited.
    */
   useEffect(() => {
     if (!isStorageReady || hasReconciledRemindersRef.current) {
@@ -340,14 +317,13 @@ export function InventoryProvider({
     let isMounted = true;
 
     async function reconcileLegacyReminders() {
-      const legacyItems = itemsRef.current.filter(
-        (item) => item.reminderRuleVersion === 1,
-      );
+      const legacyItems = itemsRef.current.filter((item) => item.reminderRuleVersion === 1);
 
       if (legacyItems.length === 0) {
         return;
       }
 
+      /* Keyed by the record as it was read, so a later change to it shows up. */
       const upgradedItems = new Map<FoodItem, FoodItem>();
       const newlyScheduledIds: string[][] = [];
       let migrationNotice: string | null = null;
@@ -358,10 +334,7 @@ export function InventoryProvider({
             ? await scheduleExpiryReminders(legacyItem)
             : ({ status: 'not-needed' } as const);
 
-        if (
-          reminderResult.status === 'permission-denied' ||
-          reminderResult.status === 'error'
-        ) {
+        if (reminderResult.status === 'permission-denied' || reminderResult.status === 'error') {
           migrationNotice = describeUpgradeFailure(reminderResult);
           continue;
         }
@@ -374,15 +347,16 @@ export function InventoryProvider({
           legacyItem,
           setNotificationIds(
             { ...legacyItem, reminderRuleVersion: 2 },
-            reminderResult.status === 'scheduled'
-              ? reminderResult.notificationIds
-              : undefined,
+            reminderResult.status === 'scheduled' ? reminderResult.notificationIds : undefined,
           ),
         );
       }
 
       /*
-       * Only upgrade records that have not changed during reminder scheduling.
+       * Scheduling can wait on the permission prompt, so the inventory may have
+       * changed since it was read. Only records that are still the same object
+       * are upgraded. One that was edited, resolved or deleted meanwhile has
+       * already been dealt with, so the reminders just made for it are cancelled.
        */
       const currentItems = itemsRef.current;
       const idsToCancel: string[][] = [];
@@ -398,15 +372,9 @@ export function InventoryProvider({
 
       if (didChange) {
         try {
-          await persistItems(
-            currentItems.map(
-              (item) => upgradedItems.get(item) ?? item,
-            ),
-          );
+          await persistItems(currentItems.map((item) => upgradedItems.get(item) ?? item));
         } catch {
-          await Promise.all(
-            newlyScheduledIds.map((ids) => cancelExpiryReminders(ids)),
-          );
+          await Promise.all(newlyScheduledIds.map((ids) => cancelExpiryReminders(ids)));
           return;
         }
       }
@@ -432,7 +400,8 @@ export function InventoryProvider({
   }, [isStorageReady, persistItems]);
 
   /*
-   * Create a new inventory item and schedule its expiry reminders.
+   * Convert form values into a complete FoodItem, schedule its reminders and
+   * save it.
    */
   const addItem = useCallback(
     async (input: NewFoodItem) => {
@@ -454,10 +423,7 @@ export function InventoryProvider({
       const reminderResult = await scheduleExpiryReminders(newItem);
 
       if (reminderResult.status === 'scheduled') {
-        newItem = setNotificationIds(
-          newItem,
-          reminderResult.notificationIds,
-        );
+        newItem = setNotificationIds(newItem, reminderResult.notificationIds);
       }
 
       const nextItems = [...itemsRef.current, newItem];
@@ -480,13 +446,12 @@ export function InventoryProvider({
   );
 
   /*
-   * Update an item while preserving fields not owned by the form.
+   * Apply an edit from the item form. Only the fields the form owns are
+   * replaced, so createdAt and status survive the edit.
    */
   const updateItem = useCallback(
     async (id: string, input: NewFoodItem) => {
-      const currentItem = itemsRef.current.find(
-        (item) => item.id === id,
-      );
+      const currentItem = itemsRef.current.find((item) => item.id === id);
 
       if (!currentItem) {
         return;
@@ -495,29 +460,23 @@ export function InventoryProvider({
       const editedItem: FoodItem = {
         ...currentItem,
         ...input,
-        storageLocation:
-          input.storageLocation ??
-          currentItem.storageLocation ??
-          'fridge',
+        storageLocation: input.storageLocation ?? currentItem.storageLocation,
         reminderRuleVersion: 2,
       };
 
       /*
-       * A storage-location-only change does not affect expiry reminders.
+       * Only the name, expiry date and notice change what a reminder says or
+       * when it arrives. Rescheduling for any other edit would re-send an
+       * advance reminder whose day has passed, as an urgent one a minute away.
        */
       const keepsReminders =
         currentItem.notificationIds !== undefined &&
         editedItem.name === currentItem.name &&
         editedItem.expiryDate === currentItem.expiryDate &&
-        editedItem.reminderDaysBefore ===
-          currentItem.reminderDaysBefore;
+        editedItem.reminderDaysBefore === currentItem.reminderDaysBefore;
 
       if (keepsReminders) {
-        await persistItems(
-          itemsRef.current.map((item) =>
-            item.id === id ? editedItem : item,
-          ),
-        );
+        await persistItems(itemsRef.current.map((item) => (item.id === id ? editedItem : item)));
         return;
       }
 
@@ -525,22 +484,16 @@ export function InventoryProvider({
 
       const updatedItem = setNotificationIds(
         editedItem,
-        reminderResult.status === 'scheduled'
-          ? reminderResult.notificationIds
-          : undefined,
+        reminderResult.status === 'scheduled' ? reminderResult.notificationIds : undefined,
       );
 
-      const nextItems = itemsRef.current.map((item) =>
-        item.id === id ? updatedItem : item,
-      );
+      const nextItems = itemsRef.current.map((item) => (item.id === id ? updatedItem : item));
 
       try {
         await persistItems(nextItems);
       } catch (error) {
         if (reminderResult.status === 'scheduled') {
-          await cancelExpiryReminders(
-            reminderResult.notificationIds,
-          );
+          await cancelExpiryReminders(reminderResult.notificationIds);
         }
 
         throw error;
@@ -562,13 +515,9 @@ export function InventoryProvider({
 
   const deleteItem = useCallback(
     async (id: string) => {
-      const deletedItem = itemsRef.current.find(
-        (item) => item.id === id,
-      );
+      const deletedItem = itemsRef.current.find((item) => item.id === id);
 
-      await persistItems(
-        itemsRef.current.filter((item) => item.id !== id),
-      );
+      await persistItems(itemsRef.current.filter((item) => item.id !== id));
 
       if (
         deletedItem?.notificationIds &&
@@ -583,13 +532,13 @@ export function InventoryProvider({
   );
 
   /*
-   * Record the outcome and timestamp used by the weekly summary.
+   * Record that an item was eaten, thrown out or donated. The timestamp is what
+   * the summary groups by, so it is written here rather than being inferred
+   * from the expiry date later.
    */
   const resolveItem = useCallback(
     async (id: string, status: ResolvedFoodItemStatus) => {
-      const resolvedItem = itemsRef.current.find(
-        (item) => item.id === id,
-      );
+      const resolvedItem = itemsRef.current.find((item) => item.id === id);
 
       const nextItems = itemsRef.current.map((item) => {
         if (item.id !== id) {
@@ -621,9 +570,7 @@ export function InventoryProvider({
     () =>
       items
         .filter((item) => item.status === 'active')
-        .sort((firstItem, secondItem) =>
-          firstItem.expiryDate.localeCompare(secondItem.expiryDate),
-        ),
+        .sort((firstItem, secondItem) => firstItem.expiryDate.localeCompare(secondItem.expiryDate)),
     [items],
   );
 
@@ -654,20 +601,14 @@ export function InventoryProvider({
     ],
   );
 
-  return (
-    <InventoryContext.Provider value={contextValue}>
-      {children}
-    </InventoryContext.Provider>
-  );
+  return <InventoryContext.Provider value={contextValue}>{children}</InventoryContext.Provider>;
 }
 
 export function useInventory(): InventoryContextValue {
   const context = useContext(InventoryContext);
 
   if (!context) {
-    throw new Error(
-      'useInventory must be used inside InventoryProvider.',
-    );
+    throw new Error('useInventory must be used inside InventoryProvider.');
   }
 
   return context;

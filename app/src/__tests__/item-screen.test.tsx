@@ -23,6 +23,10 @@ jest.mock('expo-router', () => ({
   useLocalSearchParams: () => ({ id: 'milk' }),
 }));
 
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+}));
+
 const STORAGE_KEY = '@smart-food-expiry-tracker/inventory-v1';
 
 function buildMilk(overrides: Partial<FoodItem> = {}): FoodItem {
@@ -50,7 +54,7 @@ async function renderScreen(item: FoodItem) {
     </InventoryProvider>,
   );
 
-  await view.findByText('Delete item');
+  await view.findByText(item.name);
 
   return view;
 }
@@ -76,7 +80,7 @@ describe('ItemDetailScreen', () => {
   it('opens the Donation Points tab near the phone for food that cannot be finished', async () => {
     const view = await renderScreen(buildMilk());
 
-    await fireEvent.press(view.getByText('Find donation point'));
+    await fireEvent.press(view.getByText('Donate it'));
 
     expect(router.dismissTo).toHaveBeenCalledWith({
       pathname: '/donation-points',
@@ -85,10 +89,9 @@ describe('ItemDetailScreen', () => {
   });
 
   it.each([
-    ['Mark as eaten', 'eaten'],
-    ['Mark as thrown out', 'discarded'],
-    ['Mark as donated', 'donated'],
-  ])('records "%s" with the time, which the weekly summary counts by', async (label, status) => {
+    ['Eaten', 'eaten'],
+    ['Thrown out', 'discarded'],
+  ])('records "%s" with the time, which the summary counts by', async (label, status) => {
     const view = await renderScreen(buildMilk());
     const before = Date.now();
 
@@ -102,26 +105,56 @@ describe('ItemDetailScreen', () => {
   });
 
   it.each([
+    ['Eaten', 'Thrown out'],
+    ['Thrown out', 'Eaten'],
+  ])('shows "Saving..." only on the "%s" button while it is pressed', async (pressed, other) => {
+    const view = await renderScreen(buildMilk());
+    jest.spyOn(AsyncStorage, 'setItem').mockReturnValueOnce(new Promise(() => undefined));
+
+    await fireEvent.press(view.getByText(pressed));
+
+    expect(view.getAllByText('Saving...')).toHaveLength(1);
+    expect(view.queryByText(pressed)).toBeNull();
+    expect(view.getByText(other)).toBeTruthy();
+  });
+
+  it.each([
     ['active', buildMilk({ createdAt: new Date(2026, 8, 25, 12).toISOString() })],
     [
       'eaten',
       buildMilk({
         createdAt: new Date(2026, 8, 25, 12).toISOString(),
         status: 'eaten',
-        statusUpdatedAt: '2026-09-28T00:00:00.000Z',
+        statusUpdatedAt: new Date(2026, 8, 28, 12).toISOString(),
       }),
     ],
   ])('shows the day an %s item was added', async (_label, item) => {
     const view = await renderScreen(item);
 
-    expect(view.getByText('Added')).toBeTruthy();
-    expect(view.getByText(/^25 Sept? 2026$/)).toBeTruthy();
+    expect(view.getByText(/^2 L · Added 25 Sept? 2026$/)).toBeTruthy();
+  });
+
+  it('shows no leading separator for an item with no quantity', async () => {
+    const view = await renderScreen(
+      buildMilk({ quantity: '', createdAt: new Date(2026, 8, 25, 12).toISOString() }),
+    );
+
+    expect(view.getByText(/^Added 25 Sept? 2026$/)).toBeTruthy();
   });
 
   it('leaves out an added day it cannot read', async () => {
     const view = await renderScreen(buildMilk({ createdAt: 'someday' }));
 
-    expect(view.queryByText('Added')).toBeNull();
+    expect(view.queryByText(/Added/)).toBeNull();
+    expect(view.getByText('2 L')).toBeTruthy();
+  });
+
+  it('shows when an eaten item was updated', async () => {
+    const view = await renderScreen(
+      buildMilk({ status: 'eaten', statusUpdatedAt: new Date(2026, 8, 28, 12).toISOString() }),
+    );
+
+    expect(view.getByText(/^Updated 28 Sept? 2026$/)).toBeTruthy();
   });
 
   it('names the notice when both reminders are scheduled', async () => {
@@ -158,15 +191,16 @@ describe('ItemDetailScreen', () => {
       buildMilk({ status: 'eaten', statusUpdatedAt: '2026-09-28T00:00:00.000Z' }),
     );
 
-    expect(view.queryByText('Reminders')).toBeNull();
+    expect(view.queryByText('Remind me')).toBeNull();
+    expect(view.queryByText(/before and on expiry day/)).toBeNull();
   });
 
-  it('does not offer recipes or a donation point for food that has already been eaten', async () => {
+  it('does not offer recipes or donating for food that has already been eaten', async () => {
     const view = await renderScreen(
       buildMilk({ status: 'eaten', statusUpdatedAt: '2026-09-28T00:00:00.000Z' }),
     );
 
     expect(view.queryByText('Find recipes')).toBeNull();
-    expect(view.queryByText('Find donation point')).toBeNull();
+    expect(view.queryByText('Donate it')).toBeNull();
   });
 });

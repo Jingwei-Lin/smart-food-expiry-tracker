@@ -63,6 +63,7 @@ function buildStoredItem(overrides: Partial<FoodItem> = {}): FoodItem {
     name: 'Cheddar',
     quantity: '250 g',
     expiryDate: '2026-09-29',
+    storageLocation: 'fridge',
     reminderDaysBefore: 1,
     reminderRuleVersion: 2,
     notes: '',
@@ -125,6 +126,18 @@ describe('reading the stored inventory', () => {
 
     expect(result.current.items).toHaveLength(1);
     expect(result.current.items[0].name).toBe('Cheddar');
+  });
+
+  it('puts an item saved before locations and categories existed in the fridge, as Others', async () => {
+    const oldRecord: Record<string, unknown> = { ...buildStoredItem() };
+    delete oldRecord.storageLocation;
+    delete oldRecord.category;
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([oldRecord]));
+
+    const { result } = await renderInventory();
+
+    expect(result.current.items[0].storageLocation).toBe('fridge');
+    expect(result.current.items[0].category).toBe('Others');
   });
 
   it('loads an item that was donated', async () => {

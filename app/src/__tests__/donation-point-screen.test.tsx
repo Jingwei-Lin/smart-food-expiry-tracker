@@ -96,9 +96,10 @@ beforeEach(() => {
   mockInventory.resolveItem.mockResolvedValue(undefined);
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   jest.spyOn(Share, 'share').mockResolvedValue({
-  action: 'sharedAction',
-  activityType: undefined,
+    action: 'sharedAction',
+    activityType: undefined,
   });
+  setNow(10);
 });
 
 afterEach(() => {

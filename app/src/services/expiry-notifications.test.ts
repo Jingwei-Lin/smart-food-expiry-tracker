@@ -35,6 +35,7 @@ const item: FoodItem = {
   name: 'Milk',
   quantity: '2 L',
   expiryDate: '2026-09-20',
+  storageLocation: 'fridge',
   reminderDaysBefore: 1,
   reminderRuleVersion: 2,
   notes: '',
