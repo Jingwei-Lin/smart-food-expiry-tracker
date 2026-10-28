@@ -4,7 +4,7 @@
 
 **SDG Goal 12: Responsible consumption and production**
 
-An app that helps university students waste less food by taking the effort out of tracking groceries. Built with Expo SDK 58, React Native 0.88 and React 19.3, and tested on iOS through Expo Go. Android is not yet tested (see [Known limitations](#known-limitations-and-todo)).
+An app that helps university students waste less food by taking the effort out of tracking groceries. Built with Expo SDK 58, React Native 0.88 and React 19.3, and tested on iOS and Android through Expo Go.
 
 You scan a product's barcode when you unpack your shopping, and the app fills in the product and estimates when it will go off. It reminds you before the food spoils and suggests recipes for whatever needs using up. For anything you can't finish in time, it points you to a nearby donation point, and a weekly summary shows what you ate, donated and threw away.
 
@@ -111,7 +111,7 @@ The key is never stored in this repository.
 
 1. **Scan:** tap the round scan button in the middle of the tab bar and scan any packaged grocery. If Open Food Facts doesn't know it, the add form opens empty with a message saying so.
 2. **Add by hand:** fill in a name and pick an expiry date one or two days away. The item appears on Home, in the Fridge, Freezer or Pantry tab you chose, with the soonest expiry first.
-3. **Reminder:** an item that expires today, saved after 9 am, gets its reminder about a minute later. Tap the reminder to open the item.
+3. **Reminder:** an item that expires today, saved after 9 am, gets its reminder about a minute later. Android may hold it back by up to about 10 minutes, especially with the screen off (see [Known limitations](#known-limitations-and-todo)). Tap the reminder to open the item.
 4. **Resolve:** open an item and tap **Eaten** or **Thrown out**. The **Summary** tab counts it under this week.
 5. **Donate:** on an active item, tap **Donate it**. To count food as donated, open a place, tick the food you are taking and tap **Mark … as donated**.
    - If you deny location, search a suburb with its state, e.g. "Newtown NSW".
@@ -433,7 +433,7 @@ Two suggestions were not adopted:
 ## Known limitations and TODO
 
 - **Recipes are untested with OpenAI**, which needs prepaid credit before it answers. Gemini, Matilda and DeepSeek were tested on iOS.
-- **Android is not tested.** Adding, editing and swiping items were checked on an Android phone early in development, but the finished app, reminders included, has only been tested on iOS. The Android setup steps above should work but are unconfirmed.
+- **Reminders can arrive late on Android.** To save battery, Android may deliver a scheduled notification several minutes after its time, especially once the screen is off. The delay is longer on phones with strict battery savers, such as Xiaomi. The 9 am reminders don't need to be exact, so the app accepts this rather than asking for the exact-alarm permission. When testing, keep the screen on, or set Expo Go's battery saver to "No restrictions".
 - **Not yet done:** a full accessibility pass (screen reader labels and large text on every screen), and a check that every screen has a clear empty, loading and error state.
 - **Web is best-effort only:**
   - the camera, location, reminders and recipes are mobile-only;
