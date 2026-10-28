@@ -36,7 +36,7 @@ const DAYS_PART = /^((?:Mo|Tu|We|Th|Fr|Sa|Su)(?:\s*[-,]\s*(?:Mo|Tu|We|Th|Fr|Sa|S
 const TIME_RANGE = /^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})$/;
 
 /** Monday is 0, as in WeekHours. */
-export function weekdayIndex(date: Date): number {
+function weekdayIndex(date: Date): number {
   return (date.getDay() + 6) % 7;
 }
 

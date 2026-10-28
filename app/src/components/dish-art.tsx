@@ -21,7 +21,6 @@ export function DishArt({ bowlColor = '#F2C97D' }: DishArtProps) {
       importantForAccessibility="no-hide-descendants"
       style={styles.art}
     >
-      {/* Steam */}
       <View style={styles.steamRow}>
         <View style={[styles.steam, styles.steamLeft]} />
         <View style={[styles.steam, styles.steamRight]} />
@@ -36,7 +35,6 @@ export function DishArt({ bowlColor = '#F2C97D' }: DishArtProps) {
         <View style={[styles.herb, styles.herbRight]} />
       </View>
 
-      {/* Bowl */}
       <View style={[styles.bowl, { backgroundColor: bowlColor }]} />
     </View>
   );

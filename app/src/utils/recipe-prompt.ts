@@ -1,10 +1,10 @@
 import { RecipeIngredient } from '@/utils/recipe-ingredients';
 
 /* Two cards fit on a phone screen and keep the wait short. */
-export const RECIPES_PER_REQUEST = 2;
+const RECIPES_PER_REQUEST = 2;
 
 /* Enough to steer the model away from repeats without crowding the prompt. */
-export const MAX_AVOID_TITLES = 10;
+const MAX_AVOID_TITLES = 10;
 
 export type Recipe = {
   title: string;

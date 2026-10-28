@@ -34,8 +34,6 @@ const COLORS = {
   border: '#E4E5D4',
   accent: '#A6D45A',
   accentSoft: '#F0F7DB',
-  urgent: '#A92E26',
-  urgentSoft: '#FBEFF2',
   warning: '#8B6B1F',
   warningSoft: '#FFF0D5',
   error: '#8B2C25',

@@ -51,7 +51,6 @@ const COLORS = {
   surface: '#FFFFFF',
   primary: '#1E2A16',
   secondary: '#55614D',
-  border: '#E4E5D4',
   divider: '#EEEFE5',
   accentSoft: '#F0F7DB',
   pink: '#FBEFF2',
@@ -152,7 +151,6 @@ export default function AddItemScreen() {
             ? null
             : (storageError ?? 'Loading your saved inventory. Saving will be enabled in a moment.')
         }
-        clearOnSubmit
         expiryHelpText={
           params.shelfLifeLabel
             ? `Estimated from "${params.shelfLifeLabel}" — check the package and correct it.`

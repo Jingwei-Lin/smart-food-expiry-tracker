@@ -14,10 +14,8 @@ const COLORS = {
   primary: '#1E2A16',
   secondary: '#55614D',
   border: '#E4E5D4',
-  divider: '#EEEFE5',
   accent: '#A6D45A',
   accentSoft: '#F0F7DB',
-  error: '#8B2C25',
 };
 
 const BARCODE_TYPES: BarcodeType[] = ['ean13', 'ean8', 'upc_a', 'upc_e'];

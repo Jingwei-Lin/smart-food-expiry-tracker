@@ -45,10 +45,8 @@ type ItemFormProps = {
   /** A function lets the label follow the chosen storage location. */
   submitLabel: string | ((storageLocation: FoodStorageLocation) => string);
   blockedReason?: string | null;
-  clearOnSubmit?: boolean;
   expiryHelpText?: string;
   topContent?: ReactNode;
-  bottomContent?: ReactNode;
   onCategoryChange?: (category: FoodCategory) => void;
   onSubmit: (values: ItemFormValues) => Promise<void>;
 };
@@ -79,9 +77,6 @@ const COLORS = {
   border: '#E4E5D4',
   divider: '#EEEFE5',
   accent: '#A6D45A',
-  accentSoft: '#F0F7DB',
-  pink: '#FBEFF2',
-  pinkText: '#D82D69',
   error: '#9F2420',
   warning: '#8B6B1F',
   warningSoft: '#FFF0D5',
@@ -92,10 +87,8 @@ export function ItemForm({
   initialValues = emptyValues,
   submitLabel,
   blockedReason = null,
-  clearOnSubmit = false,
   expiryHelpText,
   topContent,
-  bottomContent,
   onCategoryChange,
   onSubmit,
 }: ItemFormProps) {
@@ -195,17 +188,6 @@ export function ItemForm({
         storageLocation,
         category: selectedCategory,
       });
-
-      if (clearOnSubmit) {
-        setName('');
-        setQuantity('');
-        setExpiryDate('');
-        setReminderDaysBefore(1);
-        setNotes('');
-        setStorageLocation('fridge');
-        setSelectedCategory('Others');
-        setIsCalendarOpen(false);
-      }
     } catch {
       setErrors({
         save: 'The item could not be saved. Please try again.',
@@ -224,7 +206,6 @@ export function ItemForm({
         showsVerticalScrollIndicator={false}
       >
         {topContent}
-        {bottomContent}
         <View style={styles.form}>
           <View style={styles.field}>
             <Text style={styles.label}>Name *</Text>

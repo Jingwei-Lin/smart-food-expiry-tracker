@@ -327,7 +327,6 @@ export default function DonationPointScreen() {
           </View>
         </View>
 
-        {/* Directions */}
         <View style={styles.actions}>
           <Pressable
             accessibilityLabel={`Directions to ${point.name}`}
@@ -340,7 +339,6 @@ export default function DonationPointScreen() {
           </Pressable>
         </View>
 
-        {/* Address and opening hours */}
         <View style={styles.infoCard}>
           <View style={styles.infoRow}>
             <Ionicons color={COLORS.secondary} name="location-outline" size={22} />
@@ -369,7 +367,6 @@ export default function DonationPointScreen() {
           </View>
         </View>
 
-        {/* What to bring */}
         <View style={styles.bringSection}>
           <View style={styles.bringHeading}>
             <Text style={styles.sectionTitle}>FOOD TO BRING</Text>

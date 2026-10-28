@@ -31,10 +31,6 @@ const COLORS = {
   accent: '#A6D45A',
   accentSoft: '#F0F7DB',
   link: '#4E7A1F', // dark lime, for green text and icons on cream
-  urgent: '#A92E26',
-  urgentSoft: '#FBEFF2',
-  warning: '#8B6B1F',
-  warningSoft: '#FFF0D5',
   error: '#8B2C25',
 };
 
