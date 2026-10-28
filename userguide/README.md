@@ -185,7 +185,7 @@ The app can ask an AI model for simple recipes that use the food you pick. You n
 3. Tap a card to open the recipe. It shows the food it uses from your fridge, what else you'll need, and the steps.
 4. Tap the **star** on a recipe you like to keep it. Tap **Saved** at the top of the Recipes tab to find it later.
 5. Not inspired? Tap **More ideas** for new ones.
-6. Cooked it? On the recipe's page, tap **Mark as consumed** to mark the food it used as eaten, or **Mark as wasted** if it went in the bin. Both count in your summary.
+6. Cooked it? On the recipe's page, tap **Mark as consumed** to mark the food it used as eaten, or **Mark as wasted** if it went in the bin. The app asks you to confirm first, because the whole item is marked, not just what the recipe used. Both count in your summary.
 
 <img src="images/12-recipes.gif" alt="Ticking food, getting two recipe ideas and opening one" width="250">
 

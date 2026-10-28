@@ -766,8 +766,7 @@ describe('RecipesScreen saved box', () => {
     await view.findByText('Spinach omelette');
     await fireEvent.press(view.getByLabelText('Save Spinach omelette'));
 
-    // The Saved button is on the food list, one step back from the ideas.
-    await fireEvent.press(view.getByLabelText('Change the food to cook with'));
+    // The tab reopens on its last ideas, so the Saved button is there too.
     expect(await view.findByText('Saved · 1')).toBeTruthy();
     await fireEvent.press(view.getByLabelText('Saved recipes, 1 saved'));
 

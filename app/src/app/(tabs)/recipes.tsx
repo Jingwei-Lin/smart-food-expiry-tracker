@@ -653,6 +653,8 @@ export default function RecipesScreen() {
           <Text accessibilityRole="header" style={styles.resultsHeading}>
             {count === 1 ? 'One idea for tonight' : `${count} ideas for tonight`}
           </Text>
+
+          {savedButton}
         </View>
 
         {/* The food these ideas use up, coloured by how soon it goes off. */}
