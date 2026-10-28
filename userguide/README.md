@@ -24,7 +24,7 @@ This guide walks you through the main things you can do, step by step. You don't
 
 When you open the app, you land on **What's in my fridge?**. Under the title are three tabs, **Fridge**, **Freezer** and **Pantry**, each showing how many items it holds. The first time, they're empty.
 
-<img src="images/01-home.png" alt="Home on the Pantry tab with three items, and the bottom bar" width="250">
+<img src="images/01-home.png" alt="Home on the Pantry tab, titled &quot;What's in my pantry?&quot;, with the Fridge, Freezer and Pantry tabs and the bottom bar" width="250">
 
 The bar at the bottom takes you around the app:
 
@@ -83,9 +83,11 @@ The line under the title tells you how much is there, for example "5 items · 2 
 
 The row also says when it expires: "Today", "Tomorrow", a weekday, a date, or "2 days over" for food that has already expired.
 
-<img src="images/05-home-list.png" alt="Home on the Pantry tab, soonest expiry first: an expired banana with a red badge, then food with later dates" width="250">
+<img src="images/05-home-list.png" alt="Home on the Fridge tab, soonest expiry first: three items expiring today with red badges, then brown rice on 28 Nov" width="250">
 
 **Shortcut:** swipe a row to the left to show **Edit** and **Delete**. Delete always asks you to confirm first.
+
+<img src="images/06-swipe.gif" alt="Swiping the Milk row left to show Edit and Delete, then closing it" width="250">
 
 ## 5. Get reminded before food expires
 
@@ -117,7 +119,7 @@ To change anything else, tap the pencil at the top right. The same form as **Add
 
 To remove an item completely, tap **Delete item** at the bottom. The app asks you to confirm with **Delete**, and you can tap **Keep item** to back out.
 
-<img src="images/08-item.png" alt="The item screen for a bottle of water kept in the pantry: when it expires and its reminders" width="250">
+<img src="images/08-item.png" alt="The item screen for milk kept in the fridge: it expires today, and its reminder is set for the expiry day" width="250">
 
 ## 7. Mark food as eaten or thrown out
 
@@ -173,6 +175,8 @@ The app can ask an AI model for simple recipes that use the food you pick. You n
 2. Under **Model**, keep **Gemini Flash**, which is free.
 3. Tap **Get a key** to open Google AI Studio, create a key and copy it.
 4. Paste it into the key box and tap **Save and check**. The app checks the key works before saving it. It's kept only in your phone's secure storage.
+
+<img src="images/11-recipe-settings.png" alt="Recipe settings with the four models, Matilda chosen, and its saved key shown only by its last four characters" width="250">
 
 **Get recipes:**
 
