@@ -209,7 +209,6 @@ export async function scheduleExpiryReminders(
 
     const reason = error instanceof Error ? error.message : String(error);
 
-    console.warn('Could not schedule the expiry reminder:', error);
     return { status: 'error', reason };
   }
 }
