@@ -45,6 +45,7 @@ Also worth knowing:
 - **Nothing crashes when something goes wrong.** If the camera is blocked, the barcode isn't in the database, or there is no internet, you get the manual form with a message saying why.
 - **You can tell two of the same product apart.** Each item's screen shows the day it was added.
 - **Deleting asks first**, on the item's screen and from the list.
+- **It works with a screen reader.** Buttons and icons on every screen have labels and roles for VoiceOver and TalkBack, the summary chart is read out as a sentence, and text follows the phone's text size.
 
 ## Getting started
 
@@ -434,7 +435,6 @@ Two suggestions were not adopted:
 
 - **Recipes are untested with OpenAI**, which needs prepaid credit before it answers. Gemini, Matilda and DeepSeek were tested.
 - **Reminders can arrive late on Android.** To save battery, Android may deliver a scheduled notification several minutes after its time, especially once the screen is off. The delay is longer on phones with strict battery savers, such as Xiaomi. The 9 am reminders don't need to be exact, so the app accepts this rather than asking for the exact-alarm permission. When testing, keep the screen on, or set Expo Go's battery saver to "No restrictions".
-- **Not yet done:** a full accessibility pass (screen reader labels and large text on every screen), and a check that every screen has a clear empty, loading and error state.
 - **Web is best-effort only:**
   - the camera, location, reminders and recipes are mobile-only;
   - the web build types the expiry date instead of using a calendar.
@@ -449,6 +449,6 @@ Two suggestions were not adopted:
 | Member | Main areas |
 | --- | --- |
 | Hanchen Wang | Barcode scanning, recipe suggestions (first half), donation point data, donated food, the Think Aloud changes |
-| Jingwei Lin | Expiry reminders, recipe suggestions (second half, Gemini and Matilda), weekly summary fixes |
+| Jingwei Lin | Expiry reminders, recipe suggestions (second half, Gemini and Matilda), weekly summary fixes, user guide |
 | Angel Huang | Donation point finder, navigation bar, UI Redesign |
-| Yuna Chuang | Weekly waste summary, Implemented the redesigned UI |
+| Yuna Chuang | Weekly waste summary, UI Redesign Implementation |
