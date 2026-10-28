@@ -24,7 +24,7 @@ This guide walks you through the main things you can do, step by step. You don't
 
 When you open the app, you land on **What's in my fridge?**. Under the title are three tabs, **Fridge**, **Freezer** and **Pantry**, each showing how many items it holds. The first time, they're empty.
 
-<img src="images/01-home-empty.png" alt="The empty Home screen, with a &quot;Scan a food item&quot; button" width="250">
+<img src="images/01-home.png" alt="Home on the Pantry tab with three items, and the bottom bar" width="250">
 
 The bar at the bottom takes you around the app:
 
@@ -83,11 +83,9 @@ The line under the title tells you how much is there, for example "5 items · 2 
 
 The row also says when it expires: "Today", "Tomorrow", a weekday, a date, or "2 days over" for food that has already expired.
 
-<img src="images/05-home-groups.png" alt="Home on the Fridge tab, soonest expiry first, with red, amber and grey badges" width="250">
+<img src="images/05-home-list.png" alt="Home on the Pantry tab, soonest expiry first: an expired banana with a red badge, then food with later dates" width="250">
 
 **Shortcut:** swipe a row to the left to show **Edit** and **Delete**. Delete always asks you to confirm first.
-
-<img src="images/06-swipe.gif" alt="Swiping a row left to show Edit and Delete" width="250">
 
 ## 5. Get reminded before food expires
 
@@ -102,7 +100,7 @@ If 9 am on the first reminder's day has already passed when you save the item, t
 
 Tap a reminder to open that item in the app.
 
-<img src="images/07-reminder.png" alt="Two reminders in the notification shade: &quot;Bananas expires today&quot; and &quot;Use Milk soon&quot;" width="360">
+<img src="images/07-reminder.png" alt="A reminder on the phone: &quot;banana expires today. Use or review banana today to avoid wasting it.&quot;" width="360">
 
 If you said no to notifications, you can turn them on later in your phone's settings. Then open the item, tap **Edit reminder settings** and tap **Save changes** to set its reminders. The item's **Reminders** card always says which reminders are actually set.
 
@@ -119,7 +117,7 @@ To change anything else, tap the pencil at the top right. The same form as **Add
 
 To remove an item completely, tap **Delete item** at the bottom. The app asks you to confirm with **Delete**, and you can tap **Keep item** to back out.
 
-<img src="images/08-item.png" alt="The item screen with its expiry date, reminders and notes" width="250">
+<img src="images/08-item.png" alt="The item screen for a bottle of water kept in the pantry: when it expires and its reminders" width="250">
 
 ## 7. Mark food as eaten or thrown out
 
@@ -128,7 +126,7 @@ When the food is gone, open the item and tap one of the two buttons at the botto
 - **Eaten**
 - **Thrown out**
 
-<img src="images/08-item-actions.png" alt="The bottom of an item's screen: Eaten, Thrown out, and Delete item underneath" width="250">
+<img src="images/08-item-actions.png" alt="An item's Find recipes and Donate it buttons, with Eaten, Thrown out and Delete item at the bottom" width="250">
 
 The item leaves your Home list, its reminders are cancelled, and it's counted in your summary. Use these instead of **Delete item**: deleting removes the item without counting it.
 
@@ -145,7 +143,7 @@ Tap **Summary** in the bottom bar to see your **Waste summary**. Tap **Week** or
 - In the week view, **Day by day** shows a bar for each day.
 - **Thrown out** lists the food you threw away, newest first. Tap one to open it. If there are more than ten, tap **Show 2 more** (or however many there are) to see the rest.
 
-<img src="images/09-summary.png" alt="The Waste summary for this week, with the counts, the day-by-day chart and the thrown-out list" width="250">
+<img src="images/09-summary.png" alt="The Waste summary for this week: one item saved, and the day-by-day chart" width="250">
 
 ## 9. Donate food you can't finish
 
@@ -159,7 +157,7 @@ If you can't finish something in time, someone else might.
 6. Under **Food to bring**, tick the food you're taking. All your food that's still in date is listed, soonest expiry first.
 7. Once you've handed it over, tap **Mark 1 item as donated** (or however many you ticked). The food leaves Home and counts as donated in your summary. Tap **Done**.
 
-<img src="images/10-donation-points.png" alt="Donation points within 10 km of Surry Hills, closest first, with addresses and opening hours" width="250">
+<img src="images/10-donation-points.png" alt="Donation points within 10 km of Erskineville, closest first, with addresses and opening hours" width="250">
 
 **Looking somewhere else?** Tap the place name at the top, type a suburb, and tap it in the list of suggestions. Tap **Use my current location** to come back to places near you.
 
@@ -176,8 +174,6 @@ The app can ask an AI model for simple recipes that use the food you pick. You n
 3. Tap **Get a key** to open Google AI Studio, create a key and copy it.
 4. Paste it into the key box and tap **Save and check**. The app checks the key works before saving it. It's kept only in your phone's secure storage.
 
-<img src="images/11-recipe-settings.png" alt="Recipe settings with Gemini Flash chosen and its key saved, shown only by its last four characters" width="250">
-
 **Get recipes:**
 
 1. On **Recipes** (**What can I cook?**), look at **In your fridge**. It lists all your food, wherever it's kept. Food that expires in the next 3 days is already ticked for you. Tick or untick anything, up to 10 items, or tap **Select all**.
@@ -187,7 +183,7 @@ The app can ask an AI model for simple recipes that use the food you pick. You n
 5. Not inspired? Tap **More ideas** for new ones.
 6. Cooked it? On the recipe's page, tap **Mark as consumed** to mark the food it used as eaten, or **Mark as wasted** if it went in the bin. Both count in your summary.
 
-<img src="images/12-recipes.gif" alt="Ticking food, getting recipes, opening one and saving it" width="250">
+<img src="images/12-recipes.gif" alt="Ticking food, getting two recipe ideas and opening one" width="250">
 
 If a recipe uses food that has already expired, it shows a red warning. Check that food is still safe before cooking with it.
 
