@@ -42,7 +42,7 @@ You scan a product's barcode when you unpack your shopping, and the app fills in
 Also worth knowing:
 
 - **Your inventory stays put.** Items are written to the phone's storage before the screen updates, and read back and checked when the app starts.
-- **Nothing crashes when something goes wrong.** If the camera is blocked, the barcode isn't in the database, or there is no internet, you get the manual form with a message saying why.
+- **Nothing crashes when something goes wrong.** If the camera is blocked, the scanner says so and offers **Type it in instead**. If the barcode isn't in the database or there is no internet, you get the add form with a message saying why.
 - **You can tell two of the same product apart.** Each item's screen shows the day it was added.
 - **Deleting asks first**, on the item's screen and from the list.
 - **It works with a screen reader.** Buttons and icons on every screen have labels and roles for VoiceOver and TalkBack, the summary chart is read out as a sentence, and text follows the phone's text size.
@@ -79,7 +79,7 @@ Also worth knowing:
    ```bash
    npm run start
    ```
-   A QR code appears in the terminal. If it does not appear, press `a` to open an Android emulator or `i` to open the iOS simulator.
+   A QR code appears in the terminal. Expo may first warn that a few packages are one patch version behind the newest for SDK 58. The versions in `package-lock.json` are the ones we tested, so carry on; don't run `npx expo install --fix`. If the QR code does not appear, press `a` to open an Android emulator or `i` to open the iOS simulator.
 5. **Open the app on your phone:**
    - **Android:** open Expo Go and tap **Scan QR code**.
    - **iOS:** scan the QR code with the Camera app, then tap the banner to open it in Expo Go.
@@ -147,13 +147,13 @@ The two outcomes these don't cover, and how to see them (the app has no way to t
 
 Add these by hand from the add form (tap the scan button, then **Type it in instead**), with dates counted from the day you test. Leave the reminder at the form's 1 day before.
 
-| Name        | Expiry date | Storage | Category | What it lets you try                                                                                                                                                                                        |
-| ----------- | ----------- | ------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Curry       | Yesterday   | Fridge  | Others   | The red "Expired 1 day ago" badge. Its screen says it has no reminders and has no **Donate it**. On Recipes it is listed but not ticked, and ticking it shows a warning                                     |
-| Milk        | Today       | Fridge  | Dairy    | The red "Expires today" badge. Saved after 9 am, its reminder arrives about a minute later                                                                                                                  |
-| Spinach     | Tomorrow    | Fridge  | Veg      | The red "Expires tomorrow" badge. Saved after 9 am, the 1-day reminder arrives about a minute later and the expiry-day one at 9 am tomorrow. Ticked for you on Recipes, until you change the ticks yourself |
-| Bananas     | In 5 days   | Pantry  | Fruit    | The Pantry tab and an amber badge. Not ticked on Recipes, which ticks only food expiring within 3 days. Use **Donate it** on it to try the donation steps                                                   |
-| Frozen peas | In 3 weeks  | Freezer | Veg      | The Freezer tab, a plain badge, and a date rather than a weekday                                                                                                                                            |
+| Name        | Expiry date | Storage | Category | What it lets you try                                                                                                                                                                              |
+| ----------- | ----------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Curry       | Yesterday   | Fridge  | Others   | A red "1 day over" badge on Home. Its screen says it has no reminders and has no **Donate it**. On Recipes it is listed but not ticked, and ticking it shows a warning                            |
+| Milk        | Today       | Fridge  | Dairy    | A red "Today" badge. Saved after 9 am, its reminder arrives about a minute later                                                                                                                  |
+| Spinach     | Tomorrow    | Fridge  | Veg      | A red "Tomorrow" badge. Saved after 9 am, the 1-day reminder arrives about a minute later and the expiry-day one at 9 am tomorrow. Ticked for you on Recipes, until you change the ticks yourself |
+| Bananas     | In 5 days   | Pantry  | Fruit    | The Pantry tab, and an amber badge with the weekday. Not ticked on Recipes, which ticks only food expiring within 3 days. Use **Donate it** on it to try the donation steps                       |
+| Frozen peas | In 3 weeks  | Freezer | Veg      | The Freezer tab, and a plain badge with the date rather than a weekday                                                                                                                            |
 
 Then, for the **Summary** tab: mark the spinach **Eaten**, the curry **Thrown out**, and the bananas as donated from a donation point's page. This week's summary then shows one of each.
 
