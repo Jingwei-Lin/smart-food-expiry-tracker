@@ -17,6 +17,7 @@ import { useInventory } from '@/context/inventory-context';
 import { useToday } from '@/hooks/use-today';
 import { returnToInventory } from '@/utils/navigation';
 import type { FoodStorageLocation, ResolvedFoodItemStatus } from '@/types/food-item';
+import { confirmAction } from '@/utils/confirm-action';
 import { describeDeletion } from '@/utils/delete-confirm';
 import {
   daysUntilExpiry,
@@ -114,7 +115,6 @@ export default function ItemDetailScreen() {
   const { items, isLoading, isStorageReady, storageError, deleteItem, resolveItem } =
     useInventory();
 
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
   const [isWorking, setIsWorking] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<ResolvedFoodItemStatus | null>(null);
   /*
@@ -151,8 +151,22 @@ export default function ItemDetailScreen() {
     );
   }
 
+  /*
+   * Asks in the phone's own dialog. A confirm card drawn under the content
+   * could land below the bottom of the screen, where tapping Delete item
+   * seemed to do nothing.
+   */
   function handleDelete() {
-    void runAction(() => deleteItem(id), 'This item could not be deleted. Please try again.');
+    if (!item) return;
+
+    confirmAction({
+      ...describeDeletion(item),
+      confirmLabel: 'Delete',
+      cancelLabel: 'Keep item',
+      destructive: true,
+      onConfirm: () =>
+        void runAction(() => deleteItem(id), 'This item could not be deleted. Please try again.'),
+    });
   }
 
   function openEdit() {
@@ -217,7 +231,6 @@ export default function ItemDetailScreen() {
   const statusLabel = item.status === 'active' ? null : STATUS_LABELS[item.status];
   const daysLeft = daysUntilExpiry(item.expiryDate, today);
   const expiry = getExpiryPresentation(item.expiryDate, today);
-  const deletion = describeDeletion(item);
   /* A donation point's page only offers food still in date, so expired food has nowhere to go. */
   const canDonate = Number.isFinite(daysLeft) && daysLeft >= 0;
   const addedOn = formatStoredDate(item.createdAt);
@@ -237,44 +250,14 @@ export default function ItemDetailScreen() {
   const deleteToggle = (
     <Pressable
       accessibilityRole="button"
-      accessibilityHint={isConfirmingDelete ? undefined : `Asks before deleting ${item.name}`}
+      accessibilityHint={`Asks before deleting ${item.name}`}
       disabled={actionsDisabled}
-      onPress={() => setIsConfirmingDelete((current) => !current)}
+      onPress={handleDelete}
       style={styles.deleteLink}
     >
-      <Text style={styles.deleteLinkText}>
-        {isConfirmingDelete ? 'Cancel delete' : 'Delete item'}
-      </Text>
+      <Text style={styles.deleteLinkText}>{isWorking ? 'Deleting...' : 'Delete item'}</Text>
     </Pressable>
   );
-
-  const deleteConfirm = isConfirmingDelete ? (
-    <View style={styles.deleteConfirmCard}>
-      <Text style={styles.deleteConfirmTitle}>{deletion.title}</Text>
-
-      <Text style={styles.deleteConfirmText}>{deletion.message}</Text>
-
-      <View style={styles.confirmButtons}>
-        <Pressable
-          accessibilityRole="button"
-          disabled={isWorking}
-          onPress={() => setIsConfirmingDelete(false)}
-          style={styles.cancelDeleteButton}
-        >
-          <Text style={styles.cancelDeleteText}>Keep item</Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          disabled={actionsDisabled}
-          onPress={handleDelete}
-          style={[styles.confirmDeleteButton, actionsDisabled && styles.disabled]}
-        >
-          <Text style={styles.confirmDeleteText}>{isWorking ? 'Deleting...' : 'Delete'}</Text>
-        </Pressable>
-      </View>
-    </View>
-  ) : null;
 
   // This is a qualitative urgency indicator, not a shelf-life percentage.
   const urgencyWidth = !Number.isFinite(daysLeft)
@@ -465,8 +448,6 @@ export default function ItemDetailScreen() {
                 </Pressable>
               ) : null}
             </View>
-
-            {deleteConfirm}
           </>
         ) : (
           <>
@@ -488,7 +469,6 @@ export default function ItemDetailScreen() {
              * deleting it. Eaten and donated food is not listed anywhere.
              */}
             {deleteToggle}
-            {deleteConfirm}
           </>
         )}
 
@@ -878,56 +858,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Fredoka_400Regular',
     fontSize: 14,
     textAlign: 'center',
-  },
-  deleteConfirmCard: {
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#EBC7C3',
-    borderRadius: 18,
-    backgroundColor: COLORS.surface,
-    padding: 16,
-  },
-  deleteConfirmTitle: {
-    color: COLORS.primary,
-    fontFamily: 'Fredoka_600SemiBold',
-    fontSize: 17,
-  },
-  deleteConfirmText: {
-    marginTop: 7,
-    color: COLORS.secondary,
-    fontFamily: 'Fredoka_400Regular',
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  confirmButtons: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
-  },
-  cancelDeleteButton: {
-    flex: 1,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 14,
-  },
-  cancelDeleteText: {
-    color: COLORS.primary,
-    fontFamily: 'Fredoka_500Medium',
-  },
-  confirmDeleteButton: {
-    flex: 1,
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    backgroundColor: COLORS.error,
-  },
-  confirmDeleteText: {
-    color: COLORS.surface,
-    fontFamily: 'Fredoka_600SemiBold',
   },
   errorBanner: {
     flexDirection: 'row',

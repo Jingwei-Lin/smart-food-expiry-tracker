@@ -8,6 +8,7 @@ import ReanimatedSwipeable, {
 import { FoodCategoryIcon } from '@/components/food-category-icon';
 import { useInventory } from '@/context/inventory-context';
 import { FoodItem } from '@/types/food-item';
+import { confirmAction } from '@/utils/confirm-action';
 import { describeDeletion } from '@/utils/delete-confirm';
 import {
   daysUntilExpiry,
@@ -113,34 +114,18 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
 
   /*
    * Asks first, with the item screen's wording, so a stray swipe and tap can
-   * still be backed out of. A native dialog, because a row has no room for the
-   * item screen's inline confirm card. react-native-web's Alert does nothing,
-   * so the web build asks with the browser's own dialog instead.
+   * still be backed out of.
    */
   function confirmDelete(swipeable: SwipeableMethods) {
     swipeable.close();
 
-    const { title, message } = describeDeletion(item);
-
-    if (Platform.OS === 'web') {
-      if (window.confirm(`${title}\n\n${message}`)) {
-        void removeItem();
-      }
-
-      return;
-    }
-
-    Alert.alert(title, message, [
-      {
-        text: 'Keep item',
-        style: 'cancel',
-      },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: () => void removeItem(),
-      },
-    ]);
+    confirmAction({
+      ...describeDeletion(item),
+      confirmLabel: 'Delete',
+      cancelLabel: 'Keep item',
+      destructive: true,
+      onConfirm: () => void removeItem(),
+    });
   }
 
   function renderActions(_progress: unknown, _translation: unknown, swipeable: SwipeableMethods) {

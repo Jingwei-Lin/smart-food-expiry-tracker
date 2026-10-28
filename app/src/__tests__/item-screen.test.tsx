@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { router } from 'expo-router';
-import { Platform } from 'react-native';
+import { Alert, AlertButton, Platform } from 'react-native';
 
 import ItemDetailScreen from '@/app/item/[id]';
 import { InventoryProvider } from '@/context/inventory-context';
@@ -66,6 +66,10 @@ beforeEach(async () => {
   jest.mocked(router.dismissTo).mockReset();
   jest.mocked(router.back).mockReset();
   jest.mocked(router.replace).mockReset();
+  jest
+    .spyOn(Alert, 'alert')
+    .mockReset()
+    .mockImplementation(() => undefined);
   await AsyncStorage.clear();
 });
 
@@ -304,15 +308,17 @@ describe('ItemDetailScreen', () => {
     expect(view.queryByText('Donate it')).toBeNull();
   });
 
-  it('deletes an active item only after it is confirmed', async () => {
+  it('asks in a dialog, and deletes an active item only once it is confirmed', async () => {
     const view = await renderScreen(buildMilk());
 
     await fireEvent.press(view.getByRole('button', { name: 'Delete item' }));
-    expect(
-      view.getByText('This removes the item from your inventory. It cannot be undone.'),
-    ).toBeTruthy();
+    const dialog = lastDialog();
 
-    await fireEvent.press(view.getByText('Delete'));
+    expect(dialog.title).toBe('Delete Milk?');
+    expect(dialog.message).toBe('This removes the item from your inventory. It cannot be undone.');
+    expect(JSON.parse((await AsyncStorage.getItem(STORAGE_KEY)) ?? '[]')).toHaveLength(1);
+
+    await act(async () => dialog.press('Delete'));
 
     expect(await AsyncStorage.getItem(STORAGE_KEY)).toBe('[]');
     expect(router.back).toHaveBeenCalled();
@@ -326,21 +332,35 @@ describe('ItemDetailScreen', () => {
       );
 
       await fireEvent.press(view.getByRole('button', { name: 'Delete item' }));
-      expect(view.getByText(/and from the waste summary/)).toBeTruthy();
+      const dialog = lastDialog();
 
-      await fireEvent.press(view.getByText('Delete'));
+      expect(dialog.message).toMatch(/and from the waste summary/);
+
+      await act(async () => dialog.press('Delete'));
 
       expect(await AsyncStorage.getItem(STORAGE_KEY)).toBe('[]');
     },
   );
 
-  it('keeps the item when the delete is cancelled', async () => {
+  it('keeps the item when the dialog is answered "Keep item"', async () => {
     const view = await renderScreen(buildMilk());
 
     await fireEvent.press(view.getByRole('button', { name: 'Delete item' }));
-    await fireEvent.press(view.getByText('Keep item'));
+    await act(async () => lastDialog().press('Keep item'));
 
-    expect(view.queryByText('Keep item')).toBeNull();
     expect(JSON.parse((await AsyncStorage.getItem(STORAGE_KEY)) ?? '[]')).toHaveLength(1);
+    expect(router.back).not.toHaveBeenCalled();
   });
 });
+
+/** The last dialog shown, with a way to press one of its buttons by its words. */
+function lastDialog() {
+  const calls = jest.mocked(Alert.alert).mock.calls;
+  const [title, message, buttons = []] = calls[calls.length - 1];
+
+  return {
+    title,
+    message,
+    press: (text: string) => (buttons as AlertButton[]).find((b) => b.text === text)?.onPress?.(),
+  };
+}
