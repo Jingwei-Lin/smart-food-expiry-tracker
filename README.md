@@ -30,14 +30,14 @@ You scan a product's barcode when you unpack your shopping, and the app fills in
 
 ## Key features
 
-| Feature                   | What it does                                                                                                                                                                                                                                                                                                                                              | Status                                                   |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
-| **Barcode scanning**      | Scan a product and look up its name in Open Food Facts. The app provides a guessed expiry estimate that you can correct                                                                                                                                                                                                                                   | Working, tested on iOS                                   |
-| **Manual entry**          | Add, edit and delete items by hand, for loose produce or anything without a barcode. The expiry date is picked from a calendar. Swipe a row left to edit or delete it straight from the list                                                                                                                                                              | Working, tested on iOS                                   |
-| **Expiry reminders**      | Choose 1 to 7 days' notice and get a second reminder on the expiry day, at 9 am. Reminders follow every edit, resolve and delete, and tapping one opens the item. The item's screen says which reminders are actually set                                                                                                                                 | Working, tested on iOS                                   |
-| **Donation point finder** | Food banks, soup kitchens and community pantries within 10 km of you, or of any suburb you type, closest first. "Donate it" on an item opens it, and ticking food on a place's page and marking it as donated counts it in the summary                                                                                                                    | Working, tested on iOS                                   |
-| **Weekly waste summary**  | Counts the food you marked eaten, donated or thrown out this week (Monday to Sunday) or this month, with a day-by-day chart for the week                                                                                                                                                                                                                  | Working, tested on iOS                                   |
-| **Recipe suggestions**    | Tick the food you want to cook with (food expiring within 3 days is ticked for you) and get simple recipes from an AI model you choose, using your own API key. Save the ones you like, ask for different ideas, and your last suggestions come back after a restart. Open a recipe to mark the food it uses as eaten or wasted, which the summary counts | Working, tested on iOS with Gemini, Matilda and DeepSeek |
+| Feature                   | What it does                                                                                                                                                                                                                                                                                                                                              | Status                                                               |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| **Barcode scanning**      | Scan a product and look up its name in Open Food Facts. The app provides a guessed expiry estimate that you can correct                                                                                                                                                                                                                                   | Working, tested on Android and iOS                                   |
+| **Manual entry**          | Add, edit and delete items by hand, for loose produce or anything without a barcode. The expiry date is picked from a calendar. Swipe a row left to edit or delete it straight from the list                                                                                                                                                              | Working, tested on Android and iOS                                   |
+| **Expiry reminders**      | Choose 1 to 7 days' notice and get a second reminder on the expiry day, at 9 am. Reminders follow every edit, resolve and delete, and tapping one opens the item. The item's screen says which reminders are actually set                                                                                                                                 | Working, tested on Android and iOS                                   |
+| **Donation point finder** | Food banks, soup kitchens and community pantries within 10 km of you, or of any suburb you type, closest first. "Donate it" on an item opens it, and ticking food on a place's page and marking it as donated counts it in the summary                                                                                                                    | Working, tested on Android and iOS                                   |
+| **Weekly waste summary**  | Counts the food you marked eaten, donated or thrown out this week (Monday to Sunday) or this month, with a day-by-day chart for the week                                                                                                                                                                                                                  | Working, tested on Android and iOS                                   |
+| **Recipe suggestions**    | Tick the food you want to cook with (food expiring within 3 days is ticked for you) and get simple recipes from an AI model you choose, using your own API key. Save the ones you like, ask for different ideas, and your last suggestions come back after a restart. Open a recipe to mark the food it uses as eaten or wasted, which the summary counts | Working, tested on Android and iOS with Gemini, Matilda and DeepSeek |
 
 Also worth knowing:
 
@@ -395,12 +395,12 @@ app/                  Expo project (run every command from here)
 
 ## Mobile technologies
 
-| Technology                                 | Used for                                       | Status                 |
-| ------------------------------------------ | ---------------------------------------------- | ---------------------- |
-| Camera (`expo-camera`)                     | Scanning product barcodes                      | Working, tested on iOS |
-| Local notifications (`expo-notifications`) | Scheduled expiry reminders                     | Working, tested on iOS |
-| GPS / geolocation (`expo-location`)        | Finding donation points near you               | Working, tested on iOS |
-| Mobile data networks                       | Open Food Facts lookups and recipe suggestions | Working, tested on iOS |
+| Technology                                 | Used for                                       | Status                             |
+| ------------------------------------------ | ---------------------------------------------- | ---------------------------------- |
+| Camera (`expo-camera`)                     | Scanning product barcodes                      | Working, tested on Android and iOS |
+| Local notifications (`expo-notifications`) | Scheduled expiry reminders                     | Working, tested on Android and iOS |
+| GPS / geolocation (`expo-location`)        | Finding donation points near you               | Working, tested on Android and iOS |
+| Mobile data networks                       | Open Food Facts lookups and recipe suggestions | Working, tested on Android and iOS |
 
 ## Your data and security
 
@@ -432,7 +432,7 @@ Two suggestions were not adopted:
 
 ## Known limitations and TODO
 
-- **Recipes are untested with OpenAI**, which needs prepaid credit before it answers. Gemini, Matilda and DeepSeek were tested on iOS.
+- **Recipes are untested with OpenAI**, which needs prepaid credit before it answers. Gemini, Matilda and DeepSeek were tested.
 - **Reminders can arrive late on Android.** To save battery, Android may deliver a scheduled notification several minutes after its time, especially once the screen is off. The delay is longer on phones with strict battery savers, such as Xiaomi. The 9 am reminders don't need to be exact, so the app accepts this rather than asking for the exact-alarm permission. When testing, keep the screen on, or set Expo Go's battery saver to "No restrictions".
 - **Not yet done:** a full accessibility pass (screen reader labels and large text on every screen), and a check that every screen has a clear empty, loading and error state.
 - **Web is best-effort only:**
