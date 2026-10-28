@@ -8,6 +8,7 @@ import { DishArt } from '@/components/dish-art';
 import { SavedStar } from '@/components/saved-star';
 import { useInventory } from '@/context/inventory-context';
 import { useToday } from '@/hooks/use-today';
+import { confirmAction } from '@/utils/confirm-action';
 import { describeExpiredInRecipe, joinNames } from '@/utils/expired-warnings';
 import { goBackOr } from '@/utils/navigation';
 import {
@@ -203,6 +204,27 @@ export default function RecipeDetailScreen() {
     }
   }
 
+  /*
+   * Asks first: one tap marks every matched item, whole, and can't be undone.
+   * The dialog names the food, which the buttons themselves don't.
+   */
+  function confirmUsedFood(status: 'eaten' | 'discarded') {
+    if (usedItems.length === 0 || isMarking) {
+      return;
+    }
+
+    const one = usedItems.length === 1;
+
+    confirmAction({
+      title: `Mark ${usedNames} as ${OUTCOME_WORDS[status]}?`,
+      message: `${one ? 'It leaves' : 'They leave'} your food and ${one ? 'counts' : 'count'} in your waste summary. The whole item is marked, not just what the recipe uses. This can't be undone.`,
+      confirmLabel: status === 'eaten' ? 'Mark as eaten' : 'Mark as thrown out',
+      cancelLabel: 'Cancel',
+      destructive: status === 'discarded',
+      onConfirm: () => void markUsedFood(status),
+    });
+  }
+
   /* The star fills or empties only once the change is saved, as on the cards. */
   async function toggleSaved() {
     try {
@@ -358,7 +380,7 @@ export default function RecipeDetailScreen() {
                 accessibilityRole="button"
                 accessibilityState={{ disabled: isMarking, busy: markingStatus === 'discarded' }}
                 disabled={isMarking}
-                onPress={() => void markUsedFood('discarded')}
+                onPress={() => confirmUsedFood('discarded')}
                 style={({ pressed }) => [styles.wastedButton, pressed ? styles.pressed : null]}
               >
                 <Text style={styles.wastedText}>
@@ -371,7 +393,7 @@ export default function RecipeDetailScreen() {
                 accessibilityRole="button"
                 accessibilityState={{ disabled: isMarking, busy: markingStatus === 'eaten' }}
                 disabled={isMarking}
-                onPress={() => void markUsedFood('eaten')}
+                onPress={() => confirmUsedFood('eaten')}
                 style={({ pressed }) => [styles.consumedButton, pressed ? styles.pressed : null]}
               >
                 <Text style={styles.consumedText}>

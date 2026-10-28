@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { fireEvent, render } from '@testing-library/react-native';
 import { router } from 'expo-router';
+import { Alert, AlertButton } from 'react-native';
 
 import RecipeDetailScreen from '@/app/recipe/[id]';
 import type { FoodItem } from '@/types/food-item';
@@ -103,6 +104,12 @@ beforeEach(async () => {
     food('bread', 'Bread', 3),
   ];
   mockInventory.resolveItem.mockResolvedValue(undefined);
+  // The student says yes to the dialog unless a test says otherwise.
+  jest
+    .spyOn(Alert, 'alert')
+    .mockImplementation((_title, _message, buttons) =>
+      buttons?.find((button) => button.style !== 'cancel')?.onPress?.(),
+    );
 });
 
 describe('RecipeDetailScreen', () => {
@@ -177,6 +184,39 @@ describe('RecipeDetailScreen marking the food', () => {
     expect(view.getByText('Mark as consumed')).toBeTruthy();
     expect(view.queryByText(/in your fridge\./)).toBeNull();
     expect(mockInventory.resolveItem).not.toHaveBeenCalled();
+  });
+
+  it('asks first, naming the food, and marks nothing when cancelled', async () => {
+    const alert = jest.mocked(Alert.alert).mockImplementation(() => undefined);
+    const view = await openOmelette();
+
+    await fireEvent.press(view.getByText('Mark as consumed'));
+    const [title, message, buttons] = alert.mock.calls[0];
+
+    expect(title).toBe('Mark Spinach and Milk as eaten?');
+    expect(message).toMatch(/The whole item is marked, not just what the recipe uses/);
+    expect((buttons as AlertButton[]).map((button) => button.text)).toEqual([
+      'Cancel',
+      'Mark as eaten',
+    ]);
+
+    (buttons as AlertButton[])[0].onPress?.();
+
+    expect(mockInventory.resolveItem).not.toHaveBeenCalled();
+  });
+
+  it('asks about throwing food out with a red button', async () => {
+    const alert = jest.mocked(Alert.alert).mockImplementation(() => undefined);
+    const view = await openOmelette();
+
+    await fireEvent.press(view.getByText('Mark as wasted'));
+    const [title, , buttons] = alert.mock.calls[0];
+
+    expect(title).toBe('Mark Spinach and Milk as thrown out?');
+    expect((buttons as AlertButton[])[1]).toMatchObject({
+      text: 'Mark as thrown out',
+      style: 'destructive',
+    });
   });
 
   it('marks the soonest matching food as eaten, skipping food not in the fridge', async () => {
