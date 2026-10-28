@@ -17,6 +17,7 @@ import {
 
 type InventoryRowProps = {
   item: FoodItem;
+  /** Passed in so every row on the screen agrees on what day it is. */
   today: Date;
 };
 
@@ -25,7 +26,6 @@ const COLORS = {
   primary: '#1E2A16',
   secondary: '#55614D',
   border: '#E4E5D4',
-  divider: '#EEEFE5',
   accentSoft: '#F0F7DB',
   urgent: '#A92E26',
   urgentSoft: '#FBEFF2',
@@ -33,6 +33,11 @@ const COLORS = {
   warningSoft: '#FFF0D5',
 };
 
+/*
+ * The badge carries the urgency Home's old Expired and Eat soon sections
+ * showed: red once food is past its date or within 3 days of it, amber within
+ * a week, plain after that.
+ */
 function getExpiryBadgeStyle(item: FoodItem, today: Date) {
   const days = daysUntilExpiry(item.expiryDate, today);
 
@@ -63,6 +68,11 @@ function getExpiryBadgeStyle(item: FoodItem, today: Date) {
   };
 }
 
+/**
+ * One food item on Home: what it is, and when it goes off. Tapping opens the
+ * item. Swiping left offers two shortcuts past it: Edit, for correcting a date
+ * at the fridge door, and Delete, for food added by mistake.
+ */
 export function InventoryRow({ item, today }: InventoryRowProps) {
   const { deleteItem } = useInventory();
 
@@ -101,6 +111,12 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
     }
   }
 
+  /*
+   * Asks first, with the item screen's wording, so a stray swipe and tap can
+   * still be backed out of. A native dialog, because a row has no room for the
+   * item screen's inline confirm card. react-native-web's Alert does nothing,
+   * so the web build asks with the browser's own dialog instead.
+   */
   function confirmDelete(swipeable: SwipeableMethods) {
     swipeable.close();
 
@@ -164,6 +180,7 @@ export function InventoryRow({ item, today }: InventoryRowProps) {
   return (
     <ReanimatedSwipeable
       friction={2}
+      /* There are no left actions, so dragging the other way must not move the row. */
       overshootLeft={false}
       overshootRight={false}
       renderRightActions={renderActions}
