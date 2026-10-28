@@ -2,7 +2,7 @@ import { BarcodeType, CameraView, useCameraPermissions } from 'expo-camera';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ScanBarcode, X } from 'lucide-react-native';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -27,7 +27,20 @@ export default function ScanScreen() {
   const [stage, setStage] = useState<ScanStage>('scanning');
 
   const hasScanned = useRef(false);
+  /*
+   * Set once the screen goes away. A lookup can take up to 8 seconds, and if
+   * the student closes the scanner meanwhile, opening the add form afterwards
+   * would replace whatever screen is showing then, usually the tabs.
+   */
+  const hasLeft = useRef(false);
   const insets = useSafeAreaInsets();
+
+  useEffect(
+    () => () => {
+      hasLeft.current = true;
+    },
+    [],
+  );
 
   function openManualEntry() {
     router.replace('/add');
@@ -43,6 +56,10 @@ export default function ScanScreen() {
 
     // lookupProduct never throws: a network failure comes back as 'unavailable'.
     const result = await lookupProduct(barcode);
+
+    if (hasLeft.current) {
+      return;
+    }
 
     if (result.outcome === 'found') {
       router.replace({
