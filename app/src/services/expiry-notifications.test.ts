@@ -168,7 +168,6 @@ describe('scheduleExpiryReminders', () => {
   });
 
   it('cancels the first reminder if scheduling the second reminder fails', async () => {
-    const consoleWarn = jest.spyOn(console, 'warn').mockImplementation();
     scheduleNotificationMock.mockReset();
     scheduleNotificationMock
       .mockResolvedValueOnce('advance-notification')
@@ -179,7 +178,6 @@ describe('scheduleExpiryReminders', () => {
       reason: 'native failure',
     });
     expect(cancelNotificationMock).toHaveBeenCalledWith('advance-notification');
-    consoleWarn.mockRestore();
   });
 
   it('uses Expo Go default Android notification settings when running in Expo Go', async () => {

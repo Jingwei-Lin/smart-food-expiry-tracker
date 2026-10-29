@@ -42,7 +42,7 @@ You scan a product's barcode when you unpack your shopping, and the app fills in
 Also worth knowing:
 
 - **Your inventory stays put.** Items are written to the phone's storage before the screen updates, and read back and checked when the app starts.
-- **Nothing crashes when something goes wrong.** If the camera is blocked, the barcode isn't in the database, or there is no internet, you get the manual form with a message saying why.
+- **Nothing crashes when something goes wrong.** If the camera is blocked, the scanner says so and offers **Type it in instead**. If the barcode isn't in the database or there is no internet, you get the add form with a message saying why.
 - **You can tell two of the same product apart.** Each item's screen shows the day it was added.
 - **Deleting asks first**, on the item's screen and from the list.
 - **It works with a screen reader.** Buttons and icons on every screen have labels and roles for VoiceOver and TalkBack, the summary chart is read out as a sentence, and text follows the phone's text size.
@@ -57,9 +57,13 @@ Also worth knowing:
 
 ### Step by step
 
-1. **Get the code.** Either:
-   - download the source zip from the `v2.0` release on the repository's **Releases** page, and unzip it; or
-   - clone it:
+1. **Get the code.** Do one of these:
+   - download the source zip from the `v2.0` release on the repository's **Releases** page, and unzip it;
+   - clone it over HTTPS:
+     ```bash
+     git clone https://github.sydney.edu.au/COMP5216-2026-S2/COMP5216-2026-GP-23.git
+     ```
+   - or, if you have an SSH key set up on the university GitHub, clone it over SSH instead:
      ```bash
      git clone git@github.sydney.edu.au:COMP5216-2026-S2/COMP5216-2026-GP-23.git
      ```
@@ -75,7 +79,7 @@ Also worth knowing:
    ```bash
    npm run start
    ```
-   A QR code appears in the terminal. If it does not appear, press `a` to open an Android emulator or `i` to open the iOS simulator.
+   A QR code appears in the terminal. Expo may first warn that a few packages are one patch version behind the newest for SDK 58. The versions in `package-lock.json` are the ones we tested, so carry on; don't run `npx expo install --fix`. If the QR code does not appear, press `a` to open an Android emulator or `i` to open the iOS simulator.
 5. **Open the app on your phone:**
    - **Android:** open Expo Go and tap **Scan QR code**.
    - **iOS:** scan the QR code with the Camera app, then tap the banner to open it in Expo Go.
@@ -98,7 +102,7 @@ The app's own launcher icon and splash screen only show in a development build (
 
 ## Demo account and test data
 
-**There are no accounts and no login.** Everything is stored on the phone, so a fresh install starts with an empty inventory and you can try every feature straight away.
+**There are no accounts and no login.** Everything is stored on the phone, so a fresh install starts with an empty inventory. The [test barcodes](#test-barcodes) and [sample food](#sample-food-to-add) below fill it in a few minutes, with something to try for every feature.
 
 **A test API key is in our Canvas submission.** Recipe suggestions are the only feature that needs one; the key is for Gemini Flash. To enter it:
 
@@ -110,14 +114,48 @@ The key is never stored in this repository.
 
 **A quick tour of every feature:**
 
-1. **Scan:** tap the round scan button in the middle of the tab bar and scan any packaged grocery. If Open Food Facts doesn't know it, the add form opens empty with a message saying so.
-2. **Add by hand:** fill in a name and pick an expiry date one or two days away. The item appears on Home, in the Fridge, Freezer or Pantry tab you chose, with the soonest expiry first.
+1. **Scan:** tap the round scan button in the middle of the tab bar and scan one of the [test barcodes](#test-barcodes), or any packaged grocery. If Open Food Facts doesn't know it, the add form opens empty with a message saying so.
+2. **Add by hand:** add the [sample food](#sample-food-to-add), or fill in a name and pick an expiry date one or two days away. The item appears on Home, in the Fridge, Freezer or Pantry tab you chose, with the soonest expiry first.
 3. **Reminder:** an item that expires today, saved after 9 am, gets its reminder about a minute later. Android may hold it back by up to about 10 minutes, especially with the screen off (see [Known limitations](#known-limitations-and-todo)). Tap the reminder to open the item.
 4. **Resolve:** open an item and tap **Eaten** or **Thrown out**. The **Summary** tab counts it under this week.
 5. **Donate:** on an active item, tap **Donate it**. To count food as donated, open a place, tick the food you are taking and tap **Mark … as donated**.
    - If you deny location, search a suburb with its state, e.g. "Newtown NSW".
    - Most listed places are in the state capitals.
 6. **Recipes:** with the test key saved, tick some food on the **Recipes** tab and tap **Suggest recipes**. Star one to save it.
+
+### Test barcodes
+
+These are photos of six real products we bought, in `userguide/images/`. Scan them from a computer screen, or print them. Each was looked up in Open Food Facts on 29 Oct 2026; the database is edited by the public, so a later answer may differ.
+
+Every one is found, so the add form opens with **Found it** at the top. The storage place starts as Fridge, so change it before saving where needed.
+
+| Barcode                                                                                                         | Number                            | Open Food Facts returns                                                                           | What the app does                                                                                                |
+| --------------------------------------------------------------------------------------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| <img src="userguide/images/barcode-eggs.jpg" width="160" alt="Barcode on a Coles egg carton">                   | `9310645119144`                   | "Extra Large Eggs" by Coles, 700g, in the eggs category                                           | Fills in "Coles Extra Large Eggs", 700g and Dairy, and an expiry 21 days away, labelled as estimated from "eggs" |
+| <img src="userguide/images/barcode-pepsi-max.jpg" width="160" alt="Barcode on a Pepsi Max can">                 | `9313820016108`                   | "Pepsi Max" by Pepsi, 375 ml, in the beverages category                                           | Fills in "Pepsi Max" and 375 ml, and an expiry 180 days away, labelled as estimated from "drinks"                |
+| <img src="userguide/images/barcode-milk.jpg" width="160" alt="Barcode on a bottle of a2 Light milk">            | `9335390000028`                   | "Milk" by a2 Milk Company, 1l, with a category Open Food Facts doesn't standardise ("Light milk") | Fills in "a2 Milk Company Milk" and 1l, with no estimate, so you pick the date                                   |
+| <img src="userguide/images/barcode-potatoes.jpg" width="160" alt="Barcode on a bag of Coles potatoes">          | `9300601928590`                   | "Coles Australian White Potatoes", with no category                                               | Fills in "Coles Australian White Potatoes", with no estimate                                                     |
+| <img src="userguide/images/barcode-tomatoes.jpg" width="160" alt="Barcode on a punnet of Coles grape tomatoes"> | `9310645321202`                   | "Glasshouse grape tomatoes" by Coles, with no category                                            | Fills in "Coles Glasshouse grape tomatoes", with no estimate                                                     |
+| <img src="userguide/images/barcode-whey-protein.jpg" width="160" alt="Barcode on a bag of whey protein powder"> | `748927057027` (a 12-digit UPC-A) | "Gold Standard Whey Cookies and Cream" by Optimum Nutrition, with no category                     | Fills in "Optimum Nutrition Gold Standard Whey Cookies and Cream", with no estimate                              |
+
+The two outcomes these don't cover, and how to see them (the app has no way to type a barcode in):
+
+- **Not found:** scan the barcode on the back of a book. Books are not in Open Food Facts, so the form opens empty with "We couldn't find that barcode".
+- **No connection:** turn on flight mode and scan any of the six. The form opens empty with "Could not look up this barcode".
+
+### Sample food to add
+
+Add these by hand from the add form (tap the scan button, then **Type it in instead**), with dates counted from the day you test. Leave the reminder at the form's 1 day before.
+
+| Name        | Expiry date | Storage | Category | What it lets you try                                                                                                                                                                              |
+| ----------- | ----------- | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Curry       | Yesterday   | Fridge  | Others   | A red "1 day over" badge on Home. Its screen says it has no reminders and has no **Donate it**. On Recipes it is listed but not ticked, and ticking it shows a warning                            |
+| Milk        | Today       | Fridge  | Dairy    | A red "Today" badge. Saved after 9 am, its reminder arrives about a minute later                                                                                                                  |
+| Spinach     | Tomorrow    | Fridge  | Veg      | A red "Tomorrow" badge. Saved after 9 am, the 1-day reminder arrives about a minute later and the expiry-day one at 9 am tomorrow. Ticked for you on Recipes, until you change the ticks yourself |
+| Bananas     | In 5 days   | Pantry  | Fruit    | The Pantry tab, and an amber badge with the weekday. Not ticked on Recipes, which ticks only food expiring within 3 days. Use **Donate it** on it to try the donation steps                       |
+| Frozen peas | In 3 weeks  | Freezer | Veg      | The Freezer tab, and a plain badge with the date rather than a weekday                                                                                                                            |
+
+Then, for the **Summary** tab: mark the spinach **Eaten**, the curry **Thrown out**, and the bananas as donated from a donation point's page. This week's summary then shows one of each.
 
 ## How the app is built
 
@@ -217,17 +255,34 @@ A food item, as stored (`src/types/food-item.ts`):
 }
 ```
 
-| Field                 | Meaning                                                                                                   |
-| --------------------- | --------------------------------------------------------------------------------------------------------- |
-| `status`              | `active`, `eaten`, `discarded` or `donated`                                                               |
-| `storageLocation`     | `fridge`, `freezer` or `pantry`; items saved without one load as `fridge`                                 |
-| `category`            | `Veg`, `Fruit`, `Dairy`, `Meat`, `Bread`, `Seafood` or `Others`; items saved without one load as `Others` |
-| `statusUpdatedAt`     | Set when an item is resolved; the summary counts by it                                                    |
-| `barcode`             | Only on scanned items                                                                                     |
-| `notificationIds`     | The scheduled reminders, absent when none are set                                                         |
-| `reminderRuleVersion` | 1 marks an item saved by `v1.0`, whose reminders are scheduled at the next launch                         |
+The table lists every field, and how `normalizeFoodItem` in the inventory context checks it when the app starts. An item with a required field missing or of the wrong type is dropped, and the rest still load. A field marked "Filled in" gets the default shown when it is missing.
 
-A recipe is `{ title, minutes, usesIngredients: string[], extraIngredients: string[], steps: string[] }`.
+| Field                 | Type                                                                        | Required              | Meaning                                                                                                                    |
+| --------------------- | --------------------------------------------------------------------------- | --------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `id`                  | `string`                                                                    | Yes                   | Unique id: the time it was added in milliseconds, a dash and up to 8 random letters and digits                             |
+| `name`                | `string`                                                                    | Yes                   | The food's name                                                                                                            |
+| `quantity`            | `string`                                                                    | Yes                   | Free text such as "1 tub"; can be empty                                                                                    |
+| `expiryDate`          | `string`, a date `YYYY-MM-DD`                                               | Yes                   | The date on the packet, as a local calendar day. A date that can't be read still loads, and shows as "Invalid expiry date" |
+| `storageLocation`     | `"fridge" \| "freezer" \| "pantry"`                                         | Filled in: `"fridge"` | Which Home tab it is in                                                                                                    |
+| `category`            | `"Veg" \| "Fruit" \| "Dairy" \| "Meat" \| "Bread" \| "Seafood" \| "Others"` | Filled in: `"Others"` | The category picked on the form, or found from a scan                                                                      |
+| `reminderDaysBefore`  | `number`, a whole number from 1 to 7                                        | Filled in: `1`        | How many days before expiry the first reminder comes. Any other number drops the item                                      |
+| `reminderRuleVersion` | `1 \| 2`                                                                    | Filled in: `1`        | `2` on everything saved since `v1.0`. `1` marks an item saved by `v1.0`, whose reminders are scheduled at the next launch  |
+| `notes`               | `string`                                                                    | Yes                   | Free text; can be empty                                                                                                    |
+| `createdAt`           | `string`, an ISO 8601 date and time in UTC                                  | Yes                   | When it was added; the item's screen shows the day                                                                         |
+| `status`              | `"active" \| "eaten" \| "discarded" \| "donated"`                           | Yes                   | `active` until it is eaten, thrown out or donated                                                                          |
+| `statusUpdatedAt`     | `string`, an ISO 8601 date and time in UTC                                  | No                    | Set when an item is resolved; the summary counts by it                                                                     |
+| `barcode`             | `string`                                                                    | No                    | Only on scanned items                                                                                                      |
+| `notificationIds`     | `string[]`                                                                  | No                    | The ids of the scheduled reminders, absent when none are set. An empty list loads as absent                                |
+
+The recipe keys hold these shapes (`src/utils/recipe-storage.ts`). Each is read back the same way: a recipe with a field missing is dropped, and a file that can't be read counts as empty.
+
+| Shape             | Fields                                                                                                                                                                                                                              |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Recipe`          | `title: string` (not empty), `minutes: number` (a whole number above 0), `usesIngredients: string[]` (at least one, the ticked food it uses), `extraIngredients: string[]` (anything else needed), `steps: string[]` (at least one) |
+| `SuggestedRecipe` | A `Recipe` plus `id: string`, given by the app when the suggestions arrive                                                                                                                                                          |
+| Saved recipe      | `{ id: string, savedAt: string, recipe: Recipe }`, where `id` is the suggestion's id and `savedAt` is an ISO 8601 date and time. The list is kept newest first                                                                      |
+
+**No database rules or indexes.** With no server there is nothing to secure or index on one. Each app's storage is closed to other apps by the phone itself, and API keys are kept in SecureStore, below.
 
 ### SecureStore (the phone's Keychain or Keystore)
 
@@ -311,25 +366,29 @@ The script is `scripts/update-donation-snapshot.ts`, and it uses `src/utils/over
 
 ## Libraries used
 
-| Library                                                                                     | Used for                                                  |
-| ------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| `expo` (SDK 58), `react-native` 0.88, `react` 19.3                                          | The app framework                                         |
-| `expo-router`                                                                               | File-based navigation and the tab bar                     |
-| `expo-camera`                                                                               | Barcode scanning                                          |
-| `expo-notifications`                                                                        | Local expiry reminders                                    |
-| `expo-location`                                                                             | The phone's position, and geocoding suburbs and addresses |
-| `expo-secure-store`                                                                         | Recipe API keys                                           |
-| `@react-native-async-storage/async-storage`                                                 | The inventory and recipes                                 |
-| `@react-native-community/datetimepicker`                                                    | The expiry date calendar                                  |
-| `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets`          | Swipe actions on inventory rows                           |
-| `react-native-safe-area-context`, `react-native-screens`                                    | Safe areas and native screens                             |
-| `@expo/vector-icons`                                                                        | Ionicons                                                  |
-| `lucide-react-native`, `react-native-svg`                                                   | Lucide outline icons and their SVG rendering              |
-| `@expo-google-fonts/fredoka`, `expo-font`                                                   | Fredoka font files and font loading                       |
-| `expo-splash-screen`, `expo-status-bar`, `expo-system-ui`, `expo-constants`, `expo-linking` | Standard Expo app plumbing                                |
-| `react-native-web`, `react-dom`                                                             | The best-effort web build                                 |
-| Dev: `jest`, `jest-expo`, `@testing-library/react-native`                                   | Unit and screen tests                                     |
-| Dev: `typescript`, `eslint` (`eslint-config-expo`), `prettier`                              | Type checking, linting and formatting                     |
+The versions are the ranges in `app/package.json`. The exact versions installed are pinned in `app/package-lock.json`, so `npm install` gives everyone the same ones.
+
+| Library                                                                                                          | Version                                                              | Used for                                                  |
+| ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | --------------------------------------------------------- |
+| `expo` (SDK 58), `react-native`, `react`                                                                         | `~58.0.19`, `0.88.0`, `19.3.0`                                       | The app framework                                         |
+| `expo-router`                                                                                                    | `~58.0.26`                                                           | File-based navigation and the tab bar                     |
+| `expo-camera`                                                                                                    | `~58.0.12`                                                           | Barcode scanning                                          |
+| `expo-notifications`                                                                                             | `~58.1.6`                                                            | Local expiry reminders                                    |
+| `expo-location`                                                                                                  | `~58.0.19`                                                           | The phone's position, and geocoding suburbs and addresses |
+| `expo-secure-store`                                                                                              | `~58.0.2`                                                            | Recipe API keys                                           |
+| `@react-native-async-storage/async-storage`                                                                      | `2.2.0`                                                              | The inventory and recipes                                 |
+| `@react-native-community/datetimepicker`                                                                         | `9.2.1`                                                              | The expiry date calendar                                  |
+| `react-native-gesture-handler`, `react-native-reanimated`, `react-native-worklets`                               | `~3.3.0`, `4.7.1`, `0.13.0`                                          | Swipe actions on inventory rows                           |
+| `react-native-safe-area-context`, `react-native-screens`                                                         | `~5.10.1`, `~4.30.0`                                                 | Safe areas and native screens                             |
+| `@expo/vector-icons`                                                                                             | `^15.0.3`                                                            | Ionicons                                                  |
+| `lucide-react-native`, `react-native-svg`                                                                        | `^1.61.0`, `15.16.0`                                                 | Lucide outline icons and their SVG rendering              |
+| `@expo-google-fonts/fredoka`, `expo-font`                                                                        | `^0.4.1`, `~58.0.10`                                                 | Fredoka font files and font loading                       |
+| `expo-splash-screen`, `expo-status-bar`, `expo-system-ui`, `expo-constants`, `expo-linking`, `expo-modules-core` | `~58.0.11`, `~58.0.4`, `~58.0.6`, `~58.0.13`, `~58.0.14`, `~58.0.26` | Standard Expo app plumbing                                |
+| `react-native-web`, `react-dom`                                                                                  | `~0.21.4`, `19.3.0`                                                  | The best-effort web build                                 |
+| Dev: `jest`, `jest-expo`, `@testing-library/react-native`                                                        | `~30.5.2`, `~58.0.12`, `^14.0.1`                                     | Unit and screen tests                                     |
+| Dev: `typescript`, `@types/react`, `@types/jest`                                                                 | `~6.0.3`, `~19.3.0`, `^30.0.0`                                       | Type checking                                             |
+| Dev: `eslint`, `eslint-config-expo`, `eslint-config-prettier`, `eslint-import-resolver-typescript`               | `^9.39.5`, `~58.0.4`, `^10.1.8`, `^4.4.5`                            | Linting with the Expo rules, leaving layout to Prettier   |
+| Dev: `prettier`                                                                                                  | `^3.9.6`                                                             | Formatting                                                |
 
 ## Extending the app
 
@@ -376,7 +435,7 @@ None of the tests need an API key or an internet connection.
 ## Project structure
 
 ```
-userguide/            the user guide, with its screenshots in userguide/images/
+userguide/            the user guide; its screenshots and the test barcode photos are in userguide/images/
 app/                  Expo project (run every command from here)
   src/app/            screens and routes
   src/components/     shared UI: the item form, inventory row, recipe cards
@@ -430,6 +489,18 @@ Two suggestions were not adopted:
 
 - **A photo of each item (P4).** Photos of two identical products look the same, and the added date answers the same question.
 - **A dietary option (P3).** It is outside our SDG 12 goal.
+
+### How the final design differs from the paper prototype
+
+The paper prototype covered one path: scan a yoghurt, save it, get a reminder and find a recipe. Building the whole app, and the redesign in its final week, changed these screens:
+
+| In the paper prototype                                                                                                                              | In the final app, and why                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A **Scan item** button on the inventory led to a choice of scan or manual entry, then separate Product found, Confirm expiry and Item saved screens | The round button in the middle of the tab bar opens the camera from any tab, and a scan opens one form with the product, the estimated date and the reminder filled in. **Type it in instead** on the camera replaces the choice screen. Adding food is what a student does after every shop, so it now takes two screens instead of five |
+| One inventory list, ordered by expiry                                                                                                               | Home has Fridge, Freezer and Pantry tabs, each ordered by expiry, and each row has an icon for its category. The tabs match where the food is actually kept, so each list is shorter and easier to check                                                                                                                                  |
+| **Find recipe** on one item, and a recipe's full steps left for later                                                                               | A Recipes tab with every item in a checklist, the eat-soon food ticked, since a meal usually uses several foods. Each recipe has its own page with the steps and buttons to mark its food eaten or wasted, so cooking it updates the inventory and the summary in one place                                                               |
+| **Find donation point** on the item, with no screen designed behind it                                                                              | A page for each place with its opening hours, directions and the in-date food you have, to tick and mark as donated. You can check it is open before going, and donated food is counted like eaten food                                                                                                                                   |
+| No summary screen                                                                                                                                   | A Summary tab for the week or the month, with a day-by-day chart for the week, so a student can see how much they saved and threw away, which is the point of our SDG 12 goal                                                                                                                                                             |
 
 ## Known limitations and TODO
 
