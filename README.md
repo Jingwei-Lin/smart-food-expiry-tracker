@@ -1,17 +1,43 @@
 # Smart Food Expiry Tracker
 
-**Group:** COMP5216-2026-GP-23 · **Release:** `v2.0`, the final submission (`v1.0` was the Phase 2 mid-progress release)
+A React Native app that helps university students waste less food. Scan your groceries, get reminded before they
+go off, cook AI-suggested recipes with what needs using up, and donate what you can't finish.
 
-**SDG Goal 12: Responsible consumption and production**
+**Stack:** TypeScript · React Native 0.88 (Expo SDK 58) · React 19 · Jest + React Native Testing Library ·
+Gemini / DeepSeek / OpenAI APIs · Open Food Facts · OpenStreetMap
 
-An app that helps university students waste less food by taking the effort out of tracking groceries. Built with Expo SDK 58, React Native 0.88 and React 19.3, and tested on iOS and Android through Expo Go.
+Built by a team of four for COMP5216 Mobile Computing at the University of Sydney (Sep – Oct 2026), around
+UN SDG 12: Responsible consumption and production. Tested on iOS and Android through Expo Go.
+
+<p>
+  <img src="userguide/images/01-home.png" width="190" alt="Home screen with Fridge, Freezer and Pantry tabs">
+  <img src="userguide/images/02-scan.gif" width="190" alt="Scanning a product barcode">
+  <img src="userguide/images/12-recipes.gif" width="190" alt="Getting AI recipe suggestions">
+  <img src="userguide/images/09-summary.png" width="190" alt="Weekly waste summary">
+</p>
 
 You scan a product's barcode when you unpack your shopping, and the app fills in the product and estimates when it will go off. It reminds you before the food spoils and suggests recipes for whatever needs using up. For anything you can't finish in time, it points you to a nearby donation point, and a weekly summary shows what you ate, donated and threw away.
 
 **New to the app?** The [user guide](userguide/README.md) shows how to use it, step by step, with screenshots.
 
+## My contribution
+
+I was the top contributor, with 79 of the 166 commits. My work:
+
+- **Expiry reminders:** 1 to 7 days' notice plus a reminder on the expiry day.
+  - Reminders are rescheduled on every edit, resolve and delete, and tapping one opens the item.
+  - The item screen shows only the reminders that are actually set.
+- **AI recipe suggestions (second half):**
+  - Added the Gemini and Matilda providers, with checks on every AI reply.
+  - Saved recipes, and the last suggestions come back after a restart.
+  - The recipe page marks the food it uses as eaten or wasted.
+- **Accessibility:** labels and roles for VoiceOver and TalkBack, keeping each button's visible words as its label.
+- **Testing:** screen tests for the Home, item, recipes, recipe detail and summary screens, with stable timing on a fixed clock.
+- **Documentation:** the illustrated [user guide](userguide/README.md) and much of this README.
+
 **Contents:**
 
+- [My contribution](#my-contribution)
 - [Key features](#key-features)
 - [Getting started](#getting-started)
 - [Demo account and test data](#demo-account-and-test-data)
