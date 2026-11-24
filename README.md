@@ -1,5 +1,7 @@
 # Smart Food Expiry Tracker
 
+[![CI](https://github.com/Jingwei-Lin/smart-food-expiry-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/Jingwei-Lin/smart-food-expiry-tracker/actions/workflows/ci.yml)
+
 A React Native app that helps university students waste less food. Scan your groceries, get reminded before they
 go off, cook AI-suggested recipes with what needs using up, and donate what you can't finish.
 
@@ -435,7 +437,7 @@ The versions are the ranges in `app/package.json`. The exact versions installed 
 
 ## Tests and checks
 
-Run these checks from `app/`:
+GitHub Actions runs all four checks on every push and pull request. To run them yourself, from `app/`:
 
 ```bash
 npm test             # Unit and screen tests

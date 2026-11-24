@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  checks:
+    name: Tests, types, lint and format
+    runs-on: ubuntu-latest
+    env:
+      # the tests were written and run in Sydney; keep dates the same on the runner
+      TZ: Australia/Sydney
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Unit and screen tests
+        run: npm test -- --ci
+      - name: Type check
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Format check
+        run: npm run format:check
